@@ -230,7 +230,7 @@ $('btn-save-settings').addEventListener('click', async () => {
 });
 
 // undo toast — every undoable action lands here, with its own channel + a draining countdown bar
-let undoToastT = null, undoEndMs = 0, undoHover = false;
+let undoToastT = null;
 const undoActionFor = kind => kind === 'delete' ? window.api.undoDelete : kind === 'toggle' ? window.api.undoToggle : window.api.undoComplete;
 function runUndoToastProgress(ms) {
   const fill = document.querySelector('#undo-toast .undo-fill');
@@ -246,7 +246,6 @@ window.api.onShowUndo(d => {
   const toast = $('undo-toast');
   clearInterval(undoToastT);
   let left = d.left;
-  undoEndMs = Date.now() + left * 1000;
   const verb = d.kind === 'delete' ? 'Deleted' : d.kind === 'toggle' ? (d.starring ? 'Starred' : 'Unstarred') : 'Completed';
   toast.innerHTML = `<span class="undo-label">${verb}: ${esc(d.label)}</span>
     <button data-undo type="button">Undo</button><span class="undo-count">${left}s</span>
@@ -263,33 +262,6 @@ window.api.onShowUndo(d => {
     const c = toast.querySelector('.undo-count');
     if (left <= 0) { toast.hidden = true; clearInterval(undoToastT); }
     else if (c) c.textContent = left + 's';
-  }, 1000);
-});
-$('undo-toast').addEventListener('mouseenter', () => {
-  undoHover = true;
-  clearInterval(undoToastT);
-  const fill = document.querySelector('#undo-toast .undo-fill');
-  if (fill) {
-    const pct = fill.parentElement.offsetWidth ? fill.offsetWidth / fill.parentElement.offsetWidth * 100 : 0;
-    fill.style.transition = 'none';
-    fill.style.width = pct + '%';
-  }
-});
-$('undo-toast').addEventListener('mouseleave', () => {
-  if (!undoHover) return;
-  undoHover = false;
-  const toast = $('undo-toast');
-  const remain = Math.max(0, Math.round((undoEndMs - Date.now()) / 1000));
-  if (remain <= 0) { toast.hidden = true; return; }
-  let left = remain;
-  const c = toast.querySelector('.undo-count');
-  if (c) c.textContent = left + 's';
-  runUndoToastProgress(remain * 1000);
-  undoToastT = setInterval(() => {
-    left--;
-    const cc = toast.querySelector('.undo-count');
-    if (left <= 0) { toast.hidden = true; clearInterval(undoToastT); }
-    else if (cc) cc.textContent = left + 's';
   }, 1000);
 });
 

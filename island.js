@@ -78,8 +78,8 @@ function renderUndo() {
     else if (c) c.textContent = undoLeft + 's';
   }, 1000);
 }
-// countdown bar — drains over the undo window, pauses while the cursor rests on it
-let undoEndT = null, undoEndMs = 0, undoHover = false;
+// countdown bar — drains over the undo window, always ticking (hover-pause is a dismiss-bar-only idea)
+let undoEndT = null;
 function runUndoProgress(ms) {
   const fill = document.querySelector('#undo-bar .undo-fill');
   if (!fill) return;
@@ -90,36 +90,8 @@ function runUndoProgress(ms) {
     fill.style.width = '0%';
   }));
   clearTimeout(undoEndT);
-  undoEndT = setTimeout(() => { if (!undoHover) { document.getElementById('undo-bar').hidden = true; clearInterval(undoT); } }, ms);
+  undoEndT = setTimeout(() => { document.getElementById('undo-bar').hidden = true; clearInterval(undoT); }, ms);
 }
-document.getElementById('undo-bar').addEventListener('mouseenter', () => {
-  undoHover = true;
-  clearTimeout(undoEndT);
-  const fill = document.querySelector('#undo-bar .undo-fill');
-  if (fill) {
-    const pct = fill.parentElement.offsetWidth ? fill.offsetWidth / fill.parentElement.offsetWidth * 100 : 0;
-    fill.style.transition = 'none';
-    fill.style.width = pct + '%';
-  }
-  clearInterval(undoT); // text counter freezes too
-});
-document.getElementById('undo-bar').addEventListener('mouseleave', () => {
-  if (!undoHover) return;
-  undoHover = false;
-  const remain = Math.max(0, Math.round((undoEndMs - Date.now()) / 1000));
-  const bar = document.getElementById('undo-bar');
-  if (remain <= 0) { bar.hidden = true; return; }
-  undoLeft = remain;
-  const c = bar.querySelector('.undo-count');
-  if (c) c.textContent = undoLeft + 's';
-  runUndoProgress(remain * 1000);
-  undoT = setInterval(() => {
-    undoLeft--;
-    const cc = bar.querySelector('.undo-count');
-    if (undoLeft <= 0) { bar.hidden = true; clearInterval(undoT); }
-    else if (cc) cc.textContent = undoLeft + 's';
-  }, 1000);
-});
 
 function render() {
   if (!snap) return;
