@@ -38,7 +38,23 @@ try {
 }
 
 let tray = null, island = null, mainWin = null;
-let lastUndo = null; // {kind:'complete', file, cap, label, expires}
+// in-memory undo log — one entry per interaction, tokened, countdown-driven cleanup.
+// entries live ONLY for the undo window: each popup fires undo-expire(token) when its countdown ends,
+// undo-action(token) consumes its entry; pushUndo lazily drops anything expired. Nothing on disk.
+const undoLog = new Map();
+function pushUndo(entry) {
+  const now = Date.now();
+  for (const [k, v] of undoLog) if (v.expires <= now) undoLog.delete(k); // lazy expiry — the only sweeper
+  const token = now.toString(36) + Math.random().toString(36).slice(2, 7);
+  undoLog.set(token, entry);
+  return token;
+}
+function latestUndo() {
+  const now = Date.now();
+  let best = null, bestToken = null;
+  for (const [k, v] of undoLog) if (v.expires > now && (!best || v.expires > best.expires)) { best = v; bestToken = k; }
+  return best ? { token: bestToken, ...best } : null;
+}
 
 function workFile() { return new NoteFile(state.settings.workPath, { doneHeading: '## Done', fileTag: 'work' }); }
 function personalFile() { return new NoteFile(state.settings.personalPath, { fileTag: 'personal' }); }
@@ -109,8 +125,9 @@ function snapshot() {
   const sections = inWorkday()
     ? [{ name: 'Work', items: work.items }, { name: 'Personal', items: personal.items }]
     : [{ name: 'Personal', items: personal.items }, { name: 'Work', items: work.items }];
-  const undo = lastUndo && Date.now() < lastUndo.expires
-    ? { kind: lastUndo.kind, label: lastUndo.label, starring: lastUndo.kind === 'toggle' ? lastUndo.prev === false : undefined, left: Math.max(0, Math.round((lastUndo.expires - Date.now()) / 1000)) }
+  const lu = latestUndo();
+  const undo = lu
+    ? { token: lu.token, kind: lu.kind, label: lu.label, starring: lu.kind === 'toggle' ? lu.prev === false : undefined, left: Math.max(0, Math.round((lu.expires - Date.now()) / 1000)) }
     : null;
   return { sections, errors, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, undo };
 }
@@ -239,16 +256,8 @@ ipcMain.handle('toggle-active', (_e, id, file) => {
   const prev = t.active;
   const label = t.title.replace(/\*\*/g, '');
   f.toggleActive(id); f.save();
-  lastUndo = { kind: 'toggle', file, id, prev, label, expires: Date.now() + state.settings.undoSec * 1000 };
-  sendSnap(); pushUndoToWindow();
-  if (mainWin) mainWin.webContents.send('tasks-changed');
-});
-ipcMain.handle('undo-toggle', () => {
-  if (!lastUndo || lastUndo.kind !== 'toggle' || Date.now() > lastUndo.expires) return;
-  const f = fileFor(lastUndo.file);
-  const t = f.findById(lastUndo.id);
-  if (t) { t.active = lastUndo.prev; t.dirty = true; f.save(); }
-  lastUndo = null; sendSnap();
+  const token = pushUndo({ kind: 'toggle', file, id, prev, label, expires: Date.now() + state.settings.undoSec * 1000 });
+  sendSnap(); pushUndoToWindow(token);
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
 ipcMain.handle('toggle-subtask', (_e, file, parentId, subTitle) => {
@@ -256,9 +265,16 @@ ipcMain.handle('toggle-subtask', (_e, file, parentId, subTitle) => {
   f.toggleSubtask(parentId, subTitle); f.save();
   sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
 });
-function pushUndoToWindow() {
-  if (mainWin && lastUndo && Date.now() < lastUndo.expires) {
-    mainWin.webContents.send('show-undo', { label: lastUndo.label, left: Math.max(0, Math.round((lastUndo.expires - Date.now()) / 1000)) });
+function pushUndoToWindow(token) {
+  const e = token && undoLog.get(token);
+  if (mainWin && e) {
+    mainWin.webContents.send('show-undo', {
+      token,
+      kind: e.kind, // without kind the window's Undo button picked the wrong channel — that bug is dead
+      label: e.label,
+      starring: e.kind === 'toggle' ? e.prev === false : undefined,
+      left: Math.max(0, Math.round((e.expires - Date.now()) / 1000))
+    });
   }
 }
 ipcMain.handle('complete', (_e, id, file) => {
@@ -266,17 +282,30 @@ ipcMain.handle('complete', (_e, id, file) => {
   const cap = f.captureBlock(id);
   const t = f.findById(id);
   f.complete(id); f.save();
-  lastUndo = cap ? { kind: 'complete', file, cap, label: (t ? t.title.replace(/\*\*/g, '') : 'task'), expires: Date.now() + state.settings.undoSec * 1000 } : null;
-  saveState(); sendSnap(); pushUndoToWindow();
+  if (cap) {
+    const token = pushUndo({ kind: 'complete', file, cap, label: (t ? t.title.replace(/\*\*/g, '') : 'task'), expires: Date.now() + state.settings.undoSec * 1000 });
+    pushUndoToWindow(token);
+  }
+  saveState(); sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
-ipcMain.handle('undo-complete', () => {
-  if (!lastUndo || lastUndo.kind !== 'complete' || Date.now() > lastUndo.expires) return;
-  const f = fileFor(lastUndo.file);
-  f.restoreBlock(lastUndo.cap); f.save();
-  lastUndo = null; sendSnap();
+// one-shot undo: each popup knows its token; rollback is exact (captured lines back at the captured index)
+ipcMain.handle('undo-action', (_e, token) => {
+  const e = undoLog.get(token);
+  if (!e || Date.now() > e.expires) { undoLog.delete(token); return { ok: false }; }
+  undoLog.delete(token); // one-time — consumed
+  const f = fileFor(e.file);
+  if (e.kind === 'toggle') {
+    const t = f.findById(e.id);
+    if (t) { t.active = e.prev; t.dirty = true; f.save(); }
+  } else {
+    f.restoreBlock(e.cap); f.save(); // complete / delete / reorder all roll back via the captured block
+  }
+  sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
+  return { ok: true };
 });
+ipcMain.handle('undo-expire', (_e, token) => { undoLog.delete(token); }); // fired by the popup's own countdown — memory released with the bubble
 ipcMain.handle('get-snapshot', () => snapshot());
 ipcMain.handle('open-editor', (_e, file, id) => openEditor(file, id));
 ipcMain.handle('save-settings', (_e, s) => {
@@ -315,9 +344,15 @@ ipcMain.handle('update-task', (_e, file, id, patch) => {
     } else due = null;
   }
   const t = f.findById(id);
+  const starToggled = t && patch.active !== undefined && !!patch.active !== !!t.active; // editor's ★ path counts as a star interaction
   f.update(id, { title: patch.title, priority: patch.priority, due, active: patch.active });
   if (patch.desc !== undefined) f.setNotes(id, patch.desc);
-  f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
+  f.save();
+  if (starToggled && t) {
+    const token = pushUndo({ kind: 'toggle', file, id: f.id(t), prev: !patch.active, label: t.title.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
+    pushUndoToWindow(token);
+  }
+  sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return t ? { id: f.id(t) } : { id: null }; // id may change — editor adopts the new one
 });
 ipcMain.handle('add-task', (_e, file, data) => {
@@ -333,17 +368,10 @@ ipcMain.handle('add-subtask', (_e, file, parentId, title) => {
 });
 ipcMain.handle('delete-task', (_e, id, file) => {
   const f = fileFor(file);
-  const cap = f.deleteTask(id);
+  const cap = f.deleteTask(id); // cap captured BEFORE the splice — exact rollback material
   if (!cap) return;
-  lastUndo = { kind: 'delete', file, cap, label: (cap.title || 'task').replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 };
-  f.save(); sendSnap(); pushUndoToWindow();
-  if (mainWin) mainWin.webContents.send('tasks-changed');
-});
-ipcMain.handle('undo-delete', () => {
-  if (!lastUndo || lastUndo.kind !== 'delete' || Date.now() > lastUndo.expires) return;
-  const f = fileFor(lastUndo.file);
-  f.restoreBlock(lastUndo.cap); f.save();
-  lastUndo = null; sendSnap();
+  const token = pushUndo({ kind: 'delete', file, cap, label: (cap.title || 'task').replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
+  f.save(); sendSnap(); pushUndoToWindow(token);
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
 ipcMain.handle('delete-subtask', (_e, file, parentId, title) => {
@@ -363,7 +391,12 @@ ipcMain.handle('move-task', (_e, file, id, dir) => {
 });
 ipcMain.handle('reorder-task', (_e, file, id, beforeId) => {
   const f = fileFor(file);
+  const cap = f.captureBlock(id); // previous position + lines — rollback material for the reorder
   f.reorderTask(id, beforeId || null); f.save(); sendSnap();
+  if (cap) {
+    const token = pushUndo({ kind: 'reorder', file, cap, label: cap.title.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
+    pushUndoToWindow(token);
+  }
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
 ipcMain.handle('clear-done', (_e, file) => {
@@ -409,40 +442,23 @@ else {
     registerShortcut();
     LOG('TRAY-READY');
     setTimeout(showIsland, 1500); // one shakedown pop at launch
-    if (process.env.TODO_ISLAND_DEBUG) {
-      setTimeout(() => {
-        openWindow();
-        setTimeout(() => {
-          mainWin && mainWin.webContents
-            .executeJavaScript(`(async function(){
-              document.getElementById('tab-personal').click();
-              await new Promise(r => setTimeout(r, 400));
-              const list = document.getElementById('task-list');
-              const pane = document.querySelector('.list-pane');
-              const row = document.querySelector('.wrow');
-              const title = document.querySelector('.wtitle');
-              const main = document.querySelector('.wrow-main');
-              const cs = el => el ? {
-                display: getComputedStyle(el).display, flex: getComputedStyle(el).flex,
-                minWidth: getComputedStyle(el).minWidth, overflow: getComputedStyle(el).overflow,
-                whiteSpace: getComputedStyle(el).whiteSpace, width: getComputedStyle(el).width,
-                sw: el.scrollWidth, cw: el.clientWidth
-              } : null;
-              const rows = [...document.querySelectorAll('.wrow')];
-              const badRows = rows.filter(r => r.scrollWidth > r.clientWidth + 1);
-              const titles = [...document.querySelectorAll('.wtitle')];
-              const badTitles = titles.filter(t => t.scrollWidth > t.clientWidth + 1 && getComputedStyle(t).overflow !== 'hidden');
-              return JSON.stringify({
-                bodySW: document.body.scrollWidth, bodyCW: document.body.clientWidth,
-                paneSW: pane.scrollWidth, paneCW: pane.clientWidth,
-                rowCount: rows.length, badRows: badRows.length,
-                longTitleClamped: titles.some(t => t.scrollWidth > t.clientWidth) && badTitles.length === 0
-              });
-            })()`)
-            .then(r => LOG('DIAG: ' + r))
-            .catch(e => LOG('DIAG-ERR: ' + e.message));
-        }, 2500);
-      }, 1500);
+    if (process.env.TODO_ISLAND_UNDO_TEST) {
+      setTimeout(async () => {
+        try {
+          openWindow();
+          await new Promise(r => setTimeout(r, 1800));
+          const step = (name, js) => mainWin.webContents.executeJavaScript(js)
+            .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
+          const undoClick = `const b=document.querySelector('#undo-toast [data-undo]'); if(!b) return 'no-toast'; b.click();`;
+          await step('complete+undo', `(async()=>{ const c=document.querySelector('.wrow .chk'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
+          await step('delete+undo', `(async()=>{ const d=document.querySelector('.wtrash'); if(!d) return 'no-trash'; d.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
+          const iStep = (name, js) => island.webContents.executeJavaScript(js)
+            .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
+          await iStep('island-star+undo', `(async()=>{ const row=document.querySelector('#body .row'); if(!row) return 'no-row'; row.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(r=>setTimeout(r,900)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
+          await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
+          LOG('UTEST-END undoLogSize=' + undoLog.size);
+        } catch (e) { LOG('UTEST-FATAL ' + e.message); }
+      }, 2500);
     }
   });
   app.on('window-all-closed', e => e.preventDefault()); // tray keeps living

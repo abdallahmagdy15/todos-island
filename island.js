@@ -47,11 +47,8 @@ function pauseDismiss() {
   bar.style.width = full ? (px / full * 100) + '%' : '0%';
 }
 
-function undoActionFor(kind) {
-  return kind === 'delete' ? window.api.undoDelete : kind === 'toggle' ? window.api.undoToggle : window.api.undoComplete;
-}
 function undoTextFor(u) {
-  const verb = u.kind === 'delete' ? 'Deleted' : u.kind === 'toggle' ? (u.starring ? 'Starred' : 'Unstarred') : 'Completed';
+  const verb = u.kind === 'delete' ? 'Deleted' : u.kind === 'toggle' ? (u.starring ? 'Starred' : 'Unstarred') : u.kind === 'reorder' ? 'Reordered' : 'Completed';
   return `${verb}: ${u.label}`;
 }
 function renderUndo() {
@@ -59,8 +56,8 @@ function renderUndo() {
   clearInterval(undoT);
   clearTimeout(undoEndT);
   if (!snap.undo) { bar.hidden = true; return; }
+  const myToken = snap.undo.token;
   undoLeft = snap.undo.left;
-  undoEndMs = Date.now() + undoLeft * 1000;
   bar.innerHTML = `<span class="undo-label">${esc(undoTextFor(snap.undo))}</span>
     <button data-undo>Undo</button><span class="undo-count">${undoLeft}s</span>
     <span class="undo-progress"><span class="undo-fill"></span></span>`;
@@ -68,13 +65,13 @@ function renderUndo() {
   runUndoProgress(undoLeft * 1000);
   bar.querySelector('[data-undo]').addEventListener('click', () => {
     window.SFX.play('undo');
-    undoActionFor(snap.undo.kind)();
+    window.api.undoAction(myToken);
     bar.hidden = true; clearInterval(undoT); clearTimeout(undoEndT);
   });
   undoT = setInterval(() => {
     undoLeft--;
     const c = bar.querySelector('.undo-count');
-    if (undoLeft <= 0) { bar.hidden = true; clearInterval(undoT); }
+    if (undoLeft <= 0) { bar.hidden = true; clearInterval(undoT); window.api.undoExpire(myToken); } // bubble gone → memory released
     else if (c) c.textContent = undoLeft + 's';
   }, 1000);
 }

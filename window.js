@@ -229,9 +229,8 @@ $('btn-save-settings').addEventListener('click', async () => {
   setTimeout(() => { $('set-saved').hidden = true; }, 1500);
 });
 
-// undo toast — every undoable action lands here, with its own channel + a draining countdown bar
+// undo toast — each action carries its own token; countdown end releases the entry from memory
 let undoToastT = null;
-const undoActionFor = kind => kind === 'delete' ? window.api.undoDelete : kind === 'toggle' ? window.api.undoToggle : window.api.undoComplete;
 function runUndoToastProgress(ms) {
   const fill = document.querySelector('#undo-toast .undo-fill');
   if (!fill) return;
@@ -246,7 +245,7 @@ window.api.onShowUndo(d => {
   const toast = $('undo-toast');
   clearInterval(undoToastT);
   let left = d.left;
-  const verb = d.kind === 'delete' ? 'Deleted' : d.kind === 'toggle' ? (d.starring ? 'Starred' : 'Unstarred') : 'Completed';
+  const verb = d.kind === 'delete' ? 'Deleted' : d.kind === 'toggle' ? (d.starring ? 'Starred' : 'Unstarred') : d.kind === 'reorder' ? 'Reordered' : 'Completed';
   toast.innerHTML = `<span class="undo-label">${verb}: ${esc(d.label)}</span>
     <button data-undo type="button">Undo</button><span class="undo-count">${left}s</span>
     <span class="undo-progress"><span class="undo-fill"></span></span>`;
@@ -254,13 +253,13 @@ window.api.onShowUndo(d => {
   runUndoToastProgress(left * 1000);
   toast.querySelector('[data-undo]').addEventListener('click', async () => {
     window.SFX.play('undo');
-    await undoActionFor(d.kind)();
+    await window.api.undoAction(d.token);
     toast.hidden = true; clearInterval(undoToastT);
   });
   undoToastT = setInterval(() => {
     left--;
     const c = toast.querySelector('.undo-count');
-    if (left <= 0) { toast.hidden = true; clearInterval(undoToastT); }
+    if (left <= 0) { toast.hidden = true; clearInterval(undoToastT); window.api.undoExpire(d.token); } // bubble gone → log entry released
     else if (c) c.textContent = left + 's';
   }, 1000);
 });
