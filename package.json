@@ -1,6 +1,6 @@
 {
   "name": "todos-island",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Dynamic-Island-style todo reminder tray app — reads your plain-markdown todo notes, shows them as a top-of-screen island",
   "main": "main.js",
@@ -38,6 +38,9 @@
       "island.js",
       "window.js",
       "editor.js",
+      "share.js",
+      "share.html",
+      "share.css",
       "sfx.js",
       "package.json",
       "LICENSE"

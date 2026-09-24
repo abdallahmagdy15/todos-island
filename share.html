@@ -1,0 +1,32 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Share progress</title>
+<link rel="stylesheet" href="window.css">
+<link rel="stylesheet" href="share.css">
+</head>
+<body>
+  <header>
+    <span class="logo"><span class="dot"></span> Share progress</span>
+    <span id="share-note" class="note-inline">pick tasks → copy or export</span>
+  </header>
+  <main id="share-list"></main>
+  <footer>
+    <div class="left">
+      <button id="sel-all" class="btn-soft sm" type="button">Select all</button>
+      <button id="sel-clear" class="btn-soft sm" type="button">Clear</button>
+    </div>
+    <div class="right">
+      <div class="seg" id="fmt-seg">
+        <button class="seg-btn sel" data-fmt="wa" type="button">WhatsApp</button>
+        <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
+      </div>
+      <button id="btn-copy" class="btn-accent" type="button">Copy</button>
+      <button id="btn-export" class="btn-soft" type="button">Export .md</button>
+    </div>
+  </footer>
+  <script src="sfx.js"></script>
+  <script src="share.js"></script>
+</body>
+</html>
