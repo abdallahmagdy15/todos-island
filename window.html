@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Todo Island — Tasks</title>
+<link rel="stylesheet" href="window.css">
+</head>
+<body>
+  <header>
+    <span class="logo"><span class="dot"></span> Todo Island</span>
+    <nav>
+      <button id="tab-work" class="tab active">Work</button>
+      <button id="tab-personal" class="tab">Personal</button>
+      <button id="tab-done" class="tab">Done</button>
+      <button id="tab-settings" class="tab">Settings</button>
+    </nav>
+  </header>
+
+  <main>
+    <section id="view-tasks">
+      <div class="list-pane">
+        <input id="search" type="text" placeholder="Search…" spellcheck="false" autocomplete="off" aria-label="Search tasks">
+        <div id="task-list"></div>
+        <div class="new-task">
+          <textarea id="new-title" rows="1" spellcheck="false" placeholder="New task… (first line = title, lines below = description)"></textarea>
+          <div class="new-task-controls">
+            <div class="chips" id="new-prio"></div>
+            <button class="chip mini" id="btn-today" type="button">Today</button>
+            <button class="chip mini" id="btn-tomorrow" type="button">Tomorrow</button>
+            <input id="new-day" type="number" min="1" max="31" placeholder="Day">
+            <select id="new-month"></select>
+            <button id="btn-add" class="btn-accent"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-settings" hidden>
+      <div class="settings-card">
+        <h2>Reminder</h2>
+        <label>Interval (minutes)
+          <input id="set-interval" type="number" min="5" max="240" step="5">
+        </label>
+        <label>Workday start
+          <input id="set-start" type="time">
+        </label>
+        <label>Workday end
+          <input id="set-end" type="time">
+        </label>
+        <label>Auto-dismiss island after (seconds)
+          <input id="set-dismiss" type="number" min="5" max="600" step="5">
+        </label>
+        <label>Undo window (seconds)
+          <input id="set-undo" type="number" min="5" max="120" step="5">
+        </label>
+        <label>Task hover-unfold delay (seconds)
+          <input id="set-hover" type="number" min="0.5" max="10" step="0.5">
+        </label>
+        <label>Show-island shortcut
+          <input id="set-shortcut" type="text" placeholder="Control+Alt+T">
+        </label>
+        <p class="note">Outside the workday the island stays quiet (personal tasks lead after hours).
+          Work tasks always rank first during the day. Shortcut uses Electron accelerator format, e.g. Control+Alt+T.</p>
+        <label class="check-row"><input id="set-weekend" type="checkbox"> Weekend aware (stay quiet Sat/Sun)</label>
+        <label class="check-row"><input id="set-autostart" type="checkbox"> Start with Windows</label>
+        <label class="check-row"><input id="set-sound" type="checkbox"> Sound when island shows</label>
+        <div class="btn-row">
+          <button id="btn-open-work" class="btn-soft" type="button">Open work note</button>
+          <button id="btn-open-personal" class="btn-soft" type="button">Open personal note</button>
+          <button id="btn-clear-done" class="btn-danger" type="button">Clear Done</button>
+        </div>
+        <h2 class="mt">Source files</h2>
+        <label>Work note path
+          <input id="set-work" type="text" class="full">
+        </label>
+        <label>Personal note path
+          <input id="set-personal" type="text" class="full">
+        </label>
+        <div class="save-bar">
+          <button id="btn-save-settings" class="btn-accent">Save settings</button>
+          <span id="set-saved" class="saved" hidden>Saved ✓</span>
+          <span id="set-err" class="err" hidden></span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="undo-toast" hidden></div>
+  <script src="window.js"></script>
+</body>
+</html>

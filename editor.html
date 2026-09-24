@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Quick edit</title>
+<link rel="stylesheet" href="window.css">
+<link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <header>
+    <span class="logo"><span class="dot"></span> Quick edit</span>
+    <span id="ed-badge" class="badge"></span>
+  </header>
+  <main id="ed-main">
+    <p class="empty" id="ed-missing" hidden>Task not found — it may have been completed or removed.</p>
+    <div id="ed-form" hidden>
+      <div class="field"><label>Task <span class="label-hint">— first line is the title, lines below become its description</span></label>
+        <textarea id="ed-title" rows="1" spellcheck="false"></textarea>
+      </div>
+      <div class="field"><label>Priority</label>
+        <div class="chips" id="ed-prio"></div>
+      </div>
+      <div class="field"><label>State</label>
+        <div class="chips">
+          <button class="chip" id="ed-active" type="button">&#9733; Active now</button>
+        </div>
+      </div>
+      <div class="field"><label>Due (current year)</label>
+        <div class="due-row">
+          <input type="number" id="ed-day" min="1" max="31" placeholder="24">
+          <select id="ed-month"><option value="">Month…</option></select>
+          <button class="clear" id="ed-clear-due" type="button">Clear</button>
+        </div>
+      </div>
+      <div class="field"><label>Subtasks (add only)</label>
+        <ul class="subs-list" id="ed-subs"></ul>
+        <div class="addsub"><input type="text" id="ed-sub" placeholder="New subtask…"><button id="ed-addsub" type="button">Add</button></div>
+      </div>
+      <div class="save-bar">
+        <button class="btn-accent" id="ed-save" type="button">Save changes</button>
+        <button class="btn-complete" id="ed-complete" type="button">
+          <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Complete
+        </button>
+        <button class="btn-soft btn-icon" id="ed-up" type="button" title="Move up" aria-label="Move task up"><svg class="ic" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg></button>
+        <button class="btn-soft btn-icon" id="ed-down" type="button" title="Move down" aria-label="Move task down"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+        <button class="btn-danger" id="ed-delete" type="button">Delete</button>
+        <span class="saved" id="ed-saved" hidden>Saved ✓</span>
+      </div>
+    </div>
+  </main>
+  <script src="editor.js"></script>
+</body>
+</html>

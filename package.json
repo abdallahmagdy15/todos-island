@@ -1,0 +1,39 @@
+{
+  "name": "todos-island",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dynamic-Island-style todo reminder tray app — reads your plain-markdown todo notes, shows them as a top-of-screen island",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node lib/parse.test.js",
+    "icon": "node scripts/make-icon.js",
+    "dist": "electron-builder --win"
+  },
+  "author": "abdallahmagdy15",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abdallahmagdy15/todos-island.git"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "com.abdallahmagdy15.todos-island",
+    "productName": "Todos Island",
+    "directories": { "output": "dist", "buildResources": "build" },
+    "files": ["main.js", "lib/**", "scripts/**", "*.html", "*.css", "island-preload.js", "window-preload.js", "island.js", "window.js", "editor.js", "package.json", "LICENSE"],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "TodosIsland-Setup-${version}.${ext}"
+    }
+  }
+}
