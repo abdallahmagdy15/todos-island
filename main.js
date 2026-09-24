@@ -110,7 +110,7 @@ function snapshot() {
     ? [{ name: 'Work', items: work.items }, { name: 'Personal', items: personal.items }]
     : [{ name: 'Personal', items: personal.items }, { name: 'Work', items: work.items }];
   const undo = lastUndo && Date.now() < lastUndo.expires
-    ? { kind: lastUndo.kind, label: lastUndo.label, left: Math.max(0, Math.round((lastUndo.expires - Date.now()) / 1000)) }
+    ? { kind: lastUndo.kind, label: lastUndo.label, starring: lastUndo.kind === 'toggle' ? lastUndo.prev === false : undefined, left: Math.max(0, Math.round((lastUndo.expires - Date.now()) / 1000)) }
     : null;
   return { sections, errors, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, undo };
 }
@@ -234,8 +234,22 @@ ipcMain.on('hide-island', hideIsland);
 ipcMain.on('open-window', openWindow);
 ipcMain.handle('toggle-active', (_e, id, file) => {
   const f = fileFor(file);
+  const t = f.findById(id);
+  if (!t) return;
+  const prev = t.active;
+  const label = t.title.replace(/\*\*/g, '');
   f.toggleActive(id); f.save();
-  sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
+  lastUndo = { kind: 'toggle', file, id, prev, label, expires: Date.now() + state.settings.undoSec * 1000 };
+  sendSnap(); pushUndoToWindow();
+  if (mainWin) mainWin.webContents.send('tasks-changed');
+});
+ipcMain.handle('undo-toggle', () => {
+  if (!lastUndo || lastUndo.kind !== 'toggle' || Date.now() > lastUndo.expires) return;
+  const f = fileFor(lastUndo.file);
+  const t = f.findById(lastUndo.id);
+  if (t) { t.active = lastUndo.prev; t.dirty = true; f.save(); }
+  lastUndo = null; sendSnap();
+  if (mainWin) mainWin.webContents.send('tasks-changed');
 });
 ipcMain.handle('toggle-subtask', (_e, file, parentId, subTitle) => {
   const f = fileFor(file);

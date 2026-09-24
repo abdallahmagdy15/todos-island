@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('api', {
   complete: (id, file) => ipcRenderer.invoke('complete', id, file),
   undoComplete: () => ipcRenderer.invoke('undo-complete'),
   undoDelete: () => ipcRenderer.invoke('undo-delete'),
+  undoToggle: () => ipcRenderer.invoke('undo-toggle'),
   onPlaySound: cb => ipcRenderer.on('play-sound', () => cb()),
   openWindow: () => ipcRenderer.send('open-window'),
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),

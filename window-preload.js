@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('api', {
   undoComplete: () => ipcRenderer.invoke('undo-complete'),
   deleteTask: (id, file) => ipcRenderer.invoke('delete-task', id, file),
   undoDelete: () => ipcRenderer.invoke('undo-delete'),
+  undoToggle: () => ipcRenderer.invoke('undo-toggle'),
   deleteSubtask: (file, parentId, title) => ipcRenderer.invoke('delete-subtask', file, parentId, title),
   uncomplete: (id, file) => ipcRenderer.invoke('uncomplete-task', id, file),
   moveTask: (file, id, dir) => ipcRenderer.invoke('move-task', file, id, dir),

@@ -47,20 +47,29 @@ function pauseDismiss() {
   bar.style.width = full ? (px / full * 100) + '%' : '0%';
 }
 
+function undoActionFor(kind) {
+  return kind === 'delete' ? window.api.undoDelete : kind === 'toggle' ? window.api.undoToggle : window.api.undoComplete;
+}
+function undoTextFor(u) {
+  const verb = u.kind === 'delete' ? 'Deleted' : u.kind === 'toggle' ? (u.starring ? 'Starred' : 'Unstarred') : 'Completed';
+  return `${verb}: ${u.label}`;
+}
 function renderUndo() {
   const bar = document.getElementById('undo-bar');
   clearInterval(undoT);
+  clearTimeout(undoEndT);
   if (!snap.undo) { bar.hidden = true; return; }
-  const isDel = snap.undo.kind === 'delete';
   undoLeft = snap.undo.left;
-  const text = `${isDel ? 'Deleted' : 'Completed'}: ${snap.undo.label}`;
-  bar.innerHTML = `<span class="undo-label">${esc(text)}</span>
-    <button data-undo>Undo</button><span class="undo-count">${undoLeft}s</span>`;
+  undoEndMs = Date.now() + undoLeft * 1000;
+  bar.innerHTML = `<span class="undo-label">${esc(undoTextFor(snap.undo))}</span>
+    <button data-undo>Undo</button><span class="undo-count">${undoLeft}s</span>
+    <span class="undo-progress"><span class="undo-fill"></span></span>`;
   bar.hidden = false;
+  runUndoProgress(undoLeft * 1000);
   bar.querySelector('[data-undo]').addEventListener('click', () => {
     window.SFX.play('undo');
-    if (isDel) window.api.undoDelete(); else window.api.undoComplete();
-    bar.hidden = true; clearInterval(undoT);
+    undoActionFor(snap.undo.kind)();
+    bar.hidden = true; clearInterval(undoT); clearTimeout(undoEndT);
   });
   undoT = setInterval(() => {
     undoLeft--;
@@ -69,6 +78,48 @@ function renderUndo() {
     else if (c) c.textContent = undoLeft + 's';
   }, 1000);
 }
+// countdown bar — drains over the undo window, pauses while the cursor rests on it
+let undoEndT = null, undoEndMs = 0, undoHover = false;
+function runUndoProgress(ms) {
+  const fill = document.querySelector('#undo-bar .undo-fill');
+  if (!fill) return;
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    fill.style.transition = `width ${ms}ms linear`;
+    fill.style.width = '0%';
+  }));
+  clearTimeout(undoEndT);
+  undoEndT = setTimeout(() => { if (!undoHover) { document.getElementById('undo-bar').hidden = true; clearInterval(undoT); } }, ms);
+}
+document.getElementById('undo-bar').addEventListener('mouseenter', () => {
+  undoHover = true;
+  clearTimeout(undoEndT);
+  const fill = document.querySelector('#undo-bar .undo-fill');
+  if (fill) {
+    const pct = fill.parentElement.offsetWidth ? fill.offsetWidth / fill.parentElement.offsetWidth * 100 : 0;
+    fill.style.transition = 'none';
+    fill.style.width = pct + '%';
+  }
+  clearInterval(undoT); // text counter freezes too
+});
+document.getElementById('undo-bar').addEventListener('mouseleave', () => {
+  if (!undoHover) return;
+  undoHover = false;
+  const remain = Math.max(0, Math.round((undoEndMs - Date.now()) / 1000));
+  const bar = document.getElementById('undo-bar');
+  if (remain <= 0) { bar.hidden = true; return; }
+  undoLeft = remain;
+  const c = bar.querySelector('.undo-count');
+  if (c) c.textContent = undoLeft + 's';
+  runUndoProgress(remain * 1000);
+  undoT = setInterval(() => {
+    undoLeft--;
+    const cc = bar.querySelector('.undo-count');
+    if (undoLeft <= 0) { bar.hidden = true; clearInterval(undoT); }
+    else if (cc) cc.textContent = undoLeft + 's';
+  }, 1000);
+});
 
 function render() {
   if (!snap) return;

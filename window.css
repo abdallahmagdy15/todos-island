@@ -243,11 +243,18 @@ input.invalid { border-color: var(--p3) !important; box-shadow: 0 0 0 3px rgba(2
 
 #undo-toast {
   position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 10px; overflow: hidden;
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
   padding: 10px 14px; font-size: 13px; color: var(--muted);
   animation: fadeUp 0.22s ease-out both; z-index: 50;
+}
+#undo-toast .undo-progress {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2.5px;
+}
+#undo-toast .undo-fill {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--accent-lo), var(--accent-hi));
 }
 #undo-toast .undo-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
 #undo-toast button {

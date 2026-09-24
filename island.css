@@ -194,11 +194,19 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .expand-row .ic { width: 13px; height: 13px; stroke-width: 2.2; }
 
 #undo-bar {
+  position: relative; overflow: hidden;
   margin: 2px 14px 12px; padding: 9px 13px;
   display: flex; align-items: center; gap: 10px;
   background: var(--chip-bg);
   border: 1px solid var(--pill-border);
   border-radius: 13px; font-size: 12.5px; color: var(--muted);
+}
+#undo-bar .undo-progress, #undo-toast .undo-progress {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2.5px;
+}
+#undo-bar .undo-fill, #undo-toast .undo-fill {
+  display: block; height: 100%; width: 100%;
+  background: linear-gradient(90deg, var(--accent-lo), var(--accent-hi));
 }
 #undo-bar .undo-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #undo-bar button {
