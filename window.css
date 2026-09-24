@@ -238,6 +238,23 @@ h2.mt { margin-top: 30px; }
 .settings-card input.full { width: auto; flex: 1; max-width: 520px; }
 .note { color: var(--muted); font-size: 12.5px; margin-top: 16px; line-height: 1.6; }
 .mono { font-family: Consolas, monospace; font-size: 12px; }
+.selbox {
+  flex: none; width: 18px; height: 18px; border: 1.5px solid var(--faint); border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  color: transparent; font-size: 11px; font-weight: 800;
+  transition: border-color 0.13s ease, background 0.13s ease, color 0.13s ease;
+}
+.selbox.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.selbox.on::after { content: '✓'; }
+#share-bar {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  padding: 10px 14px; font-size: 13px; color: var(--muted); z-index: 50;
+  animation: fadeUp 0.22s ease-out both;
+}
+#share-bar button { white-space: nowrap; }
 input.invalid { border-color: var(--p3) !important; box-shadow: 0 0 0 3px rgba(214, 72, 66, 0.15) !important; }
 .err { color: var(--p3); font-size: 12.5px; }
 

@@ -1,7 +1,7 @@
 'use strict';
 // Todo Island — tray reminder over the two Obsidian notes.
 // Sources are only written on the owner's own clicks in the app (owner's hands), never in bulk by the AI.
-const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell } = require('electron');
+const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { NoteFile, resolveDue, MONTHS } = require('./lib/parse.js');
@@ -405,6 +405,7 @@ ipcMain.handle('clear-done', (_e, file) => {
   if (mainWin) mainWin.webContents.send('tasks-changed');
   return count;
 });
+ipcMain.handle('copy-text', async (_e, text) => { await clipboard.writeText(String(text || '')); return true; }); // Electron 44 clipboard is async — await so the invoke resolves after the write
 ipcMain.handle('open-note', (_e, file) => {
   shell.openPath(file === 'work' ? state.settings.workPath : state.settings.personalPath);
 });
@@ -450,12 +451,17 @@ else {
           const step = (name, js) => mainWin.webContents.executeJavaScript(js)
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
           const undoClick = `const b=document.querySelector('#undo-toast [data-undo]'); if(!b) return 'no-toast'; b.click();`;
+          await step('force-work-tab', `(async()=>{ document.getElementById('tab-work').click(); await new Promise(r=>setTimeout(r,400)); return document.querySelectorAll('.wrow').length + ' rows'; })()`);
           await step('complete+undo', `(async()=>{ const c=document.querySelector('.wrow .chk'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           await step('delete+undo', `(async()=>{ const d=document.querySelector('.wtrash'); if(!d) return 'no-trash'; d.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           const iStep = (name, js) => island.webContents.executeJavaScript(js)
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
           await iStep('island-star+undo', `(async()=>{ const row=document.querySelector('#body .row'); if(!row) return 'no-row'; row.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(r=>setTimeout(r,900)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
+          await step('share-wa', `(async()=>{ document.getElementById('btn-share').click(); await new Promise(r=>setTimeout(r,300)); const q=()=>document.querySelectorAll('.wrow'); if(q().length<2) return 'need-2'; q()[0].click(); await new Promise(r=>setTimeout(r,300)); q()[1].click(); await new Promise(r=>setTimeout(r,300)); document.getElementById('share-wa').click(); await new Promise(r=>setTimeout(r,500)); return document.getElementById('share-count').textContent; })()`);
+          LOG('CLIP-WA: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
+          await step('share-md', `(async()=>{ document.getElementById('share-md').click(); await new Promise(r=>setTimeout(r,400)); document.getElementById('share-cancel').click(); return 'ok'; })()`);
+          LOG('CLIP-MD: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
           LOG('UTEST-END undoLogSize=' + undoLog.size);
         } catch (e) { LOG('UTEST-FATAL ' + e.message); }
       }, 2500);

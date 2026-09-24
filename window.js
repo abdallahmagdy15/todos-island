@@ -20,10 +20,11 @@ function renderDone(q) { // Done tab: read-only, both files, restore only
   const items = (snap.done || []).filter(d => !q || d.title.toLowerCase().includes(q));
   $('task-list').innerHTML = items.map(d => `
     <div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}">
+      ${shareMode ? `<span class="selbox ${shareSel.has(d.id) ? 'on' : ''}" data-sel="${esc(d.id)}"></span>` : ''}
       <span class="dbadge">${d.file === 'work' ? 'Work' : 'Personal'}</span>
       <div class="wrow-main"><span class="wtitle">${esc(d.title)}</span></div>
       ${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}
-      <button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button>
+      ${shareMode ? '' : `<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button>`}
     </div>`).join('') || `<p class="empty">${q ? 'No matches.' : 'Nothing done yet.'}</p>`;
 }
 function renderList() {
@@ -38,6 +39,7 @@ function renderList() {
     </div>` : '';
     return `
     <div class="wrow ${open ? 'open' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="${esc(t.title)}" draggable="true">
+      ${shareMode ? `<span class="selbox ${shareSel.has(t.id) ? 'on' : ''}" data-sel="${esc(t.id)}"></span>` : ''}
       <span class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="Complete task"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span>
       <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
       ${t.active ? '<span class="wstar">&#9733;</span>' : ''}
@@ -73,6 +75,23 @@ $('task-list').addEventListener('keydown', async e => {
   if (e.target.matches('[data-chk], [data-exp]')) { e.preventDefault(); onListAction(e); }
 });
 async function onListAction(e) {
+  const sel = e.target.closest('[data-sel]');
+  if (sel) { // share selection mode: click toggles membership
+    const id = sel.dataset.sel;
+    shareSel.has(id) ? shareSel.delete(id) : shareSel.add(id);
+    sel.classList.toggle('on', shareSel.has(id));
+    updateShareBar();
+    return;
+  }
+  if (shareMode) { // in share mode ANY row click selects — no complete/expand/editor side effects
+    const row = e.target.closest('.wrow');
+    if (row) {
+      const id = row.dataset.id;
+      shareSel.has(id) ? shareSel.delete(id) : shareSel.add(id);
+      renderList(); updateShareBar();
+      return;
+    }
+  }
   const chk = e.target.closest('[data-chk]');
   if (chk) { window.SFX.play('complete'); await window.api.complete(chk.dataset.chk, chk.dataset.file); await refresh(); return; }
   const exp = e.target.closest('[data-exp]');
@@ -92,9 +111,69 @@ async function onListAction(e) {
   const row = e.target.closest('.wrow');
   if (row && !row.classList.contains('done')) { window.api.openEditor(row.dataset.file, row.dataset.id); }
 }
+
+// ---- share mode: pick tasks → copy as WhatsApp text or Markdown ----
+let shareMode = false;
+const shareSel = new Set();
+function updateShareBar() {
+  $('share-count').textContent = `${shareSel.size} selected`;
+  $('share-bar').hidden = !shareMode;
+}
+function selectedTasks() {
+  const all = [...taskRows(), ...(snap.done || [])];
+  return all.filter(t => shareSel.has(t.id));
+}
+function buildShareText(fmt) {
+  const ts = selectedTasks();
+  const today = `${new Date().getDate()} ${MONTHS[new Date().getMonth()]}`;
+  const done = ts.filter(t => t.checked !== undefined ? t.checked : snap.done.some(d => d.id === t.id));
+  const open = ts.filter(t => !done.includes(t));
+  const active = open.filter(t => t.active);
+  const todo = open.filter(t => !t.active);
+  if (fmt === 'md') {
+    const part = (arr, mark) => arr.map(t => `- [${mark}] ${t.active ? '* ' : ''}${t.title}`).join('\n');
+    return [
+      `## Daily progress — ${today}`, '',
+      done.length ? `**Done**\n${part(done, 'x')}` : '',
+      active.length ? `**In progress**\n${part(active, ' ')}` : '',
+      todo.length ? `**To do**\n${part(todo, ' ')}` : ''
+    ].filter(Boolean).join('\n\n') + '\n';
+  }
+  const waPart = (arr, icon) => arr.map(t => `${icon} ${t.title}`).join('\n');
+  return [
+    `*Daily progress — ${today}*`, '',
+    done.length ? `✅ *Done*\n${waPart(done, '✅')}` : '',
+    active.length ? `🔄 *In progress*\n${waPart(active, '🔄')}` : '',
+    todo.length ? `⏳ *To do*\n${waPart(todo, '•')}` : ''
+  ].filter(Boolean).join('\n\n');
+}
+async function copyShare(fmt) {
+  if (!shareSel.size) return;
+  await window.api.copyText(buildShareText(fmt));
+  window.SFX.play('tick');
+  const btn = fmt === 'md' ? $('share-md') : $('share-wa');
+  const old = btn.textContent;
+  btn.textContent = 'Copied ✓';
+  setTimeout(() => { btn.textContent = old; }, 1200);
+}
+$('btn-share').addEventListener('click', () => {
+  shareMode = !shareMode;
+  if (!shareMode) shareSel.clear();
+  $('btn-share').classList.toggle('active', shareMode);
+  updateShareBar();
+  renderList();
+});
+$('share-wa').addEventListener('click', () => copyShare('wa'));
+$('share-md').addEventListener('click', () => copyShare('md'));
+$('share-cancel').addEventListener('click', () => {
+  shareMode = false; shareSel.clear();
+  $('btn-share').classList.remove('active');
+  updateShareBar(); renderList();
+});
 // drag & drop reorder — hold a row, drop it on another (inserts before the target)
 let dragId = null;
 $('task-list').addEventListener('dragstart', e => {
+  if (shareMode) { e.preventDefault(); return; } // selection mode and reorder don't mix
   const row = e.target.closest('.wrow');
   if (!row || row.classList.contains('done')) { e.preventDefault(); return; }
   dragId = row.dataset.id;

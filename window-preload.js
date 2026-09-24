@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('api', {
   reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
   clearDone: file => ipcRenderer.invoke('clear-done', file),
   openNote: file => ipcRenderer.invoke('open-note', file),
+  copyText: text => ipcRenderer.invoke('copy-text', text),
   onTasksChanged: cb => ipcRenderer.on('tasks-changed', () => cb()),
   onShowUndo: cb => ipcRenderer.on('show-undo', (_e, d) => cb(d))
 });

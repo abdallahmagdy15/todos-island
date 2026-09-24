@@ -13,6 +13,7 @@
       <button id="tab-personal" class="tab">Personal</button>
       <button id="tab-done" class="tab">Done</button>
       <button id="tab-settings" class="tab">Settings</button>
+      <button id="btn-share" class="tab share" title="Select tasks and copy them as a progress message">Share</button>
     </nav>
   </header>
 
@@ -86,6 +87,12 @@
   </main>
 
   <div id="undo-toast" hidden></div>
+  <div id="share-bar" hidden>
+    <span id="share-count">0 selected</span>
+    <button id="share-wa" class="btn-soft sm" type="button">Copy as WhatsApp</button>
+    <button id="share-md" class="btn-soft sm" type="button">Copy as Markdown</button>
+    <button id="share-cancel" class="btn-soft sm" type="button">✕</button>
+  </div>
   <script src="sfx.js"></script>
   <script src="window.js"></script>
 </body>
