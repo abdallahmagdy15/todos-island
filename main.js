@@ -4,10 +4,10 @@
 const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { NoteFile, resolveDue } = require('./lib/parse.js');
+const { NoteFile, resolveDue, MONTHS } = require('./lib/parse.js');
 const { makePngBuffer } = require('./lib/icon.js');
 
-const STATE_PATH = path.join(__dirname, 'state.json');
+const STATE_PATH = path.join(app.getPath('userData'), 'state.json'); // userData: writable in dev AND packaged (asar is read-only)
 const LOGF = path.join(process.env.TEMP || __dirname, 'todo-island.log');
 const LOG = m => { try { fs.appendFileSync(LOGF, `${new Date().toISOString()} ${m}\n`); } catch (e) {} };
 
@@ -18,13 +18,24 @@ const DEFAULT_SETTINGS = {
   workPath: path.join(require('os').homedir(), 'Documents', 'todos-island', 'work-tasks.md'),
   personalPath: path.join(require('os').homedir(), 'Documents', 'todos-island', 'personal.md')
 };
+const saveState = () => fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
 let state = { settings: { ...DEFAULT_SETTINGS }, lastShown: 0 };
 try {
   const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
   state = { ...state, ...saved, settings: { ...DEFAULT_SETTINGS, ...(saved.settings || {}) } };
   delete state.activeId; delete state.activeFile; // dead since the * marker moved "active" into the notes
-} catch (e) {}
-const saveState = () => fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
+} catch (e) {
+  // one-time migration: carry over a dev-era state.json that lived next to main.js
+  const legacy = path.join(__dirname, 'state.json');
+  if (legacy !== STATE_PATH && fs.existsSync(legacy)) {
+    try {
+      const old = JSON.parse(fs.readFileSync(legacy, 'utf8'));
+      state = { ...state, ...old, settings: { ...DEFAULT_SETTINGS, ...(old.settings || {}) } };
+      delete state.activeId; delete state.activeFile;
+      saveState();
+    } catch (e2) {}
+  }
+}
 
 let tray = null, island = null, mainWin = null;
 let lastUndo = null; // {kind:'complete', file, cap, label, expires}
@@ -351,6 +362,29 @@ else {
   app.on('second-instance', () => { openWindow(); });
   app.whenReady().then(() => {
     LOG('APP-START');
+    // first-run: create starter notes when the user still has the default paths
+    const seedNote = (p, isWork) => {
+      const today = `${new Date().getDate()} ${MONTHS[new Date().getMonth()]}`;
+      const lines = [
+        `# ${isWork ? 'Work Tasks' : 'Personal Todos'}`, '',
+        '> Format: `- [ ] * !! 24 Sep — Task title` — `*` active, `!` priority, `D Mon` due (all optional, any order).',
+        `> ${isWork ? 'Done tasks move under ## Done.' : 'Tick tasks when done.'} Edit freely — the app reads whatever you write.`, '',
+        ...(isWork ? ['## Open', ''] : []),
+        `- [ ] ${isWork ? '! ' : ''}${today} — My first ${isWork ? 'work task' : 'todo'}`, '',
+        ...(isWork ? ['## Done', ''] : []),
+        ''
+      ];
+      fs.writeFileSync(p, lines.join('\n'));
+    };
+    for (const [p, isWork] of [[state.settings.workPath, true], [state.settings.personalPath, false]]) {
+      if (p.startsWith(path.join(require('os').homedir(), 'Documents', 'todos-island')) && !fs.existsSync(p)) {
+        try {
+          fs.mkdirSync(path.dirname(p), { recursive: true });
+          seedNote(p, isWork);
+          LOG('SEEDED ' + p);
+        } catch (e) { LOG('SEED-ERR ' + e.message); }
+      }
+    }
     createIsland();
     createTray();
     registerShortcut();
