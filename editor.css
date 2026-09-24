@@ -27,8 +27,13 @@
 .btn-complete:hover { filter: brightness(1.08); }
 .btn-complete .ic { width: 13.5px; height: 13.5px; stroke-width: 2.2; }
 
-/* save bar grew (move/delete) — let it wrap instead of clipping in the narrow window */
-.save-bar { flex-wrap: wrap; }
+/* save bar grew (move/delete) — wraps in the narrow window, and sticks to the bottom so it never scrolls away */
+.save-bar {
+  flex-wrap: wrap;
+  position: sticky; bottom: 0;
+  margin: 20px -22px -20px; padding: 14px 22px;
+  background: var(--bg); border-top: 1px solid var(--border-soft);
+}
 
 /* per-subtask delete "×" — sits at the row's end, red on hover */
 .subs-list li { display: flex; align-items: center; gap: 7px; }

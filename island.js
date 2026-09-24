@@ -1,6 +1,7 @@
 'use strict';
 let snap = null, expanded = false, pinned = false;
 let dismissT = null, remainMs = 0, dismissEnd = 0;
+let islandHovered = false; // cursor anywhere on the pill → countdown frozen, whatever re-renders happen
 let undoT = null, undoLeft = 0;
 
 const bangCls = p => ({ '!!!': 'p3', '!!': 'p2', '!': 'p1' }[p] || 'p0');
@@ -17,7 +18,7 @@ function rowHtml(t) {
   const hasDetail = (t.notes && t.notes.length) || t.subs.length;
   const detail = hasDetail
     ? `<div class="row-detail">${(t.notes || []).map(n => `<div class="rd-note">${esc(n)}</div>`).join('')}${t.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
-  return `<div class="row" data-id="${esc(t.id)}" data-file="${t.file}">
+  return `<div class="row" data-id="${esc(t.id)}" data-file="${t.file}" draggable="true">
     <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
     <div class="row-main"><span class="rtitle">${esc(t.title)}</span>${detail}</div>
     ${subsBadge}${dueHtml(t)}
@@ -57,6 +58,7 @@ function renderUndo() {
     <button data-undo>Undo</button><span class="undo-count">${undoLeft}s</span>`;
   bar.hidden = false;
   bar.querySelector('[data-undo]').addEventListener('click', () => {
+    window.SFX.play('undo');
     if (isDel) window.api.undoDelete(); else window.api.undoComplete();
     bar.hidden = true; clearInterval(undoT);
   });
@@ -136,7 +138,8 @@ function render() {
     const h = document.getElementById('wrap').offsetHeight;
     window.api.resize(h);
   });
-  if (!pinned) scheduleDismiss((snap.settings.dismissSec || 45) * 1000);
+  if (!pinned && !islandHovered) scheduleDismiss((snap.settings.dismissSec || 45) * 1000);
+  else if (!pinned) pauseDismiss(); // hovered: freeze the countdown even after action-triggered re-renders
 }
 
 // ---- hover preview: rest on a row for 2s → the row itself unfolds (full title + subtasks) ----
@@ -171,26 +174,70 @@ document.addEventListener('dblclick', e => {
   if (row) window.api.openEditor(row.dataset.file, row.dataset.id);
 });
 
+// drag & drop reorder — same semantics as the main window (drop on a row = insert before it)
+let dragId = null;
+document.getElementById('body').addEventListener('dragstart', e => {
+  const row = e.target.closest('.row');
+  if (!row) { e.preventDefault(); return; }
+  dragId = row.dataset.id;
+  row.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragId);
+});
+document.getElementById('body').addEventListener('dragover', e => {
+  if (!dragId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const over = e.target.closest('.row');
+  document.querySelectorAll('.row.drop-above').forEach(r => r.classList.remove('drop-above'));
+  if (over && over.dataset.id !== dragId) over.classList.add('drop-above');
+});
+document.getElementById('body').addEventListener('drop', async e => {
+  e.preventDefault();
+  const over = e.target.closest('.row');
+  const beforeId = over && over.dataset.id !== dragId ? over.dataset.id : null;
+  if (dragId && over) {
+    const file = over.dataset.file; // rows within one section reorder in that section's file
+    window.SFX.play('tick');
+    await window.api.reorderTask(file, dragId, beforeId);
+  }
+  dragId = null;
+});
+document.getElementById('body').addEventListener('dragend', () => {
+  dragId = null;
+  document.querySelectorAll('.row.dragging, .row.drop-above').forEach(r => r.classList.remove('dragging', 'drop-above'));
+});
+
+const findTask = id => snap && snap.sections.flatMap(s => s.items).find(t => t.id === id);
+
 document.addEventListener('click', e => {
-  if (e.target.closest('#expand-toggle')) { expanded = !expanded; render(); return; }
+  if (e.target.closest('#expand-toggle')) { window.SFX.play('tick'); expanded = !expanded; render(); return; }
   const sub = e.target.closest('[data-sub]');
   if (sub) {
     const row = sub.closest('.row');
-    if (row) { e.stopPropagation(); window.api.toggleSubtask(row.dataset.file, row.dataset.id, sub.dataset.sub); return; }
+    if (row) { e.stopPropagation(); window.SFX.play('tick'); window.api.toggleSubtask(row.dataset.file, row.dataset.id, sub.dataset.sub); return; }
   }
   const done = e.target.closest('[data-done]');
-  if (done) { window.api.complete(done.dataset.done, done.dataset.file); return; }
+  if (done) { window.SFX.play('complete'); window.api.complete(done.dataset.done, done.dataset.file); return; }
   const unstar = e.target.closest('[data-unstar]');
-  if (unstar) { window.api.toggleActive(unstar.dataset.unstar, unstar.dataset.file); return; }
+  if (unstar) { window.SFX.play('starOff'); window.api.toggleActive(unstar.dataset.unstar, unstar.dataset.file); return; }
   const row = e.target.closest('.row');
-  if (row) { window.api.toggleActive(row.dataset.id, row.dataset.file); return; }
+  if (row) {
+    window.SFX.play(findTask(row.dataset.id) && findTask(row.dataset.id).active ? 'starOff' : 'starOn');
+    window.api.toggleActive(row.dataset.id, row.dataset.file);
+    return;
+  }
 });
 
-document.getElementById('pill').addEventListener('mouseenter', () => { if (!pinned) pauseDismiss(); });
-document.getElementById('pill').addEventListener('mouseleave', () => { if (!pinned && remainMs > 0) scheduleDismiss(remainMs); });
+document.getElementById('pill').addEventListener('mouseenter', () => { islandHovered = true; if (!pinned) pauseDismiss(); });
+document.getElementById('pill').addEventListener('mouseleave', () => {
+  islandHovered = false;
+  if (!pinned) scheduleDismiss(((snap && snap.settings.dismissSec) || 45) * 1000); // fresh countdown once you leave
+});
 
 document.getElementById('btn-pin').addEventListener('click', () => {
   pinned = !pinned;
+  window.SFX.play('pin');
   if (pinned) {
     clearTimeout(dismissT);
     document.body.classList.add('pinned');
@@ -198,38 +245,21 @@ document.getElementById('btn-pin').addEventListener('click', () => {
   } else {
     document.body.classList.remove('pinned');
     document.getElementById('btn-pin').classList.remove('pinned');
-    scheduleDismiss((snap && snap.settings.dismissSec || 45) * 1000);
+    if (!islandHovered) scheduleDismiss((snap && snap.settings.dismissSec || 45) * 1000); // hovering the pin = still on the island
   }
 });
-document.getElementById('btn-expand').addEventListener('click', () => { expanded = !expanded; render(); });
+document.getElementById('btn-expand').addEventListener('click', () => { window.SFX.play('tick'); expanded = !expanded; render(); });
 document.getElementById('btn-gear').addEventListener('click', () => { window.api.openWindow(); window.api.hide(); });
 document.getElementById('btn-close').addEventListener('click', () => window.api.hide());
 document.addEventListener('keydown', e => { if (e.key === 'Escape') window.api.hide(); });
 
-// soft two-note blip when the island shows — best-effort, never breaks the UI
-let audioCtx = null;
-window.api.onPlaySound(() => {
-  try {
-    if (!audioCtx) audioCtx = new AudioContext();
-    const t0 = audioCtx.currentTime;
-    [[660, 0], [880, 0.07]].forEach(([freq, at]) => {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0, t0 + at);
-      gain.gain.linearRampToValueAtTime(0.06, t0 + at + 0.012);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + at + 0.07);
-      osc.connect(gain).connect(audioCtx.destination);
-      osc.start(t0 + at);
-      osc.stop(t0 + at + 0.08);
-    });
-  } catch (e) { /* no audio — stay silent */ }
-});
+// soft blip when the island shows — synthesized in sfx.js, gated by the soundOn setting
+window.api.onPlaySound(() => window.SFX.play('show'));
 
 window.api.onSnapshot(s => {
   const firstTime = !snap;
   snap = s;
+  if (snap && snap.settings) window.SFX.enabled = !!snap.settings.soundOn;
   if (firstTime) { expanded = false; }
   render();
 });

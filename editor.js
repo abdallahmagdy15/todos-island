@@ -14,7 +14,9 @@ async function findTask() {
 }
 
 async function load() {
-  const t = await findTask();
+  const s = await window.api.getSnapshot();
+  if (s && s.settings) window.SFX.enabled = !!s.settings.soundOn;
+  const t = s.sections.flatMap(x => x.items).find(x => x.id === ID) || null;
   $('ed-missing').hidden = !!t;
   $('ed-form').hidden = !t;
   if (!t) return;
@@ -41,17 +43,19 @@ async function load() {
 $('ed-subs').addEventListener('click', async e => {
   const li = e.target.closest('li[data-sub]');
   if (!li) return;
-  if (e.target.closest('.sub-del')) { await window.api.deleteSubtask(FILE, ID, li.dataset.sub); load(); return; }
-  await window.api.toggleSubtask(FILE, ID, li.dataset.sub);
+  if (e.target.closest('.sub-del')) { window.SFX.play('delete'); await window.api.deleteSubtask(FILE, ID, li.dataset.sub); load(); return; }
+  window.SFX.play('tick'); await window.api.toggleSubtask(FILE, ID, li.dataset.sub);
   load();
 });
 
 $('ed-clear-due').addEventListener('click', () => { $('ed-day').value = ''; $('ed-month').value = ''; });
 $('ed-active').addEventListener('click', () => {
   activeState = !activeState;
+  window.SFX.play(activeState ? 'starOn' : 'starOff');
   $('ed-active').classList.toggle('sel', activeState);
 });
 $('ed-addsub').addEventListener('click', async () => {
+  window.SFX.play('tick');
   const v = $('ed-sub').value.trim();
   if (!v) return;
   await window.api.addSubtask(FILE, ID, v);
@@ -78,19 +82,20 @@ $('ed-save').addEventListener('click', async () => {
     dueText: day && month ? `${day} ${month}` : null
   });
   if (res && res.id) ID = res.id; // id changes with title/priority/due — adopt it or the editor loses the task
+  window.SFX.play('tick');
   $('ed-saved').hidden = false;
   setTimeout(() => { $('ed-saved').hidden = true; }, 1400);
   load();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
 $('ed-complete').addEventListener('click', async () => {
-  await window.api.complete(ID, FILE);
+  window.SFX.play('complete'); await window.api.complete(ID, FILE);
   window.close();
 });
-$('ed-up').addEventListener('click', async () => { await window.api.moveTask(FILE, ID, 'up'); load(); });
-$('ed-down').addEventListener('click', async () => { await window.api.moveTask(FILE, ID, 'down'); load(); });
+$('ed-up').addEventListener('click', async () => { window.SFX.play('tick'); await window.api.moveTask(FILE, ID, 'up'); load(); });
+$('ed-down').addEventListener('click', async () => { window.SFX.play('tick'); await window.api.moveTask(FILE, ID, 'down'); load(); });
 $('ed-delete').addEventListener('click', async () => {
-  await window.api.deleteTask(ID, FILE);
+  window.SFX.play('delete'); await window.api.deleteTask(ID, FILE);
   window.close();
 });
 

@@ -222,7 +222,7 @@ function createTray() {
 
 ipcMain.on('island-size', (_e, h, top = 0) => {
   if (!island) return;
-  // island top-anchored at wa.y+10, grows DOWN; hover cards may borrow space above via `top` (clamped to screen)
+  // island flush with screen top (wa.y), grows DOWN; hover cards may borrow space above via `top` (clamped to screen)
   const wa = screen.getPrimaryDisplay().workArea;
   const height = Math.max(70, Math.min(960, Math.round(h)));
   const topExtra = Math.max(0, Math.round(top || 0));
@@ -345,6 +345,11 @@ ipcMain.handle('uncomplete-task', (_e, id, file) => {
 ipcMain.handle('move-task', (_e, file, id, dir) => {
   const f = fileFor(file);
   f.moveTask(id, dir); f.save(); sendSnap();
+  if (mainWin) mainWin.webContents.send('tasks-changed');
+});
+ipcMain.handle('reorder-task', (_e, file, id, beforeId) => {
+  const f = fileFor(file);
+  f.reorderTask(id, beforeId || null); f.save(); sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
 ipcMain.handle('clear-done', (_e, file) => {

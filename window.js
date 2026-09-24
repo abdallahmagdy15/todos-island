@@ -37,7 +37,7 @@ function renderList() {
       ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}
     </div>` : '';
     return `
-    <div class="wrow ${open ? 'open' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="${esc(t.title)}">
+    <div class="wrow ${open ? 'open' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="${esc(t.title)}" draggable="true">
       <span class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="Complete task"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span>
       <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
       ${t.active ? '<span class="wstar">&#9733;</span>' : ''}
@@ -62,6 +62,7 @@ function updateTabCounts() {
 
 async function refresh() {
   snap = await window.api.getSnapshot();
+  if (snap && snap.settings) window.SFX.enabled = !!snap.settings.soundOn;
   updateTabCounts();
   renderList();
 }
@@ -73,23 +74,58 @@ $('task-list').addEventListener('keydown', async e => {
 });
 async function onListAction(e) {
   const chk = e.target.closest('[data-chk]');
-  if (chk) { await window.api.complete(chk.dataset.chk, chk.dataset.file); await refresh(); return; }
+  if (chk) { window.SFX.play('complete'); await window.api.complete(chk.dataset.chk, chk.dataset.file); await refresh(); return; }
   const exp = e.target.closest('[data-exp]');
   if (exp) {
+    window.SFX.play('tick');
     const id = exp.dataset.exp;
     openRows.has(id) ? openRows.delete(id) : openRows.add(id);
     renderList();
     return;
   }
   const sub = e.target.closest('[data-sub]');
-  if (sub) { await window.api.toggleSubtask(sub.dataset.file, sub.dataset.parent, sub.dataset.sub); await refresh(); return; }
+  if (sub) { window.SFX.play('tick'); await window.api.toggleSubtask(sub.dataset.file, sub.dataset.parent, sub.dataset.sub); await refresh(); return; }
   const del = e.target.closest('[data-del]');
-  if (del) { await window.api.deleteTask(del.dataset.del, del.dataset.file); await refresh(); return; }
+  if (del) { window.SFX.play('delete'); await window.api.deleteTask(del.dataset.del, del.dataset.file); await refresh(); return; }
   const res = e.target.closest('[data-restore]');
-  if (res) { await window.api.uncomplete(res.dataset.restore, res.dataset.file); await refresh(); return; }
+  if (res) { window.SFX.play('add'); await window.api.uncomplete(res.dataset.restore, res.dataset.file); await refresh(); return; }
   const row = e.target.closest('.wrow');
   if (row && !row.classList.contains('done')) { window.api.openEditor(row.dataset.file, row.dataset.id); }
 }
+// drag & drop reorder — hold a row, drop it on another (inserts before the target)
+let dragId = null;
+$('task-list').addEventListener('dragstart', e => {
+  const row = e.target.closest('.wrow');
+  if (!row || row.classList.contains('done')) { e.preventDefault(); return; }
+  dragId = row.dataset.id;
+  row.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', dragId);
+});
+$('task-list').addEventListener('dragover', e => {
+  if (!dragId) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+  const over = e.target.closest('.wrow');
+  document.querySelectorAll('.wrow.drop-above').forEach(r => r.classList.remove('drop-above'));
+  if (over && over.dataset.id !== dragId) over.classList.add('drop-above');
+});
+$('task-list').addEventListener('drop', async e => {
+  e.preventDefault();
+  const over = e.target.closest('.wrow');
+  const beforeId = over && over.dataset.id !== dragId ? over.dataset.id : null; // no target = move to end
+  if (dragId) {
+    window.SFX.play('tick');
+    await window.api.reorderTask(currentTab, dragId, beforeId);
+    await refresh();
+  }
+  dragId = null;
+});
+$('task-list').addEventListener('dragend', () => {
+  dragId = null;
+  document.querySelectorAll('.wrow.dragging, .wrow.drop-above').forEach(r => r.classList.remove('dragging', 'drop-above'));
+});
+
 let newPrio = null;
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const today = new Date();
@@ -128,6 +164,7 @@ $('btn-add').addEventListener('click', async () => {
     title, priority: newPrio, desc,
     dueText: day && month ? `${day} ${month}` : null
   });
+  window.SFX.play('add');
   $('new-title').value = ''; autoGrow($('new-title'));
   setDefaultDue();
   $('new-title').focus();
@@ -203,6 +240,7 @@ window.api.onShowUndo(d => {
     <button data-undo type="button">Undo</button><span class="undo-count">${left}s</span>`;
   toast.hidden = false;
   toast.querySelector('[data-undo]').addEventListener('click', async () => {
+    window.SFX.play('undo');
     await (isDel ? window.api.undoDelete() : window.api.undoComplete());
     toast.hidden = true; clearInterval(undoToastT);
   });

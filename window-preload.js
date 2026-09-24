@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteSubtask: (file, parentId, title) => ipcRenderer.invoke('delete-subtask', file, parentId, title),
   uncomplete: (id, file) => ipcRenderer.invoke('uncomplete-task', id, file),
   moveTask: (file, id, dir) => ipcRenderer.invoke('move-task', file, id, dir),
+  reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
   clearDone: file => ipcRenderer.invoke('clear-done', file),
   openNote: file => ipcRenderer.invoke('open-note', file),
   onTasksChanged: cb => ipcRenderer.on('tasks-changed', () => cb()),

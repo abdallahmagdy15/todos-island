@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   onPlaySound: cb => ipcRenderer.on('play-sound', () => cb()),
   openWindow: () => ipcRenderer.send('open-window'),
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
+  reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
   hide: () => ipcRenderer.send('hide-island'),
   resize: (h, top) => ipcRenderer.send('island-size', h, top)
 });
