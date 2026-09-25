@@ -12,21 +12,21 @@ function sections() {
   const personal = (snap.sections.find(s => s.name === 'Personal') || { items: [] }).items;
   const flat = [...work, ...personal];
   return [
-    { name: '\u2605 Now', items: flat.filter(t => t.active) },
+    { name: 'Now', items: flat.filter(t => t.active) },
     { name: 'Work', items: work.filter(t => !t.active) },
     { name: 'Personal', items: personal.filter(t => !t.active) },
-    { name: '\u2705 Done', items: (snap.done || []).map(d => ({ ...d, isDone: true })) }
+    { name: 'Done', items: (snap.done || []).map(d => ({ ...d, isDone: true })) }
   ].filter(s => s.items.length);
 }
 function render() {
   $('share-list').innerHTML = sections().map(sec => `
-    <div class="sh-sec">${esc(sec.name)} <span class="cnt">${sec.items.length}</span></div>
+    <div class="sh-sec"><span class="hash">##</span> ${esc(sec.name)} <span class="cnt">${sec.items.length}</span></div>
     ${sec.items.map(t => `
       <div class="sh-row ${sel.has(t.id) ? 'sel' : ''}" data-id="${esc(t.id)}">
         <span class="selbox ${sel.has(t.id) ? 'on' : ''}"></span>
         ${t.active ? '<span class="star">\u2605</span>' : ''}
         <span class="shtitle">${esc(t.title)}</span>
-        ${t.isDone ? `<span class="tag">${t.file === 'work' ? 'Work' : 'Personal'}</span>` : ''}
+        ${t.isDone ? `<span class="tag">${t.file === 'work' ? 'work' : 'personal'}</span>` : ''}
         ${t.dueText ? `<span class="tag">${esc(t.dueText)}</span>` : ''}
       </div>`).join('')}
   `).join('') || '<p class="empty">Nothing to share — no tasks found.</p>';

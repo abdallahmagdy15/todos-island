@@ -47,10 +47,10 @@ function renderList() {
   $('search-count').textContent = q ? `${rows.length} / ${all.length}` : '';
   $('task-list').innerHTML = rows.map(t => {
     const open = openRows.has(t.id);
-    const expandBody = open ? `<div class="wexp-body">
+    const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
       ${(t.notes || []).map(n => `<div class="wdesc">${esc(n)}</div>`).join('')}
       ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}
-    </div>` : '';
+    </div></div>` : '';
     return `
     <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}" draggable="true">
       <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(t.title)}"><span class="box"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span></button>
@@ -129,11 +129,20 @@ const visibleIds = () => new Set([...document.querySelectorAll('#task-list .wrow
 function updateTabCounts() {
   if (!snap) return;
   const n = name => { const s = snap.sections.find(x => x.name === name); return s ? s.items.length : 0; };
-  const label = (tag, name) => fileErr(tag) ? `${name} \u00B7!` : `${name} (${n(name)})`; // a broken source never reads as (0)
-  $('tab-work').textContent = label('work', 'Work');
-  $('tab-personal').textContent = label('personal', 'Personal');
-  $('tab-done').textContent = `Done (${(snap.done || []).length})`;
+  // counts in mono; a broken source never reads as 0 — it reads "!"
+  const label = (tag, name) => fileErr(tag) ? `${name}<span class="cnt bad" title="note can't be read">!</span>` : `${name}<span class="cnt">${n(name)}</span>`;
+  $('tab-work').innerHTML = label('work', 'Work');
+  $('tab-personal').innerHTML = label('personal', 'Personal');
+  $('tab-done').innerHTML = `Done<span class="cnt">${(snap.done || []).length}</span>`;
+  moveTabCursor();
 }
+// M6 — the tab cursor slides under the active tab (transform only)
+function moveTabCursor() {
+  const cur = document.querySelector('.tab-cursor'), act = document.querySelector('nav .tab.active');
+  if (!cur || !act) return;
+  cur.style.transform = `translateX(${act.offsetLeft + 8}px) scaleX(${(act.offsetWidth - 16) / 100})`;
+}
+window.addEventListener('resize', moveTabCursor);
 function renderChrome() { // status mark, error strip, status line — the notes-are-the-state layer
   const errs = snap.errors || [];
   const nowCount = snap.sections.flatMap(s => s.items).filter(t => t.active).length;
@@ -258,7 +267,7 @@ $('btn-clear-done').addEventListener('click', async () => { // undoable — no n
 });
 
 // drag & drop reorder — hold a row, drop it on another (inserts before the target)
-let dragId = null;
+let dragId = null, lastOver = null;
 $('task-list').addEventListener('dragstart', e => {
   const row = e.target.closest('.wrow');
   if (!row || row.classList.contains('done')) { e.preventDefault(); return; }
@@ -271,8 +280,11 @@ $('task-list').addEventListener('dragover', e => {
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   const over = e.target.closest('.wrow');
-  document.querySelectorAll('.wrow.drop-above').forEach(r => r.classList.remove('drop-above'));
-  if (over && over.dataset.id !== dragId) over.classList.add('drop-above');
+  const target = over && over.dataset.id !== dragId ? over : null;
+  if (target === lastOver) return; // dragover fires constantly — touch the DOM only when the target changes
+  if (lastOver) lastOver.classList.remove('drop-above');
+  if (target) target.classList.add('drop-above');
+  lastOver = target;
 });
 $('task-list').addEventListener('drop', async e => {
   e.preventDefault();
@@ -288,6 +300,7 @@ $('task-list').addEventListener('drop', async e => {
 $('task-list').addEventListener('dragend', () => {
   dragId = null;
   document.querySelectorAll('.wrow.dragging, .wrow.drop-above').forEach(r => r.classList.remove('dragging', 'drop-above'));
+  lastOver = null;
 });
 
 // ---- composer: type the task like you'd write it in the note; chips are the click route; preview shows the exact line ----
@@ -375,6 +388,7 @@ function showTab(tab) {
   localStorage.setItem('ti-tab', tab); // remember where you left off
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   $('tab-' + tab).classList.add('active');
+  moveTabCursor();
   $('view-tasks').hidden = false; $('view-settings').hidden = true;
   $('dirty-guard').hidden = true;
   renderList();
@@ -430,6 +444,7 @@ async function loadSettings() {
 $('tab-settings').addEventListener('click', async () => {
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   $('tab-settings').classList.add('active');
+  moveTabCursor();
   $('view-tasks').hidden = true; $('view-settings').hidden = false;
   if (!settingsDirty) await loadSettings(); // coming back to unsaved edits keeps them
 });
@@ -538,43 +553,20 @@ function notice(msg, kind) {
   noticeT = setTimeout(() => { el.hidden = true; }, 4000);
 }
 
-// undo toast — each action carries its own token; countdown end releases the entry from memory
-let undoToastT = null;
-function runUndoToastProgress(ms) {
-  const fill = document.querySelector('#undo-toast .undo-fill');
-  if (!fill) return;
-  fill.style.transition = 'none';
-  fill.style.width = '100%';
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    fill.style.transition = `width ${ms}ms linear`;
-    fill.style.width = '0%';
-  }));
-}
+// undo toast — shared UndoUI component; each action carries its own token, countdown end releases the entry
 window.api.onShowUndo(d => {
-  const toast = $('undo-toast');
-  clearInterval(undoToastT);
-  let left = d.left;
-  toast.innerHTML = `<span class="undo-label">${esc(window.UI.undoText(d))}</span>
-    <button data-undo type="button">Undo</button><span class="undo-count">${left}s</span>
-    <span class="undo-progress"><span class="undo-fill"></span></span>`;
-  toast.hidden = false;
-  runUndoToastProgress(left * 1000);
-  toast.querySelector('[data-undo]').addEventListener('click', async () => {
-    window.SFX.play('undo');
-    freshFrom = visibleIds();
-    toast.hidden = true; clearInterval(undoToastT);
-    const r = await window.api.undoAction(d.token);
-    if (r && !r.ok) {
-      freshFrom = null;
-      notice(r.reason === 'changed' ? `Can't undo — ${r.files.join(', ')} changed since.` : 'Undo expired.', 'bad');
+  window.UI.mountUndo($('undo-toast'), d, {
+    onExpire: token => window.api.undoExpire(token),
+    onUndo: async token => {
+      window.SFX.play('undo');
+      freshFrom = visibleIds();
+      const r = await window.api.undoAction(token);
+      if (r && !r.ok) {
+        freshFrom = null;
+        notice(r.reason === 'changed' ? `Can't undo — ${r.files.join(', ')} changed since.` : 'Undo expired.', 'bad');
+      }
     }
   });
-  undoToastT = setInterval(() => {
-    left--;
-    const c = toast.querySelector('.undo-count');
-    if (left <= 0) { toast.hidden = true; clearInterval(undoToastT); window.api.undoExpire(d.token); } // bubble gone → log entry released
-    else if (c) c.textContent = left + 's';
-  }, 1000);
 });
 
 window.api.onTasksChanged(refresh);

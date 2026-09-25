@@ -2,7 +2,6 @@
 let snap = null, expanded = false, pinned = false;
 let dismissT = null, remainMs = 0, dismissEnd = 0;
 let islandHovered = false; // cursor anywhere on the pill → countdown frozen, whatever re-renders happen
-let undoT = null, undoLeft = 0;
 let animating = 0, pendingSnap = null; // a snapshot arriving mid-animation waits — re-rendering would kill the moving row
 let prevActive = null; // ids that were Now last render — newly-Now titles get the highlighter swipe
 
@@ -35,66 +34,30 @@ function rowHtml(t) {
   </div></div></div>`;
 }
 
+let dismissBar = null;
 function scheduleDismiss(ms) {
   clearTimeout(dismissT);
-  const bar = $('progress-fill');
-  bar.style.transition = 'none';
-  bar.style.width = '100%';
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    bar.style.transition = `width ${ms}ms linear`;
-    bar.style.width = '0%';
-  }));
+  if (!dismissBar) dismissBar = window.UI.countdown($('progress-fill'));
+  dismissBar.start(ms);
   dismissEnd = Date.now() + ms;
   dismissT = setTimeout(() => { if (!pinned && !hasErrors()) retract(); }, ms);
 }
 function pauseDismiss() {
   clearTimeout(dismissT);
   remainMs = Math.max(0, dismissEnd - Date.now());
-  const bar = $('progress-fill');
-  const px = bar.offsetWidth;
-  const full = bar.parentElement.offsetWidth;
-  bar.style.transition = 'none';
-  bar.style.width = full ? (px / full * 100) + '%' : '0%';
+  if (dismissBar) dismissBar.pause();
 }
 const hasErrors = () => !!(snap && snap.errors && snap.errors.length);
 
 function renderUndo() {
   const bar = $('undo-bar');
-  clearInterval(undoT);
-  clearTimeout(undoEndT);
-  if (!snap.undo) { bar.hidden = true; return; }
-  const myToken = snap.undo.token;
-  undoLeft = snap.undo.left;
-  bar.innerHTML = `<span class="undo-label">${esc(window.UI.undoText(snap.undo))}</span>
-    <button data-undo>Undo</button><span class="undo-count">${undoLeft}s</span>
-    <span class="undo-progress"><span class="undo-fill"></span></span>`;
-  bar.hidden = false;
-  runUndoProgress(undoLeft * 1000);
-  bar.querySelector('[data-undo]').addEventListener('click', () => {
-    window.SFX.play('undo');
-    window.api.undoAction(myToken);
-    bar.hidden = true; clearInterval(undoT); clearTimeout(undoEndT);
+  if (!snap.undo) { if (bar._undo) bar._undo.dispose(); bar.hidden = true; bar.dataset.token = ''; return; }
+  if (bar.dataset.token === snap.undo.token && !bar.hidden) return; // same bubble — keep its countdown running
+  bar.dataset.token = snap.undo.token;
+  window.UI.mountUndo(bar, snap.undo, {
+    onExpire: token => window.api.undoExpire(token), // bubble gone → memory released
+    onUndo: token => { window.SFX.play('undo'); window.api.undoAction(token); }
   });
-  undoT = setInterval(() => {
-    undoLeft--;
-    const c = bar.querySelector('.undo-count');
-    if (undoLeft <= 0) { bar.hidden = true; clearInterval(undoT); window.api.undoExpire(myToken); } // bubble gone → memory released
-    else if (c) c.textContent = undoLeft + 's';
-  }, 1000);
-}
-// countdown bar — drains over the undo window, always ticking (hover-pause is a dismiss-bar-only idea)
-let undoEndT = null;
-function runUndoProgress(ms) {
-  const fill = document.querySelector('#undo-bar .undo-fill');
-  if (!fill) return;
-  fill.style.transition = 'none';
-  fill.style.width = '100%';
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    fill.style.transition = `width ${ms}ms linear`;
-    fill.style.width = '0%';
-  }));
-  clearTimeout(undoEndT);
-  undoEndT = setTimeout(() => { $('undo-bar').hidden = true; clearInterval(undoT); }, ms);
 }
 
 // one resize timer — unfold/fold transitions finish first, stacked timeouts never pile up
@@ -134,7 +97,7 @@ function render() {
       `<div class="err-banner" role="alert"><span>Can't read <code>${esc(e.name || e.path)}</code> — moved or renamed?</span><button data-open-settings type="button">Open settings</button></div>`).join('');
   }
   if (actives.length) {
-    html += `<div class="sec">Now</div>`;
+    html += `<div class="sec"><span class="hash">##</span> Now</div>`;
     for (const a of actives) {
       const subs = a.subs.length
         ? `<div class="ac-subs">${a.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-parent="${esc(a.id)}" data-file="${a.file}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
@@ -164,7 +127,7 @@ function render() {
     const rest = sec.items.filter(t => !t.active);
     const items = expanded ? rest : rest.slice(0, 3);
     if (!items.length && !expanded) continue;
-    html += `<div class="sec">${esc(sec.name)}</div>` + items.map(rowHtml).join('');
+    html += `<div class="sec"><span class="hash">##</span> ${esc(sec.name)}</div>` + items.map(rowHtml).join('');
   }
   // one expand control, at the very bottom of the list — standard "show more" pattern
   const hiddenCount = flat.filter(t => !t.active).length -
@@ -270,7 +233,7 @@ $('body').addEventListener('mouseout', e => {
 });
 
 // drag & drop reorder — same semantics as the main window (drop on a row = insert before it)
-let dragId = null;
+let dragId = null, lastOver = null;
 $('body').addEventListener('dragstart', e => {
   const row = e.target.closest('.row');
   if (!row) { e.preventDefault(); return; }
@@ -283,8 +246,11 @@ $('body').addEventListener('dragover', e => {
   e.preventDefault();
   if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   const over = e.target.closest('.row');
-  document.querySelectorAll('.row.drop-above').forEach(r => r.classList.remove('drop-above'));
-  if (over && over.dataset.id !== dragId) over.classList.add('drop-above');
+  const target = over && over.dataset.id !== dragId ? over : null;
+  if (target === lastOver) return; // dragover fires constantly — touch the DOM only when the target changes
+  if (lastOver) lastOver.classList.remove('drop-above');
+  if (target) target.classList.add('drop-above');
+  lastOver = target;
 });
 $('body').addEventListener('drop', async e => {
   e.preventDefault();
@@ -300,6 +266,7 @@ $('body').addEventListener('drop', async e => {
 $('body').addEventListener('dragend', () => {
   dragId = null;
   document.querySelectorAll('.row.dragging, .row.drop-above').forEach(r => r.classList.remove('dragging', 'drop-above'));
+  lastOver = null;
 });
 
 // clicks never write as a side effect of looking: row = open the editor; explicit [ ] / ☆ / Done / Not now controls write

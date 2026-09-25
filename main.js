@@ -562,6 +562,17 @@ else {
           await step('composer-typed-add', `(async()=>{ const ta=document.getElementById('new-title'); ta.value='!! 26 Sep E2E composed task'; ta.dispatchEvent(new Event('input',{bubbles:true})); ${wait(400)} const pv=document.getElementById('new-preview-line').textContent; const sel=[...document.querySelectorAll('#new-prio .pchip.sel')].map(c=>c.dataset.p).join(); document.getElementById('btn-add').click(); ${wait(700)} const row=[...document.querySelectorAll('.wrow')].find(r=>r.textContent.includes('E2E composed task')); return 'preview=[' + pv + '] chip=' + sel + ' row=' + (row ? row.querySelector('.bang').textContent + '|' + (row.querySelector('.wdue')||{}).textContent : 'MISSING'); })()`);
           await step('done-tab+clear+undo', `(async()=>{ document.getElementById('tab-done').click(); ${wait(400)} const n0=document.querySelectorAll('.wrow.done').length; document.getElementById('btn-clear-done').click(); ${wait(700)} const n1=document.querySelectorAll('.wrow.done').length; ${undoClick} ${wait(900)} const n2=document.querySelectorAll('.wrow.done').length; return n0+'→'+n1+'→'+n2; })()`);
           await step('settings-dirty-guard', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(500)} const d=document.getElementById('set-dismiss'); d.value='3'; d.dispatchEvent(new Event('input',{bubbles:true})); const dot=!document.getElementById('settings-dirty').hidden; document.getElementById('tab-work').click(); ${wait(200)} const guard=!document.getElementById('dirty-guard').hidden; document.getElementById('guard-save').click(); ${wait(700)} const fs=document.querySelector('.fstat[data-for=set-dismiss]').textContent; return 'dot='+dot+' guard='+guard+' clamp=['+fs+'] tab='+document.querySelector('.tab.active').id; })()`);
+          { // quick editor: preview line, ⋯ menu, and a no-change Save must round-trip the note byte-identically
+            const t0 = snapshot().sections.flatMap(s => s.items).find(t => t.file === 'work');
+            const before = fs.readFileSync(state.settings.workPath, 'utf8');
+            openEditor(t0.file, t0.id);
+            await new Promise(r => setTimeout(r, 1500));
+            const eStep = (name, js) => editorWin.webContents.executeJavaScript(js)
+              .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
+            await eStep('editor-preview+menu+save', `(async()=>{ await new Promise(r=>setTimeout(r,300)); const pv=document.getElementById('ed-preview-line').textContent; document.getElementById('ed-more').click(); const menuOpen=!document.getElementById('ed-menu').hidden; document.getElementById('ed-more').click(); document.getElementById('ed-save').click(); await new Promise(r=>setTimeout(r,700)); return 'preview=['+pv+'] menu='+menuOpen+' saved='+!document.getElementById('ed-saved').hidden; })()`);
+            LOG('UTEST editor-save-roundtrip: ' + (fs.readFileSync(state.settings.workPath, 'utf8') === before ? 'byte-identical' : 'CHANGED'));
+            if (editorWin && !editorWin.isDestroyed()) editorWin.close();
+          }
           await step('open-share',`(async()=>{ document.getElementById('btn-share').click(); await new Promise(r=>setTimeout(r,900)); return 'clicked'; })()`);
           const shStep = (name, js) => (shareWin && shareWin.webContents.executeJavaScript(js))
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));

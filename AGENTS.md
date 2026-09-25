@@ -65,6 +65,8 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
 - **Island clicks never write as a side effect of looking:** row click = open the editor; writes happen only on explicit controls (`[ ]` complete, ☆ Now, Done, Not now, subtask tick).
 - **Honest failure:** a note that can't be read shows `[!]` + a persistent banner (island pins itself; window shows an error strip, `Work ·!` tab and an "unavailable" empty state) — never an empty "Nice." list.
 - **Keyboard:** task lists are ONE roving tab stop (↑/↓, Enter edit, Space/x complete, `*`/s Now, 0–3 priority, Del delete, `/` search, `n` new, `?` key list). The island takes focus ONLY when summoned by the global shortcut (`showIsland({ focus: true })`) and drops focusability on hide — timed pops never steal focus.
+- **Shared components (ui-shared.js):** `UI.mountUndo` is THE undo bubble (window toast + island bar); `UI.countdown` drains bars with `transform: scaleX` and pauses from elapsed time; `UI.prioChips` / `UI.dueControl` are the only priority/due inputs. Don't fork them per window.
+- **Editor:** shows a "will write" line (via `compose-task`); Save writes what that line says. Rare actions (move/delete) live in the ⋯ menu.
 - **Colors:** only through tokens.css; `npm run contrast` must pass (≥4.5:1 text in both schemes). Native title-bar colors live in main.js `THEME` and must match `--paper`/`--muted`.
 - **Motion writes in parallel, never first:** animate while the IPC write runs (`Promise.all`), roll the animation back on failure. While an animation runs, incoming snapshots/refreshes are deferred (`animating` counter) so the moving row isn't destroyed.
 

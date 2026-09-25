@@ -1,23 +1,23 @@
-
+/* island.css — the drop-down pill. Colors, sizes, radii, motion: tokens.css only. */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 [hidden] { display: none !important; } /* kills the ghost undo-bar: display:flex overrode the hidden attribute */
 html, body { background: transparent; overflow: hidden; }
-body {
-  font-family: var(--font-sans);
-  color: var(--ink); user-select: none; font-size: 13.5px;
-}
+body { font-family: var(--font-sans); color: var(--ink); user-select: none; font-size: var(--fs-3); }
+.ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
 /* NO box-shadow on the pill: the transparent window is snug, a shadow would clip into a visible square */
 #wrap { padding: 8px; position: relative; }
 #pill {
   width: 576px; margin: 0 auto;
   background: var(--pill-bg);
   border: 1px solid var(--pill-border);
-  border-radius: 26px;
+  border-radius: var(--r-pill);
   overflow: hidden; /* drop-in entry + retract exit are played from island.js on each show/hide */
 }
 
-#progress { height: 3px; background: var(--prog-bg); }
-#progress-fill { display: block; height: 100%; width: 100%; background: var(--accent); }
+/* dismiss countdown (M7): hairline drains with transform scaleX, never width */
+#progress { height: 2px; background: var(--prog-bg); }
+#progress-fill { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; }
 body.pinned #progress { display: none; }
 
 .pill-top { display: flex; align-items: center; gap: 10px; padding: 12px 18px 9px; }
@@ -25,84 +25,71 @@ body.pinned #progress { display: none; }
 .mark { flex: none; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 600; color: var(--faint); letter-spacing: -0.5px; }
 .mark.now { color: var(--accent); }
 .mark.err { color: var(--p3); }
-#head-title {
-  flex: 1; font-weight: 650; font-size: 13.5px; letter-spacing: 0.01em;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-.count {
-  flex: none; font-size: 11px; font-weight: 600; color: var(--muted);
-  background: var(--chip); border: 1px solid var(--pill-border);
-  border-radius: 999px; padding: 3px 10px;
+#head-title { flex: 1; min-width: 0; font-weight: 650; font-size: var(--fs-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.count { /* inline-code token */
+  flex: none; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted);
+  background: var(--chip); border-radius: var(--r-1); padding: 2px 7px;
 }
 .tools { display: flex; gap: 2px; }
 .pill-top button {
-  flex: none; width: 28px; height: 28px; border: 0; border-radius: 9px;
+  flex: none; width: 28px; height: 28px; border: 0; border-radius: var(--r-2);
   background: transparent; color: var(--muted); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--d-1) ease, color var(--d-1) ease;
 }
 .pill-top button:hover { background: var(--hover); color: var(--ink); }
 .pill-top button.pinned { color: var(--accent); background: var(--accent-soft); }
-.ic {
-  width: 15px; height: 15px; fill: none;
-  stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round;
-}
 #btn-expand .chev-up { display: none; }
 body.expanded #btn-expand .chev-down { display: none; }
 body.expanded #btn-expand .chev-up { display: block; }
 
 #body { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 4px; }
 #body::-webkit-scrollbar { width: 6px; }
-#body::-webkit-scrollbar-thumb { background: var(--chip); border-radius: 3px; }
 
+/* markdown-literal section heading: "## Work" (faint mono ## + sentence case) + hairline */
 .sec {
-  display: flex; align-items: center; gap: 8px;
-  padding: 11px 20px 6px; font-size: 10.5px; font-weight: 700;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint);
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 11px 20px 5px; font-size: var(--fs-2); font-weight: 650; color: var(--muted);
 }
-.sec::after { content: ''; flex: 1; height: 1px; background: var(--rule-soft); }
+.sec .hash { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
+.sec::after { content: ''; flex: 1; height: 1px; background: var(--rule-soft); align-self: center; }
 
-.fold { display: grid; grid-template-rows: 1fr; }
+.fold { display: grid; grid-template-rows: 1fr; } /* M1: rows fold away via grid rows, never height */
 .fold-in { min-height: 0; overflow: hidden; }
 .row {
   position: relative;
   display: flex; align-items: flex-start; gap: 10px; overflow: hidden;
-  margin: 1px 10px; padding: 9px 10px; border-radius: 13px; cursor: pointer;
+  margin: 1px 10px; padding: 9px 10px; border-radius: var(--r-3); cursor: pointer;
   border: 1px solid transparent;
-  transition: background 0.13s ease;
+  transition: background var(--d-1) ease, border-color var(--d-1) ease;
 }
 .row:hover { background: var(--hover); }
 .row:focus-visible, .active-card:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .row.dragging { opacity: 0.45; }
-.row.drop-above { box-shadow: inset 0 2.5px 0 var(--accent); }
-.row.active { background: var(--accent-soft); border-color: var(--accent-border); }
+.row.drop-above { box-shadow: inset 0 2px 0 var(--accent); } /* inset on a row, not the pill — safe */
 
-.bang { flex: none; width: 28px; padding-top: 2px; font-weight: 800; font-size: 12.5px; letter-spacing: -0.5px; }
-.bang.p3 { color: var(--p3); }
-.bang.p2 { color: var(--p2); }
-.bang.p1 { color: var(--p1); }
-.bang.p0::after { content: ''; display: inline-block; width: 5px; height: 5px; margin-left: 10px; border-radius: 50%; background: var(--faint); opacity: 0.55; }
+.bang { flex: none; width: 28px; padding-top: 2px; font-family: var(--font-mono); font-weight: 750; font-size: var(--fs-2); letter-spacing: -1px; }
+.bang.p3 { color: var(--p3); } .bang.p2 { color: var(--p2); } .bang.p1 { color: var(--p1); }
+.bang.p0::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-left: 10px; border-radius: 50%; background: var(--faint); opacity: 0.5; vertical-align: middle; }
 
 .row-main { flex: 1; min-width: 0; }
-.row .rtitle { min-width: 0; }
 .rtitle {
-  display: block; padding-top: 1px; line-height: 1.45;
+  padding-top: 1px; line-height: 1.45; min-width: 0;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 
 /* hover unfold: the row itself opens (grid rows 0fr → 1fr, no max-height), then its lines settle in */
 .rd-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 280ms var(--ease-out); }
-.rd-inner {
-  min-height: 0; overflow: hidden;
-  display: flex; flex-direction: column; gap: 3px;
-  font-size: var(--fs-2); color: var(--muted);
-}
+.rd-inner { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-2); color: var(--muted); }
 .rd-inner .rd-note { font-style: italic; }
 .rd-inner .done { color: var(--faint); text-decoration: line-through; }
 .rd-inner div[data-sub] { cursor: pointer; }
 .rd-inner div[data-sub]:hover { color: var(--ink); }
 .rd-inner > :first-child { margin-top: 6px; }
+.row.hovered { background: var(--accent-soft); border-color: var(--accent-border); }
+.row.hovered .rtitle { -webkit-line-clamp: unset; overflow: visible; }
+.row.hovered .row-sub { display: none; }
 .row.hovered .rd-wrap { grid-template-rows: 1fr; }
 .row.hovered .rd-inner > * { animation: settle 240ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 30ms + 60ms); }
 @keyframes settle { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
@@ -114,6 +101,7 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 }
 .row.dwelling::after { transform: scaleX(1); transition: transform var(--dwell, 2s) linear; }
 @media (prefers-reduced-motion: reduce) { .row::after { display: none; } }
+
 /* explicit controls: the literal markdown checkbox completes, ☆ marks Now; clicking the row just opens the editor */
 .rchk {
   flex: none; min-width: 26px; min-height: 24px; margin: -3px -2px -3px -4px; padding: 0 2px;
@@ -121,15 +109,16 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
   font-family: var(--font-mono); font-size: var(--fs-2); color: var(--faint); letter-spacing: -0.5px;
   transition: color var(--d-1) ease, background var(--d-1) ease;
 }
-.rchk:hover { color: var(--accent); background: var(--accent-soft); }
-.rchk.checked { color: var(--accent); }
+.rchk:hover, .rchk.checked { color: var(--accent); }
+.rchk:hover { background: var(--accent-soft); }
 .rstar {
   flex: none; width: 24px; height: 24px; margin: -3px -4px -3px 0; border: 0; border-radius: var(--r-1);
   background: transparent; color: var(--faint); cursor: pointer; font-size: var(--fs-3); line-height: 1;
   opacity: 0; transition: opacity var(--d-1) ease, color var(--d-1) ease, background var(--d-1) ease;
 }
-.row:hover .rstar, .rstar:focus-visible { opacity: 1; }
+.row:hover .rstar, .row:focus-within .rstar, .rstar:focus-visible { opacity: 1; }
 .rstar:hover { color: var(--accent); background: var(--accent-soft); }
+
 /* M1 ink strike + M2 highlighter: inline backgrounds, so they sweep line by line across wrapped titles */
 .tt.striking {
   background-image: linear-gradient(currentColor, currentColor);
@@ -142,11 +131,19 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
 .kbd { font-family: var(--font-mono); font-size: var(--fs-1); }
+
+/* meta tokens look like inline code */
+.row-sub, .due {
+  flex: none; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted);
+  background: var(--chip); border-radius: var(--r-1); padding: 2px 6px; white-space: nowrap;
+}
+.due.today { color: var(--accent); background: var(--accent-soft); }
+.due.overdue { color: var(--p3); background: color-mix(in srgb, var(--p3) 10%, transparent); }
+
 .err-banner {
   display: flex; align-items: center; gap: 10px;
   margin: 8px 14px 2px; padding: 8px 8px 8px 12px; border-radius: var(--r-3);
-  border: 1px solid var(--p3);
-  color: var(--p3); font-size: var(--fs-2); font-weight: 600;
+  border: 1px solid var(--p3); color: var(--p3); font-size: var(--fs-2); font-weight: 600;
 }
 .err-banner span { flex: 1; min-width: 0; }
 .err-banner code { font-family: var(--font-mono); font-size: var(--fs-1); }
@@ -155,80 +152,61 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
   font-family: inherit; font-size: var(--fs-1); font-weight: 650; padding: 4px 10px; border-radius: var(--r-2);
 }
 .err-banner button:hover { background: color-mix(in srgb, var(--p3) 12%, transparent); }
-.row.hovered { background: var(--accent-soft); border-color: var(--accent-border); }
-.row.hovered .rtitle { -webkit-line-clamp: unset; overflow: visible; }
-.row.hovered .row-sub { display: none; }
-.row-sub {
-  flex: none; font-size: 11px; color: var(--muted);
-  background: var(--chip); border-radius: 999px; padding: 2px 9px;
-}
-.due {
-  flex: none; font-size: 11px; font-weight: 600; color: var(--muted);
-  padding: 3px 9px; border-radius: 999px; background: var(--chip);
-}
-.due.today { color: var(--accent); background: var(--accent-soft); }
-.due.overdue { color: var(--p3); background: var(--accent-soft); }
 
+/* Now card: the task you're on, with the highlighter behind its title */
 .active-card {
   margin: 4px 14px 12px; padding: 13px 15px;
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-border);
-  border-radius: 17px;
+  background: var(--accent-soft); border: 1px solid var(--accent-border); border-radius: var(--r-3);
 }
 .active-card .ac-head { display: flex; align-items: center; gap: 10px; }
-.star { flex: none; color: var(--accent); font-size: 15px; line-height: 1; }
-.active-card .ac-title { flex: 1; font-weight: 650; font-size: 14px; line-height: 1.4; }
-.ac-subs { margin-top: 8px; font-size: 12.5px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
-.ac-subs div[data-sub] { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: 0 -4px; }
+.star { flex: none; color: var(--accent); font-size: var(--fs-4); line-height: 1; }
+.active-card .ac-title { flex: 1; min-width: 0; font-weight: 650; font-size: var(--fs-4); line-height: 1.4; }
+.ac-subs { margin-top: 8px; font-size: var(--fs-2); color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+.ac-subs div[data-sub] { cursor: pointer; border-radius: var(--r-1); padding: 2px 4px; margin: 0 -4px; }
 .ac-subs div[data-sub]:hover { color: var(--ink); background: var(--hover); }
 .ac-subs .done { color: var(--faint); text-decoration: line-through; }
 .ac-actions { display: flex; gap: 8px; margin-top: 12px; }
 .ac-actions button {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 8px 0; border: 0; border-radius: 11px; cursor: pointer;
-  font-size: 12.5px; font-weight: 650; font-family: inherit;
-  transition: filter 0.13s ease, background 0.13s ease;
+  padding: 8px 0; border-radius: var(--r-2); cursor: pointer;
+  font-size: var(--fs-2); font-weight: 650; font-family: inherit;
+  transition: filter var(--d-1) ease, border-color var(--d-1) ease;
 }
 .ac-actions .ic { width: 13px; height: 13px; stroke-width: 2.2; }
-.btn-done { background: var(--accent); color: var(--accent-ink); }
+.btn-done { background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); }
 .btn-done:hover { filter: brightness(1.08); }
-.btn-keep { background: var(--chip); color: var(--ink); }
-.btn-keep:hover { filter: brightness(1.06); }
+.btn-keep { background: var(--pill-bg); color: var(--ink); border: 1px solid var(--rule); }
+.btn-keep:hover { border-color: var(--faint); }
 
-.hint { padding: 5px 20px 11px; color: var(--faint); font-size: 12px; }
+.hint { padding: 5px 20px 11px; color: var(--faint); font-size: var(--fs-2); }
 
-/* motion — restrained, ease-out, no bounce */
-@keyframes fadeUp { from { opacity: 0; transform: translateY(8px) scale(0.985); } to { opacity: 1; transform: none; } }
-.active-card, #undo-bar, .expand-row { animation: fadeUp 0.25s ease-out both; }
+/* entrances — restrained, ease-out, no bounce */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#undo-bar, .expand-row { animation: fadeUp var(--d-2) var(--ease-out) both; }
 
 .expand-row {
   display: flex; align-items: center; justify-content: center; gap: 7px;
-  margin: 4px 10px 8px; padding: 9px; border-radius: 12px;
-  color: var(--accent); font-size: 12.5px; font-weight: 650; cursor: pointer;
-  transition: background 0.13s ease;
+  margin: 4px 10px 8px; padding: 9px; border-radius: var(--r-3);
+  color: var(--accent); font-size: var(--fs-2); font-weight: 650; cursor: pointer;
+  transition: background var(--d-1) ease;
 }
 .expand-row:hover { background: var(--accent-soft); }
 .expand-row .ic { width: 13px; height: 13px; stroke-width: 2.2; }
 
+/* undo bar — rendered by UI.mountUndo (shared with the tasks window) */
 #undo-bar {
   position: relative; overflow: hidden;
   margin: 2px 14px 12px; padding: 9px 13px;
   display: flex; align-items: center; gap: 10px;
-  background: var(--chip);
-  border: 1px solid var(--pill-border);
-  border-radius: 13px; font-size: 12.5px; color: var(--muted);
+  background: var(--chip); border: 1px solid var(--pill-border);
+  border-radius: var(--r-3); font-size: var(--fs-2); color: var(--muted);
 }
-#undo-bar .undo-progress, #undo-toast .undo-progress {
-  position: absolute; left: 0; right: 0; bottom: 0; height: 2.5px;
-}
-#undo-bar .undo-fill, #undo-toast .undo-fill {
-  display: block; height: 100%; width: 100%;
-  background: var(--accent);
-}
-#undo-bar .undo-label { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-#undo-bar button {
+.undo-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.undo-btn {
   border: 0; background: transparent; color: var(--accent); font-family: inherit;
-  font-weight: 700; font-size: 12.5px; cursor: pointer; padding: 2px 6px; border-radius: 7px;
+  font-weight: 700; font-size: var(--fs-2); cursor: pointer; padding: 2px 6px; border-radius: var(--r-1);
 }
-#undo-bar button:hover { background: var(--accent-soft); }
-#undo-bar .undo-count { font-size: 11px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.undo-btn:hover { background: var(--accent-soft); }
+.undo-count { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); font-variant-numeric: tabular-nums; }
+.undo-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; }
+.undo-fill { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; }

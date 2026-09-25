@@ -15,33 +15,44 @@
   <main id="ed-main">
     <p class="empty" id="ed-missing" hidden>Task not found — it may have been completed or removed.</p>
     <div id="ed-form" hidden>
-      <div class="field"><label>Task <span class="label-hint">— first line is the title, lines below become its description</span></label>
+      <div class="field"><label for="ed-title">Task <span class="label-hint">— first line is the title, lines below become its description</span></label>
         <textarea id="ed-title" rows="1" spellcheck="false"></textarea>
       </div>
-      <div class="field"><label>Priority</label>
-        <div class="chips" id="ed-prio"></div>
-      </div>
-      <div class="field"><label>Now</label>
-        <div class="chips">
-          <button class="chip" id="ed-active" type="button" aria-pressed="false">&#9733; Working on it now</button>
+      <div class="field-row">
+        <div class="field"><label>Priority</label>
+          <div class="chips" id="ed-prio" aria-label="Priority"></div>
+        </div>
+        <div class="field"><label>Now</label>
+          <button class="chip" id="ed-active" type="button" aria-pressed="false">&#9733; Working on it</button>
         </div>
       </div>
       <div class="field"><label>Due</label>
-        <div class="chips" id="ed-due"></div>
+        <div class="chips" id="ed-due" aria-label="Due date"></div>
       </div>
-      <div class="field"><label>Subtasks</label>
+      <div class="field"><label for="ed-sub">Subtasks</label>
         <ul class="subs-list" id="ed-subs"></ul>
         <div class="addsub"><input type="text" id="ed-sub" placeholder="New subtask…"><button id="ed-addsub" type="button">Add</button></div>
       </div>
       <div class="save-bar">
-        <button class="btn-accent" id="ed-save" type="button">Save changes</button>
-        <button class="btn-complete" id="ed-complete" type="button">
-          <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Complete
-        </button>
-        <button class="btn-soft btn-icon" id="ed-up" type="button" title="Move up" aria-label="Move task up"><svg class="ic" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg></button>
-        <button class="btn-soft btn-icon" id="ed-down" type="button" title="Move down" aria-label="Move task down"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
-        <button class="btn-danger" id="ed-delete" type="button">Delete</button>
-        <span class="saved" id="ed-saved" hidden>Saved ✓</span>
+        <div class="ed-preview"><span class="pv-label">will write</span><code id="ed-preview-line"></code></div>
+        <div class="ed-actions">
+          <button class="btn-accent" id="ed-save" type="button" title="Save (Ctrl+Enter)">Save</button>
+          <button class="btn-soft" id="ed-complete" type="button">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Complete
+          </button>
+          <span class="saved" id="ed-saved" hidden role="status">Saved ✓</span>
+          <div class="menu-wrap">
+            <button class="btn-soft btn-icon" id="ed-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="ed-menu" title="More" aria-label="More actions">
+              <svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
+            </button>
+            <div class="menu" id="ed-menu" role="menu" hidden>
+              <button role="menuitem" id="ed-up" type="button">Move up</button>
+              <button role="menuitem" id="ed-down" type="button">Move down</button>
+              <hr>
+              <button role="menuitem" id="ed-delete" class="danger" type="button">Delete task</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </main>
