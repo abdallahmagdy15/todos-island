@@ -24,5 +24,6 @@ contextBridge.exposeInMainWorld('api', {
   copyText: text => ipcRenderer.invoke('copy-text', text),
   onTasksChanged: cb => ipcRenderer.on('tasks-changed', () => cb()),
   onShowUndo: cb => ipcRenderer.on('show-undo', (_e, d) => cb(d)),
+  onLangChanged: cb => ipcRenderer.on('lang-changed', (_e, lang) => cb(lang)),
   onShowTab: cb => ipcRenderer.on('show-tab', (_e, tab) => cb(tab))
 });

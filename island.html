@@ -14,17 +14,17 @@
         <span id="head-title">Todo Island</span>
         <span id="head-count" class="count"></span>
         <div class="tools">
-          <button id="btn-pin" title="Pin — keep on screen" aria-label="Pin island on screen">
+          <button id="btn-pin" data-i18n-title="isl.pin.title" data-i18n-aria="isl.pin.aria">
             <svg class="ic" viewBox="0 0 24 24"><path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V5a2 2 0 0 0 2-2H7a2 2 0 0 0 2 2z"/></svg>
           </button>
-          <button id="btn-expand" title="Show all" aria-label="Show all tasks">
+          <button id="btn-expand" data-i18n-title="isl.expand.title" data-i18n-aria="isl.expand.aria">
             <svg class="ic chev-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
             <svg class="ic chev-up" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>
           </button>
-          <button id="btn-gear" title="Open tasks window" aria-label="Open tasks window">
+          <button id="btn-gear" data-i18n-title="isl.gear.title" data-i18n-aria="isl.gear.aria">
             <svg class="ic" viewBox="0 0 24 24"><path d="M4 6l1 1 2-2"/><path d="M4 13l1 1 2-2"/><path d="M4 20l1 1 2-2"/><path d="M10.5 6H20"/><path d="M10.5 13H20"/><path d="M10.5 20H20"/></svg>
           </button>
-          <button id="btn-close" title="Hide" aria-label="Hide island">
+          <button id="btn-close" data-i18n-title="isl.close.title" data-i18n-aria="isl.close.aria">
             <svg class="ic" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
         </div>
@@ -35,7 +35,10 @@
   </div>
   <script src="sfx.js"></script>
   <script src="motion.js"></script>
-  <script src="ui-shared.js"></script>
+  <script src="locales/en.js"></script>
+<script src="locales/ar.js"></script>
+<script src="lib/i18n.js"></script>
+<script src="ui-shared.js"></script>
   <script src="island.js"></script>
 </body>
 </html>

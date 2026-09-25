@@ -80,7 +80,7 @@ body.expanded #btn-expand .chev-up { display: block; }
 
 .bang { flex: none; width: 28px; padding-top: 2px; font-family: var(--font-mono); font-weight: 750; font-size: var(--fs-2); letter-spacing: -1px; }
 .bang.p3 { color: var(--p3); } .bang.p2 { color: var(--p2); } .bang.p1 { color: var(--p1); }
-.bang.p0::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-left: 10px; border-radius: 50%; background: var(--faint); opacity: 0.5; vertical-align: middle; }
+.bang.p0::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-inline-start: 10px; border-radius: 50%; background: var(--faint); opacity: 0.5; vertical-align: middle; }
 
 .row-main { flex: 1; min-width: 0; }
 .rtitle {

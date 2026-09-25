@@ -7,30 +7,32 @@ let prevActive = null; // ids that were Now last render — newly-Now titles get
 
 const { esc, bangCls } = window.UI;
 const $ = id => document.getElementById(id);
+let LANG = 'en';
+const T = (k, prm) => window.I18N.t(LANG, k, prm);
 
 function dueHtml(t) {
   if (!t.dueText) return '';
   const cls = t.dueState === 'today' ? 'due today' : t.dueState === 'overdue' ? 'due overdue' : 'due';
-  let label = t.dueState === 'today' ? 'Today' : t.dueText;
+  let label = t.dueState === 'today' ? T('isl.due.today') : t.dueText;
   if (t.dueState === 'overdue' && t.dueTs) { // overdue never relies on color alone
     const today0 = new Date(); today0.setHours(0, 0, 0, 0);
-    label += ` \u00B7 ${Math.round((today0.getTime() - (t.dueTs - 12 * 3600e3)) / 864e5)}d late`;
+    label += ` \u00B7 ${T('isl.due.late', { n: Math.round((today0.getTime() - (t.dueTs - 12 * 3600e3)) / 864e5) })}`;
   }
   return `<span class="${cls}">${esc(label)}</span>`;
 }
 function rowHtml(t) {
-  const subsBadge = t.subs.length ? `<span class="row-sub">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</span>` : '';
+  const subsBadge = t.subs.length ? `<span class="row-sub">${T('isl.sub.badge', { a: t.subs.filter(s => !s.done).length, b: t.subs.length })}</span>` : '';
   const lines = [
     ...(t.notes || []).map(n => `<div class="rd-note">${esc(n)}</div>`),
     ...t.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`)
   ].map((l, i) => l.replace('<div ', `<div style="--i:${Math.min(i, 6)}" `));
   const detail = lines.length ? `<div class="rd-wrap"><div class="rd-inner">${lines.join('')}</div></div>` : '';
   return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(t.title)}" draggable="true">
-    <button class="rchk" data-chk type="button" title="Complete" aria-label="Complete: ${esc(t.title)}">[ ]</button>
+    <button class="rchk" data-chk type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: t.title }))}">[ ]</button>
     <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
     <div class="row-main"><span class="rtitle"><span class="tt">${esc(t.title)}</span></span>${detail}</div>
     ${subsBadge}${dueHtml(t)}
-    <button class="redit" data-edit type="button" title="Edit task" aria-label="Edit: ${esc(t.title)}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button>
+    <button class="redit" data-edit type="button" title="${esc(T('isl.btn.editTitle'))}" aria-label="${esc(T('isl.btn.editAria', { t: t.title }))}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button>
   </div></div></div>`;
 }
 
@@ -75,7 +77,9 @@ function render() {
   // focus by time: the pill mirrors the clock — work tasks in the workday, personal outside (toggle in Settings).
   // snapshot keeps both sections, so the tasks/share windows are never filtered — this is island-only.
   let sections = snap.sections;
-  if (snap.settings.focusByTime) sections = sections.filter(s => s.name === (snap.workday ? 'Work' : 'Personal'));
+  // focus-by-time only makes sense with both notes — a one-note user would get an empty island half the day
+  const focus = snap.settings.focusByTime && (snap.settings.mode || 'both') === 'both';
+  if (focus) sections = sections.filter(s => s.name === (snap.workday ? 'Work' : 'Personal'));
   const flat = sections.flatMap(s => s.items);
   const total = flat.length;
   const actives = flat.filter(t => t.active);
@@ -84,9 +88,9 @@ function render() {
   document.body.classList.toggle('pinned', pinned || errs); // a broken source keeps the pill up until you've seen it
   $('btn-pin').classList.toggle('pinned', pinned);
   $('head-title').textContent =
-    actives.length === 1 ? actives[0].title : actives.length > 1 ? actives.length + ' tasks Now' : 'Todo Island';
+    actives.length === 1 ? actives[0].title : actives.length > 1 ? T('isl.head.titleP', { n: actives.length }) : T('app.name');
   $('head-count').textContent =
-    actives.length ? `${actives.length}★ · ${total} open` : `${total} open`;
+    actives.length ? T('isl.head.active', { n: actives.length, m: total }) : T('isl.head.count', { m: total });
   const mark = $('mark'); // live status mark, not decoration: [!] broken source · [★] something is Now · [ ] idle
   mark.textContent = errs ? '[!]' : actives.length ? '[★]' : '[ ]';
   mark.className = 'mark' + (errs ? ' err' : actives.length ? ' now' : '');
@@ -94,14 +98,14 @@ function render() {
   let html = '';
   if (errs) {
     html += snap.errors.map(e =>
-      `<div class="err-banner" role="alert"><span>Can't read <code>${esc(e.name || e.path)}</code> — moved or renamed?</span><button data-open-settings type="button">Open settings</button></div>`).join('');
+      `<div class="err-banner" role="alert"><span>${esc(T('isl.err.banner', { f: e.name || e.path }))}</span><button data-open-settings type="button">${T('isl.err.open')}</button></div>`).join('');
   }
   if (actives.length) {
-    html += `<div class="sec"><span class="hash">##</span> Now</div>`;
+    html += `<div class="sec"><span class="hash">##</span> ${esc(T('isl.sec.now'))}</div>`;
     for (const a of actives) {
       const subs = a.subs.length
         ? `<div class="ac-subs">${a.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-parent="${esc(a.id)}" data-file="${a.file}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
-      html += `<div class="fold"><div class="fold-in"><div class="active-card rim" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="Now: ${esc(a.title)}">
+      html += `<div class="fold"><div class="fold-in"><div class="active-card rim" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
           <span class="star">&#9733;</span>
           <span class="bang ${bangCls(a.priority)}">${a.priority ? esc(a.priority) : ''}</span>
@@ -110,32 +114,32 @@ function render() {
         </div>
         ${subs}
         <div class="ac-actions">
-          <button class="btn-done rim" data-done="${esc(a.id)}" data-file="${a.file}"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Done</button>
-          <button class="btn-keep" data-unstar="${esc(a.id)}" data-file="${a.file}">Not now</button>
+          <button class="btn-done rim" data-done="${esc(a.id)}" data-file="${a.file}"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>${T('isl.btn.done')}</button>
+          <button class="btn-keep" data-unstar="${esc(a.id)}" data-file="${a.file}">${T('isl.btn.notNow')}</button>
         </div>
       </div></div></div>`;
     }
   } else if (!total && !errs) {
-    html += `<div class="hint">${snap.settings.focusByTime
-      ? (snap.workday ? 'No open work tasks — the workday list is clear.' : 'No open personal tasks — enjoy the off hours.')
-      : 'Nothing open right now — add tasks in the tasks window.'}</div>`;
+    html += `<div class="hint">${focus
+      ? (snap.workday ? T('isl.hint.emptyWork') : T('isl.hint.emptyPersonal'))
+      : T('isl.hint.empty')}</div>`;
   } else if (total) {
-    html += `<div class="hint">Click a task to edit · <span class="kbd">[ ]</span> completes · <span class="kbd">&#9734;</span> marks it Now</div>`;
+    html += `<div class="hint">${esc(T('isl.hint.star')).replace(/\[ \]/g, '<span class="kbd">[ ]</span>')}</div>`;
   }
 
   for (const sec of sections) {
     const rest = sec.items.filter(t => !t.active);
     const items = expanded ? rest : rest.slice(0, 3);
     if (!items.length && !expanded) continue;
-    html += `<div class="sec"><span class="hash">##</span> ${esc(sec.name)}</div>` + items.map(rowHtml).join('');
+    html += `<div class="sec"><span class="hash">##</span> ${esc(sec.name === 'Work' ? T('isl.sec.work') : T('isl.sec.personal'))}</div>` + items.map(rowHtml).join('');
   }
   // one expand control, at the very bottom of the list — standard "show more" pattern
   const hiddenCount = flat.filter(t => !t.active).length -
     sections.reduce((n, sec) => n + Math.min(3, sec.items.filter(t => !t.active).length), 0);
   if (expanded) {
-    html += `<div class="expand-row" id="expand-toggle"><svg class="ic" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>Show less</div>`;
+    html += `<div class="expand-row" id="expand-toggle"><svg class="ic" viewBox="0 0 24 24"><path d="M18 15l-6-6-6-6"/></svg>${T('isl.expand.less')}</div>`;
   } else if (hiddenCount > 0) {
-    html += `<div class="expand-row" id="expand-toggle">Show all ${flat.length} tasks<svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>`;
+    html += `<div class="expand-row" id="expand-toggle">${T('isl.expand.all', { n: flat.length })}<svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>`;
   }
   $('body').innerHTML = html;
   if (hoverRowId) { // hover-unfold survives snapshot re-renders (re-applied to the same task)
@@ -161,7 +165,7 @@ function render() {
 
   requestAnimationFrame(() => window.api.resize($('wrap').offsetHeight));
   if (errs) { clearTimeout(dismissT); return; }
-  if (!pinned && !islandHovered && !kbdActive) scheduleDismiss((snap.settings.dismissSec || 45) * 1000);
+  if (!pinned && !islandHovered && !kbdActive) scheduleDismiss((snap.settings.dismissSec || 10) * 1000);
   else if (!pinned) pauseDismiss(); // hovered / keyboard-driven: freeze the countdown even after action-triggered re-renders
 }
 
@@ -216,7 +220,7 @@ $('body').addEventListener('mouseover', e => {
   if (!row || row === hoverRow) return;
   clearHover();
   hoverRow = row;
-  const sec = Math.max(0.2, (snap && snap.settings.hoverSec) || 2);
+  const sec = Math.max(0.2, (snap && snap.settings.hoverSec) || 1);
   if (row.querySelector('.rd-wrap') || row.querySelector('.rtitle').scrollHeight > row.querySelector('.rtitle').clientHeight + 1) {
     row.style.setProperty('--dwell', sec + 's');
     requestAnimationFrame(() => row.classList.add('dwelling')); // M3 — the charge is visible, so the unfold never surprises
@@ -310,7 +314,7 @@ document.addEventListener('click', e => {
 $('pill').addEventListener('mouseenter', () => { islandHovered = true; if (!pinned) pauseDismiss(); });
 $('pill').addEventListener('mouseleave', () => {
   islandHovered = false;
-  if (!pinned && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 45) * 1000); // fresh countdown once you leave
+  if (!pinned && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 10) * 1000); // fresh countdown once you leave
 });
 
 $('btn-pin').addEventListener('click', () => {
@@ -323,7 +327,7 @@ $('btn-pin').addEventListener('click', () => {
   } else {
     document.body.classList.toggle('pinned', hasErrors());
     $('btn-pin').classList.remove('pinned');
-    if (!islandHovered && !hasErrors()) scheduleDismiss((snap && snap.settings.dismissSec || 45) * 1000); // hovering the pin = still on the island
+    if (!islandHovered && !hasErrors()) scheduleDismiss((snap && snap.settings.dismissSec || 10) * 1000); // hovering the pin = still on the island
   }
 });
 
@@ -344,6 +348,7 @@ function editFromIsland(file, id) {
   window.api.openEditor(file, id);
 }
 window.api.onShown(() => {
+  retracting = false; // heal a retract whose animation promise died silently — the pill is visible again
   const pill = $('pill');
   pill.getAnimations().forEach(a => a.cancel());
   window.Motion.play(pill, [{ transform: 'translateY(-115%)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 340, easing: 'cubic-bezier(.22,.9,.36,1)', fill: 'none' });
@@ -364,7 +369,7 @@ window.api.onFocusRequest(() => {
 window.addEventListener('blur', () => {
   if (!kbdActive) return;
   kbdActive = false;
-  if (!pinned && !islandHovered && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 45) * 1000);
+  if (!pinned && !islandHovered && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 10) * 1000);
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { retract(); return; }
@@ -388,6 +393,7 @@ document.addEventListener('keydown', e => {
 window.api.onPlaySound(() => window.SFX.play('show'));
 
 window.api.onSnapshot(s => {
+  if (s && s.lang && s.lang !== LANG) { LANG = s.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
   if (s && s.settings) window.SFX.enabled = !!s.settings.soundOn;
   if (!snap) expanded = false;
   if (animating) { pendingSnap = s; return; }

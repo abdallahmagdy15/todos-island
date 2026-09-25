@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Welcome to Todo Island</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="window.css">
+<link rel="stylesheet" href="onboard.css">
+</head>
+<body>
+  <header>
+    <span class="logo"><span class="mark" aria-hidden="true">[ ]</span> Todo Island</span>
+    <span class="step-count" id="step-count" aria-hidden="true">1 / 4</span>
+  </header>
+
+  <main id="stage">
+    <!-- 1 · Welcome -->
+    <section class="screen" data-step="1" aria-labelledby="h1">
+      <div class="hero" id="hero" aria-hidden="true">
+        <div class="screen-edge"></div>
+        <div class="mini-pill rim" id="hero-pill">
+          <span class="mp-mark">[&#9733;]</span>
+          <span class="mp-title">Send the report</span>
+          <span class="mp-bang">!!</span>
+          <span class="mp-due">26 Sep</span>
+        </div>
+        <div class="thread" id="hero-thread"></div>
+        <div class="note-card" id="hero-note">
+          <span class="nc-file">work-tasks.md</span>
+          <code class="nc-line"><span class="hl" id="hero-hl">- [ ] * !! 26 Sep — Send the report</span></code>
+          <code class="nc-line dim">- [ ] ! Book dentist</code>
+        </div>
+      </div>
+      <h1 id="h1" class="lead" tabindex="-1">Your notes, gently on top.</h1>
+      <p class="sub">Todo Island reads the plain markdown todo notes you already keep, and drops a small island from the top of your screen, so the next task finds you.</p>
+      <ul class="values">
+        <li><span class="glyph">.md</span><span>Plain notes you own. Open them in any editor, anytime.</span></li>
+        <li><span class="glyph p2">!!</span><span>Priority and due dates live right in the line.</span></li>
+        <li><span class="glyph acc">[&#9733;]</span><span>A quiet island on your schedule. Nothing leaves your PC.</span></li>
+      </ul>
+    </section>
+
+    <!-- 2 · Your tasks -->
+    <section class="screen" data-step="2" aria-labelledby="h2" hidden>
+      <h2 id="h2" class="md-h big" tabindex="-1"><span class="hash">##</span> Your tasks</h2>
+      <p class="sub">What should the island keep track of?</p>
+      <div class="modes" role="radiogroup" aria-label="Which tasks">
+        <button class="mode" role="radio" data-mode="both" type="button"><b>Work &amp; Personal</b><span>work leads in work hours</span></button>
+        <button class="mode" role="radio" data-mode="work" type="button"><b>Work only</b><span>one work note</span></button>
+        <button class="mode" role="radio" data-mode="personal" type="button"><b>Personal only</b><span>one personal note</span></button>
+      </div>
+      <div class="notes">
+        <div class="note-pick" data-note="work">
+          <div class="np-head"><b>Work note</b><button class="btn-text np-reset" data-reset type="button" hidden>Use default</button></div>
+          <p class="np-stat" data-stat role="status"></p>
+          <div class="np-btns">
+            <button class="btn-soft sm" data-pick="file" type="button">Use existing file&hellip;</button>
+            <button class="btn-soft sm" data-pick="folder" type="button">Choose folder&hellip;</button>
+          </div>
+        </div>
+        <div class="note-pick" data-note="personal">
+          <div class="np-head"><b>Personal note</b><button class="btn-text np-reset" data-reset type="button" hidden>Use default</button></div>
+          <p class="np-stat" data-stat role="status"></p>
+          <div class="np-btns">
+            <button class="btn-soft sm" data-pick="file" type="button">Use existing file&hellip;</button>
+            <button class="btn-soft sm" data-pick="folder" type="button">Choose folder&hellip;</button>
+          </div>
+        </div>
+      </div>
+      <p class="fine">Pick nothing and Todo Island creates the note for you. Existing files are never overwritten.</p>
+    </section>
+
+    <!-- 3 · Reminders -->
+    <section class="screen" data-step="3" aria-labelledby="h3" hidden>
+      <h2 id="h3" class="md-h big" tabindex="-1"><span class="hash">##</span> Reminders</h2>
+      <p class="sub">The island drops in on its own, then tucks away.</p>
+      <div class="opts">
+        <div class="orow">
+          <label for="ob-rem"><b>Remind me</b><span>the island drops in on a schedule</span></label>
+          <input id="ob-rem" type="checkbox" role="switch" class="switch" checked>
+        </div>
+        <div class="orow" data-needs-rem>
+          <label for="ob-start"><b id="hours-label">Work hours</b><span id="hours-hint">work tasks lead inside these hours</span></label>
+          <div class="hours"><input id="ob-start" type="time" value="09:00" aria-label="Start"><span class="dash">&ndash;</span><input id="ob-end" type="time" value="17:00" aria-label="End"></div>
+        </div>
+        <div class="orow" data-needs-rem>
+          <span class="olabel"><b>Every</b><span>how often it drops in</span></span>
+          <div class="freq" role="radiogroup" aria-label="Reminder frequency">
+            <button class="chip mono" role="radio" data-every="15" type="button">15m</button>
+            <button class="chip mono" role="radio" data-every="30" type="button">30m</button>
+            <button class="chip mono" role="radio" data-every="60" type="button">1h</button>
+            <button class="chip mono" role="radio" data-every="90" type="button">90m</button>
+          </div>
+        </div>
+        <div class="orow">
+          <label for="ob-auto"><b>Start with Windows</b><span>so reminders keep coming after a restart</span></label>
+          <input id="ob-auto" type="checkbox" role="switch" class="switch" checked>
+        </div>
+      </div>
+      <p class="fine">Nothing fires after midnight until your day starts. Everything here is in Settings later.</p>
+    </section>
+
+    <!-- 4 · Ready -->
+    <section class="screen" data-step="4" aria-labelledby="h4" hidden>
+      <div class="monitor" aria-hidden="true">
+        <div class="mini-pill rim small" id="ready-pill"><span class="mp-mark">[ ]</span><span class="mp-title" id="ready-title">My first todo</span></div>
+      </div>
+      <h2 id="h4" class="lead" tabindex="-1">You&rsquo;re set.</h2>
+      <p class="sub">The island just dropped in at the top of your screen. Bring it back anytime with</p>
+      <p class="keys" id="keys"></p>
+      <ul class="made" id="made"></ul>
+      <p class="err" id="finish-err" role="alert" hidden></p>
+    </section>
+  </main>
+
+  <footer class="ob-foot">
+    <div class="dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="ob-actions">
+      <button class="btn-text" id="btn-skip" type="button">Skip setup</button>
+      <button class="btn-text" id="btn-back" type="button" hidden>Back</button>
+      <button class="btn-soft" id="btn-open" type="button" hidden>Open my tasks</button>
+      <button class="btn-accent" id="btn-next" type="button">Get started</button>
+    </div>
+  </footer>
+  <script src="motion.js"></script>
+  <script src="onboard.js"></script>
+</body>
+</html>

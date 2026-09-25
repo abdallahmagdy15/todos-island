@@ -9,28 +9,31 @@
 </head>
 <body>
   <header>
-    <span class="logo">Share progress</span>
-    <span id="share-note" class="note-inline" role="status">pick tasks → copy or export</span>
+    <span class="logo" data-i18n="sh.header">Share progress</span>
+    <span id="share-note" class="note-inline" role="status" data-i18n="sh.pick">pick tasks → copy or export</span>
   </header>
   <main id="share-list"></main>
   <footer>
     <div class="left">
-      <button id="sel-all" class="btn-soft sm" type="button">Select all</button>
-      <button id="sel-clear" class="btn-soft sm" type="button">Clear</button>
+      <button id="sel-all" class="btn-soft sm" type="button" data-i18n="sh.all">Select all</button>
+      <button id="sel-clear" class="btn-soft sm" type="button" data-i18n="sh.clear">Clear</button>
     </div>
     <div class="right">
       <div class="seg" id="fmt-seg">
         <button class="seg-btn sel" data-fmt="wa" type="button">WhatsApp</button>
         <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
       </div>
-      <span class="sel-hint" id="sel-hint">Select tasks to share</span>
-      <button id="btn-copy" class="btn-accent" type="button" disabled>Copy</button>
-      <button id="btn-export" class="btn-soft" type="button" disabled>Export .md</button>
+      <span class="sel-hint" id="sel-hint" data-i18n="sh.selHint">Select tasks to share</span>
+      <button id="btn-copy" class="btn-accent" type="button" disabled data-i18n="sh.copy">Copy</button>
+      <button id="btn-export" class="btn-soft" type="button" disabled data-i18n="sh.export">Export .md</button>
     </div>
   </footer>
   <script src="sfx.js"></script>
   <script src="motion.js"></script>
-  <script src="ui-shared.js"></script>
+  <script src="locales/en.js"></script>
+<script src="locales/ar.js"></script>
+<script src="lib/i18n.js"></script>
+<script src="ui-shared.js"></script>
   <script src="share.js"></script>
 </body>
 </html>

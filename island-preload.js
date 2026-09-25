@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('api', {
   undoExpire: token => ipcRenderer.invoke('undo-expire', token),
   onPlaySound: cb => ipcRenderer.on('play-sound', () => cb()),
   openWindow: tab => ipcRenderer.send('open-window', tab),
+  onLangChanged: cb => ipcRenderer.on('lang-changed', (_e, lang) => cb(lang)),
   onShown: cb => ipcRenderer.on('island-shown', () => cb()),
   onFocusRequest: cb => ipcRenderer.on('island-focus', () => cb()),
   onRetract: cb => ipcRenderer.on('retract-island', () => cb()),

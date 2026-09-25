@@ -4,7 +4,8 @@
 const { MONTHS, esc } = window.UI;
 const $ = id => document.getElementById(id);
 
-let snap = null, fmt = 'wa';
+let snap = null, fmt = 'wa', LANG = 'en';
+const T = (k, prm) => window.I18N.t(LANG, k, prm);
 const sel = new Set();
 
 function sections() {
@@ -12,10 +13,10 @@ function sections() {
   const personal = (snap.sections.find(s => s.name === 'Personal') || { items: [] }).items;
   const flat = [...work, ...personal];
   return [
-    { name: 'Now', items: flat.filter(t => t.active) },
-    { name: 'Work', items: work.filter(t => !t.active) },
-    { name: 'Personal', items: personal.filter(t => !t.active) },
-    { name: 'Done', items: (snap.done || []).map(d => ({ ...d, isDone: true })) }
+    { name: T('isl.sec.now'), items: flat.filter(t => t.active) },
+    { name: T('isl.sec.work'), items: work.filter(t => !t.active) },
+    { name: T('isl.sec.personal'), items: personal.filter(t => !t.active) },
+    { name: T('sh.sec.done'), items: (snap.done || []).map(d => ({ ...d, isDone: true })) }
   ].filter(s => s.items.length);
 }
 function render() {
@@ -35,7 +36,7 @@ function render() {
 function syncButtons() { // zero selection: buttons say so instead of silently doing nothing
   const n = sel.size;
   $('btn-copy').disabled = !n; $('btn-export').disabled = !n;
-  $('sel-hint').textContent = n ? `${n} selected` : 'Select tasks to share';
+  $('sel-hint').textContent = n ? T('sh.selN', { n }) : T('sh.selHint');
 }
 function selected() {
   const all = sections().flatMap(s => s.items);
@@ -51,7 +52,7 @@ function buildText(kind) {
   if (kind === 'md') {
     const part = (arr, mark) => arr.map(t => `- [${mark}] ${t.active ? '* ' : ''}${t.title}`).join('\n');
     return [
-      `## Daily progress — ${today}`, '',
+      `## ${T('sh.daily', { d: today })}`, '',
       done.length ? `**Done**\n${part(done, 'x')}` : '',
       active.length ? `**In progress**\n${part(active, ' ')}` : '',
       todo.length ? `**To do**\n${part(todo, ' ')}` : ''
@@ -59,7 +60,7 @@ function buildText(kind) {
   }
   const waPart = (arr, icon) => arr.map(t => `${icon} ${t.title}`).join('\n');
   return [
-    `*Daily progress — ${today}*`, '',
+    `*${T('sh.daily', { d: today })}*`, '',
     done.length ? `\u2705 *Done*\n${waPart(done, '\u2705')}` : '',
     active.length ? `\ud83d\udd04 *In progress*\n${waPart(active, '\ud83d\udd04')}` : '',
     todo.length ? `\u23f3 *To do*\n${waPart(todo, '\u2022')}` : ''
@@ -92,7 +93,7 @@ $('btn-copy').addEventListener('click', async () => {
   await window.api.copyText(buildText(fmt));
   window.SFX.play('tick');
   const old = $('btn-copy').textContent;
-  $('btn-copy').textContent = 'Copied \u2713';
+  $('btn-copy').textContent = T('sh.copied');
   setTimeout(() => { $('btn-copy').textContent = old; }, 1200);
 });
 $('btn-export').addEventListener('click', async () => {
@@ -108,7 +109,10 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close
 
 (async () => {
   snap = await window.api.getSnapshot();
+  if (snap && snap.lang && snap.lang !== LANG) { LANG = snap.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
   window.SFX.enabled = !!(snap.settings && snap.settings.soundOn); // respects the app's sound setting
   render();
 })();
 window.api.onTasksChanged(async () => { snap = await window.api.getSnapshot(); render(); });
+
+window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); });

@@ -1,6 +1,8 @@
 'use strict';
 // window.UI — helpers + small components shared by every window (one copy, no drift).
 (() => {
+  let LANG = 'en'; // set by each window on snapshot/boot via UI.setLang
+  const T = (k, prm) => window.I18N.t(LANG, k, prm);
   const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const bangCls = p => ({ '!!!': 'p3', '!!': 'p2', '!': 'p1' }[p] || 'p0');
@@ -18,8 +20,8 @@
   function prioChips(el, { onPick } = {}) {
     let value = null;
     el.setAttribute('role', 'radiogroup');
-    el.innerHTML = [['', 'No priority'], ['!', 'Low'], ['!!', 'Medium'], ['!!!', 'High']].map(([p, name]) =>
-      `<button class="chip pchip ${bangCls(p)}" data-p="${p}" type="button" role="radio" aria-label="${name} priority" title="${name}">${p || '—'}</button>`).join('');
+    el.innerHTML = [['', T('prio.none')], ['!', T('prio.low')], ['!!', T('prio.medium')], ['!!!', T('prio.high')]].map(([p, name]) =>
+      `<button class="chip pchip ${bangCls(p)}" data-p="${p}" type="button" role="radio" aria-label="${esc(T('prio.aria', { name }))}" title="${esc(name)}">${p || '—'}</button>`).join('');
     const paint = () => el.querySelectorAll('.pchip').forEach(c => {
       const on = (c.dataset.p || null) === value;
       c.classList.toggle('sel', on); c.setAttribute('aria-checked', on);
@@ -39,11 +41,11 @@
     let value = null;
     el.setAttribute('role', 'radiogroup');
     el.innerHTML = `
-      <button class="chip dchip" data-due="none" type="button" role="radio">No date</button>
-      <button class="chip dchip" data-due="today" type="button" role="radio">Today</button>
-      <button class="chip dchip" data-due="tomorrow" type="button" role="radio">Tomorrow</button>
+      <button class="chip dchip" data-due="none" type="button" role="radio">${T('dc.none')}</button>
+      <button class="chip dchip" data-due="today" type="button" role="radio">${T('dc.today')}</button>
+      <button class="chip dchip" data-due="tomorrow" type="button" role="radio">${T('dc.tomorrow')}</button>
       <span class="pick-wrap">
-        <button class="chip dchip dpick" data-due="pick" type="button" role="radio" aria-label="Pick a date">Pick…</button>
+        <button class="chip dchip dpick" data-due="pick" type="button" role="radio" aria-label="${esc(T('dc.pickAria'))}">${T('dc.pick')}</button>
         <input class="date-proxy" type="date" tabindex="-1" aria-hidden="true">
       </span>`;
     const proxy = el.querySelector('.date-proxy');
@@ -52,7 +54,7 @@
       const k = kindOf(value);
       el.querySelectorAll('.dchip').forEach(c => { const on = c.dataset.due === k; c.classList.toggle('sel', on); c.setAttribute('aria-checked', on); });
       const pick = el.querySelector('.dpick');
-      pick.textContent = k === 'pick' ? dueText(value) : 'Pick…';
+      pick.textContent = k === 'pick' ? dueText(value) : T('dc.pick');
       pick.classList.toggle('mono', k === 'pick');
     };
     const set = (v, user) => { value = v; paint(); if (user && onPick) onPick(value); };
@@ -77,11 +79,11 @@
   }
 
   // one vocabulary everywhere: the * state is "Now" (★); clearing it is "Not now"; children are "subtasks"
-  const undoVerb = u => u.kind === 'delete' ? 'Deleted'
-    : u.kind === 'toggle' ? (u.starring ? 'Marked Now' : 'Cleared Now')
-    : u.kind === 'reorder' ? 'Moved'
-    : u.kind === 'clear' ? 'Cleared'
-    : 'Completed';
+  const undoVerb = u => u.kind === 'delete' ? T('u.deleted')
+    : u.kind === 'toggle' ? (u.starring ? T('u.markedNow') : T('u.clearedNow'))
+    : u.kind === 'reorder' ? T('u.moved')
+    : u.kind === 'clear' ? T('u.cleared')
+    : T('u.completed');
   const undoText = u => `${undoVerb(u)}: ${u.label}`;
 
   // Countdown hairline (M7): drains with transform scaleX, never width. Pause math uses elapsed time, not layout.
@@ -110,7 +112,7 @@
     if (el._undo) el._undo.dispose();
     let secs = d.left;
     el.innerHTML = `<span class="undo-label">${esc(undoText(d))}</span>
-      <button class="undo-btn" data-undo type="button">Undo</button><span class="undo-count">${secs}s</span>
+      <button class="undo-btn" data-undo type="button">${T('u.undo')}</button><span class="undo-count">${T('u.secs', { n: secs })}</span>
       <span class="undo-progress"><span class="undo-fill"></span></span>`;
     el.hidden = false;
     const cd = countdown(el.querySelector('.undo-fill'));
@@ -118,7 +120,7 @@
     const tick = setInterval(() => {
       secs--;
       if (secs <= 0) { dispose(); el.hidden = true; if (onExpire) onExpire(d.token); }
-      else el.querySelector('.undo-count').textContent = secs + 's';
+      else el.querySelector('.undo-count').textContent = T('u.secs', { n: secs });
     }, 1000);
     const dispose = () => { clearInterval(tick); el._undo = null; };
     el.querySelector('[data-undo]').addEventListener('click', () => { dispose(); el.hidden = true; if (onUndo) onUndo(d.token); });
@@ -126,5 +128,5 @@
     return el._undo;
   }
 
-  window.UI = { MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo };
 })();

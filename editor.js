@@ -1,6 +1,9 @@
 'use strict';
 const { esc, parseDueText } = window.UI;
 const params = new URLSearchParams(location.search);
+let LANG = params.get('lang') || 'en';
+window.I18N.applyDoc(LANG); window.UI.setLang(LANG);
+const T = (k, prm) => window.I18N.t(LANG, k, prm);
 const FILE = params.get('file') || 'work';
 let ID = params.get('id') || '';
 const $ = id => document.getElementById(id);
@@ -17,7 +20,7 @@ async function load(full = false) { // full = first open / after save; subtask e
   $('ed-missing').hidden = !!t;
   $('ed-form').hidden = !t;
   if (!t) return;
-  $('ed-badge').textContent = t.file === 'work' ? 'work' : 'personal';
+  $('ed-badge').textContent = T(t.file === 'work' ? 'win.st.file.work' : 'win.st.file.personal');
   if (full) {
     $('ed-title').value = [t.title, ...(t.notes || [])].join('\n');
     autoGrow($('ed-title'));
@@ -88,7 +91,7 @@ async function updatePreview() {
   last = r;
   prioCtl.set(r.priority); dueCtl.set(r.due);
   if (r.active !== activeState) { activeState = r.active; paintActive(); }
-  $('ed-preview-line').textContent = r.ok ? r.line : 'a task needs a title';
+  $('ed-preview-line').textContent = r.ok ? r.line : T('ed.noTitle');
   $('ed-preview-line').classList.toggle('bad', !r.ok);
   $('ed-save').disabled = !r.ok;
   return r;
@@ -157,3 +160,5 @@ $('ed-delete').addEventListener('click', async () => {
 });
 
 load(true);
+
+window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); });

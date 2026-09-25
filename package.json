@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node lib/parse.test.js && node lib/schedule.test.js && node lib/compose.test.js",
+    "test": "node lib/parse.test.js && node lib/schedule.test.js && node lib/compose.test.js && node lib/i18n.test.js && node lib/setup.test.js",
     "contrast": "node scripts/contrast.js",
     "icon": "node scripts/make-icon.js",
     "dist": "electron-builder --win"

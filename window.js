@@ -34,7 +34,7 @@ function renderDone(q) { // Done tab: both files, restore or delete (both undoab
       ${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}
       <button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button>
       <button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
-    </div></div></div>`).join('') || `<p class="empty">${q ? 'No matches.' : 'Nothing done yet.'}</p>`;
+    </div></div></div>`).join('') || `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>`;
 }
 function renderList() {
   if (!snap) return; // first snapshot not in yet (tab restore runs before refresh resolves)
@@ -116,10 +116,10 @@ $('task-list').addEventListener('focusin', e => {
 });
 
 function emptyState(q) { // honest: a missing note is "unavailable", never "Nice."
-  if (q) return '<p class="empty">No matches.</p>';
+  if (q) return `<p class="empty">${T('win.search.none')}</p>`;
   const err = fileErr(currentTab);
-  if (err) return `<p class="empty bad">${currentTab === 'work' ? 'Work' : 'Personal'} tasks unavailable — <code>${esc(err.name || err.path)}</code> can't be read.</p>`;
-  return '<p class="empty">Nothing open here. Nice.</p>';
+  if (err) return `<p class="empty bad">${T('win.empty.err', { sec: T(currentTab === 'work' ? 'win.tab.work' : 'win.tab.personal'), f: esc(err.name || err.path) })}</p>`;
+  return `<p class="empty">${T('win.empty.open')}</p>`;
 }
 function markFresh() { // M5 — rows that just appeared (after add / undo) settle in with a fading highlight
   if (!freshFrom) return;
@@ -128,14 +128,31 @@ function markFresh() { // M5 — rows that just appeared (after add / undo) sett
 }
 const visibleIds = () => new Set([...document.querySelectorAll('#task-list .wrow')].map(r => r.dataset.id));
 
+// task mode: a one-note setup hides the other note's tab; the composer always targets a visible tab
+const enabledNotes = () => { const m = (snap && snap.settings.mode) || 'both'; return m === 'both' ? ['work', 'personal'] : [m]; };
+function applyMode() {
+  const on = enabledNotes();
+  for (const tag of ['work', 'personal']) $('tab-' + tag).hidden = !on.includes(tag);
+  document.querySelectorAll('[data-note-row]').forEach(el => {
+    const off = !on.includes(el.dataset.noteRow);
+    if (el.classList.contains('path-edit')) { if (off) el.hidden = true; } // path editors open only on "Change path"
+    else el.hidden = off;
+  });
+  if ((currentTab === 'work' || currentTab === 'personal') && !on.includes(currentTab)) {
+    currentTab = on[0];
+    if ($('view-settings').hidden) showTab(on[0]);
+  }
+}
+let LANG = 'en'; // resolved language from the snapshot; notation/dates/numerals never translate
+const T = (k, prm) => window.I18N.t(LANG, k, prm);
 function updateTabCounts() {
   if (!snap) return;
   const n = name => { const s = snap.sections.find(x => x.name === name); return s ? s.items.length : 0; };
   // counts in mono; a broken source never reads as 0 — it reads "!"
-  const label = (tag, name) => fileErr(tag) ? `${name}<span class="cnt bad" title="note can't be read">!</span>` : `${name}<span class="cnt">${n(name)}</span>`;
-  $('tab-work').innerHTML = label('work', 'Work');
-  $('tab-personal').innerHTML = label('personal', 'Personal');
-  $('tab-done').innerHTML = `Done<span class="cnt">${(snap.done || []).length}</span>`;
+  const label = (tag, name) => fileErr(tag) ? `${name}<span class="cnt bad" title="${T('win.tab.err')}">!</span>` : `${name}<span class="cnt">${n(name)}</span>`;
+  $('tab-work').innerHTML = label('work', T('win.tab.work'));
+  $('tab-personal').innerHTML = label('personal', T('win.tab.personal'));
+  $('tab-done').innerHTML = `${T('win.tab.done')}<span class="cnt">${(snap.done || []).length}</span>`;
   moveTabCursor();
 }
 // M6 — the tab cursor slides under the active tab (transform only)
@@ -151,26 +168,27 @@ function renderChrome() { // status mark, error strip, status line — the notes
   const mark = $('mark');
   mark.textContent = errs.length ? '[!]' : nowCount ? '[\u2605]' : '[ ]';
   mark.className = 'mark' + (errs.length ? ' err' : nowCount ? ' now' : '');
-  mark.title = errs.length ? 'A note can\'t be read' : nowCount ? `${nowCount} task${nowCount === 1 ? '' : 's'} Now` : 'Nothing marked Now';
+  mark.title = errs.length ? T('win.mark.err') : nowCount ? T(nowCount === 1 ? 'win.mark.nowS' : 'win.mark.nowP', { n: nowCount }) : T('win.mark.none');
   const strip = $('err-strip');
   strip.hidden = !errs.length;
-  strip.innerHTML = errs.map(e => `<span>Can't read <code>${esc(e.name || e.path)}</code> — moved or renamed?</span>`).join('') +
-    (errs.length ? '<button class="btn-soft sm" data-retry type="button">Retry</button><button class="btn-accent sm" data-open-settings type="button">Open settings</button>' : '');
+  strip.innerHTML = errs.map(e => `<span>${T('isl.err.banner', { f: esc(e.name || e.path) })}</span>`).join('') +
+    (errs.length ? `<button class="btn-soft sm" data-retry type="button">${T('win.retry')}</button><button class="btn-accent sm" data-open-settings type="button">${T('isl.err.open')}</button>` : '');
   const src = snap.sources || {};
-  $('st-src').innerHTML = ['work', 'personal'].map(tag =>
+  $('st-src').innerHTML = enabledNotes().map(tag =>
     `<span class="${fileErr(tag) ? 'bad' : ''}">${esc(src[tag] || tag)}</span>`).join(' \u00B7 ');
   renderLastWrite();
 }
-const ago = ms => ms < 45e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)}m ago` : ms < 86400e3 ? `${Math.round(ms / 3600e3)}h ago` : `${Math.round(ms / 86400e3)}d ago`;
+const ago = ms => ms < 45e3 ? T('win.ago.now') : ms < 3600e3 ? T('win.ago.m', { n: Math.round(ms / 60e3) }) : ms < 86400e3 ? T('win.ago.h', { n: Math.round(ms / 3600e3) }) : T('win.ago.d', { n: Math.round(ms / 86400e3) });
 let lastSeenWrite = 0;
 function renderLastWrite() {
   const lw = snap && snap.lastWrite;
   const el = $('st-write');
-  if (!lw) { el.textContent = 'no writes this session'; return; }
-  el.textContent = `last write ${lw.file} \u00B7 ${ago(Date.now() - lw.at)}`;
+  const fileLbl = f => T(f === 'work' ? 'win.st.file.work' : 'win.st.file.personal');
+  if (!lw) { el.textContent = T('win.st.none'); return; }
+  el.textContent = T('win.st.last', { f: fileLbl(lw.file), ago: ago(Date.now() - lw.at) });
   if (lw.at !== lastSeenWrite) { // M8-style flash: a write just landed in the note
     const first = !lastSeenWrite; lastSeenWrite = lw.at;
-    if (!first) { el.textContent = `wrote ${lw.file}`; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+    if (!first) { el.textContent = T('win.st.wrote', { f: T(lw.file === 'work' ? 'win.st.file.work' : 'win.st.file.personal') }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
   }
 }
 setInterval(() => { if (snap) renderLastWrite(); }, 30e3);
@@ -178,7 +196,9 @@ setInterval(() => { if (snap) renderLastWrite(); }, 30e3);
 async function refresh() {
   if (animating) { refreshPending = true; return; }
   snap = await window.api.getSnapshot();
+  if (snap && snap.lang && snap.lang !== LANG) { LANG = snap.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
   if (snap && snap.settings) window.SFX.enabled = !!snap.settings.soundOn;
+  applyMode();
   updateTabCounts();
   renderChrome();
   renderList();
@@ -368,14 +388,14 @@ $('btn-add').addEventListener('click', async () => {
   const r = await updatePreview();
   if (!r || !r.ok) { // M9 — say why instead of silently doing nothing
     $('new-title').classList.add('invalid');
-    composerHint('Type a title first.');
+    composerHint(T('win.hint.title'));
     window.Motion.nudge($('new-title'));
     $('new-title').focus();
     return;
   }
   let res = null;
   try { res = await window.api.addTask(currentTab, { title: r.title, priority: r.priority, desc: r.desc, dueText: r.dueText, active: r.active }); } catch (err) {}
-  if (!res || !res.ok) { composerHint("Couldn't add — the note can't be read."); return; }
+  if (!res || !res.ok) { composerHint(T('win.hint.addFail')); return; }
   window.SFX.play('add');
   freshFrom = visibleIds();
   resetComposer();
@@ -410,7 +430,17 @@ for (const tab of ['work', 'personal', 'done']) {
 window.api.onShowTab(tab => { if (tab === 'settings') $('tab-settings').click(); else if (['work', 'personal', 'done'].includes(tab)) $('tab-' + tab).click(); });
 
 // ---- settings: manual Save, visible dirty state, every error and clamp shown at its own field ----
-let settingsDirty = false;
+let settingsDirty = false, langSel = 'system';
+for (const b of document.querySelectorAll('#lang-seg .seg-btn')) b.addEventListener('click', () => {
+  langSel = b.dataset.lang;
+  document.querySelectorAll('#lang-seg .seg-btn').forEach(x => {
+    const on = x === b;
+    x.classList.toggle('sel', on);
+    x.setAttribute('aria-checked', on);
+  });
+  setDirty(true);
+});
+window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); refresh(); });
 function setDirty(on) {
   settingsDirty = on;
   $('settings-dirty').hidden = !on;
@@ -438,6 +468,13 @@ async function loadSettings() {
   $('personal-name').textContent = baseName(s.personalPath); $('personal-name').title = s.personalPath;
   $('set-weekend').checked = !!s.weekendAware; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn;
   $('set-focus').checked = !!s.focusByTime;
+  $('set-mode').value = s.mode || 'both';
+  langSel = s.uiLang || 'system';
+  document.querySelectorAll('#lang-seg .seg-btn').forEach(b => {
+    const on = b.dataset.lang === langSel;
+    b.classList.toggle('sel', on);
+    b.setAttribute('aria-checked', on);
+  });
   document.querySelectorAll('.fstat').forEach(el => { el.textContent = ''; el.className = 'fstat'; });
   document.querySelectorAll('#settings-form .invalid').forEach(el => el.classList.remove('invalid'));
   $('set-err').hidden = true;
@@ -467,11 +504,11 @@ $('btn-open-personal').addEventListener('click', () => window.api.openNote('pers
 
 // shortcut recorder — press the combo instead of typing Electron accelerator syntax
 let shortcutValue = '', recording = false;
-function setShortcut(v) { shortcutValue = v || ''; $('set-shortcut').textContent = shortcutValue || 'None'; $('set-shortcut').classList.remove('rec'); recording = false; }
+function setShortcut(v) { shortcutValue = v || ''; $('set-shortcut').textContent = shortcutValue || T('set.shortcut.none'); $('set-shortcut').classList.remove('rec'); recording = false; }
 const KEYMAP = { ' ': 'Space', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right', Escape: 'Esc', '+': 'Plus' };
 $('set-shortcut').addEventListener('click', () => {
   recording = true;
-  $('set-shortcut').textContent = 'Press keys…';
+  $('set-shortcut').textContent = T('set.shortcut.rec');
   $('set-shortcut').classList.add('rec');
   fstat('set-shortcut', '');
 });
@@ -483,7 +520,7 @@ $('set-shortcut').addEventListener('keydown', e => {
   if (['Control', 'Alt', 'Shift', 'Meta'].includes(e.key)) return; // wait for the real key
   const mods = [e.ctrlKey && 'Control', e.altKey && 'Alt', e.shiftKey && 'Shift', e.metaKey && 'Super'].filter(Boolean);
   const key = KEYMAP[e.key] || (e.key.length === 1 ? e.key.toUpperCase() : e.key);
-  if (!mods.length && !/^F\d{1,2}$/.test(key)) { fstat('set-shortcut', 'Add Ctrl or Alt', 'warn'); return; }
+  if (!mods.length && !/^F\d{1,2}$/.test(key)) { fstat('set-shortcut', T('set.shortcut.ctrl'), 'warn'); return; }
   setShortcut([...mods, key].join('+'));
   setDirty(true);
 });
@@ -492,8 +529,8 @@ function readNumber(id, min, max, fallback) { // clamps are announced at the fie
   const raw = $(id).value.trim();
   const n = raw === '' ? NaN : +raw;
   const v = Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
-  if (!Number.isFinite(n)) fstat(id, `→ ${v} (was empty)`, 'warn');
-  else if (v !== n) fstat(id, `→ ${v} (${v === min ? 'min' : 'max'})`, 'warn');
+  if (!Number.isFinite(n)) fstat(id, T('set.clamp.empty', { v }), 'warn');
+  else if (v !== n) fstat(id, T(v === min ? 'set.clamp.min' : 'set.clamp.max', { v }), 'warn');
   $(id).value = v;
   return v;
 }
@@ -502,19 +539,22 @@ async function saveSettings() {
   document.querySelectorAll('#settings-form .invalid').forEach(el => el.classList.remove('invalid'));
   $('set-err').hidden = true;
   const res = await window.api.saveSettings({
-    workIntervalMin: readNumber('set-work-interval', 5, 240, 30),
+    workIntervalMin: readNumber('set-work-interval', 5, 240, 60),
     offIntervalMin: readNumber('set-off-interval', 5, 240, 60),
     workRemindersOn: $('set-work-rem').checked, offRemindersOn: $('set-off-rem').checked,
     dayStart: $('set-start').value || '09:00', dayEnd: $('set-end').value || '17:00',
-    dismissSec: readNumber('set-dismiss', 5, 600, 45),
-    undoSec: readNumber('set-undo', 5, 120, 30),
-    hoverSec: readNumber('set-hover', 0.5, 10, 2),
+    dismissSec: readNumber('set-dismiss', 5, 600, 10),
+    undoSec: readNumber('set-undo', 5, 120, 5),
+    hoverSec: readNumber('set-hover', 0.5, 10, 1),
     shortcut: shortcutValue || 'Control+Alt+T',
     weekendAware: $('set-weekend').checked, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked,
     focusByTime: $('set-focus').checked,
+    mode: $('set-mode').value,
+    uiLang: langSel,
     workPath: $('set-work').value.trim() || undefined,
     personalPath: $('set-personal').value.trim() || undefined
   });
+  await refresh(); // a Tasks mode change shows/hides tabs right away
   if (res && !res.ok) { // every error at once, each at its own field
     const idMap = { shortcut: 'set-shortcut', workPath: 'set-work', personalPath: 'set-personal' };
     const keys = Object.keys(res.errors);
@@ -522,11 +562,11 @@ async function saveSettings() {
       const id = idMap[k];
       if (!id) continue;
       $(id).classList.add('invalid');
-      fstat(id, res.errors[k], 'bad');
+      fstat(id, /^set\.err\./.test(res.errors[k]) ? T(res.errors[k]) : res.errors[k], 'bad');
       if (k === 'workPath') $('edit-work').hidden = false;
       if (k === 'personalPath') $('edit-personal').hidden = false;
     }
-    $('set-err').textContent = keys.length === 1 ? 'One setting needs fixing — the rest were saved.' : `${keys.length} settings need fixing — the rest were saved.`;
+    $('set-err').textContent = keys.length === 1 ? T('set.err.one') : T('set.err.many', { n: keys.length });
     $('set-err').hidden = false;
     if (res.errors.shortcut) setShortcut((await window.api.getSnapshot()).settings.shortcut);
     setDirty(true);

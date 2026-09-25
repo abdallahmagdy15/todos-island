@@ -16,7 +16,7 @@
       <button id="tab-settings" class="tab">Settings<span class="dirty-dot" id="settings-dirty" hidden aria-label="unsaved changes"></span></button>
       <span class="tab-cursor" aria-hidden="true"></span>
     </nav>
-    <button id="btn-share" class="hdr-btn" type="button" title="Share progress — pick tasks, copy or export" aria-label="Share progress">
+    <button id="btn-share" class="hdr-btn" type="button" data-i18n-title="win.share.title" data-i18n-aria="win.share.aria">
       <svg class="ic" viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>
     </button>
   </header>
@@ -26,27 +26,27 @@
       <div class="list-pane">
         <div class="err-strip" id="err-strip" hidden role="alert"></div>
         <div class="search-box">
-          <input id="search" type="text" placeholder="Search…   ( / )" spellcheck="false" autocomplete="off" aria-label="Search tasks">
+          <input id="search" type="text" data-i18n-ph="win.search.ph" spellcheck="false" autocomplete="off" data-i18n-aria="win.search.aria">
           <span class="search-count" id="search-count" aria-live="polite"></span>
-          <button class="search-clear" id="search-clear" type="button" hidden aria-label="Clear search" title="Clear (Esc)">&times;</button>
+          <button class="search-clear" id="search-clear" type="button" hidden data-i18n-aria="win.search.clear" data-i18n-title="win.search.clearTitle">&times;</button>
         </div>
         <div class="list-head" id="done-head" hidden>
-          <h3 class="md-h"><span class="hash">##</span> Done <span class="md-count" id="done-count"></span></h3>
-          <button id="btn-clear-done" class="btn-text danger" type="button" title="Remove every completed task from both notes — undo stays available">Clear all</button>
+          <h3 class="md-h"><span class="hash">##</span> <span data-i18n="win.tab.done">Done</span> <span class="md-count" id="done-count"></span></h3>
+          <button id="btn-clear-done" class="btn-text danger" type="button" data-i18n-title="win.done.clearTitle" data-i18n="win.done.clear"></button>
         </div>
         <div id="task-list" role="list" aria-label="Tasks"></div>
         <div class="new-task" id="composer">
-          <textarea id="new-title" rows="1" spellcheck="false" aria-label="New task"
-            placeholder="New task…  try  !! 26 Sep Fix login   ·   Shift+Enter adds a description line"></textarea>
+          <textarea id="new-title" rows="1" spellcheck="false" data-i18n-aria="win.composer.aria"
+            data-i18n-ph="win.composer.ph"></textarea>
           <div class="new-task-controls">
-            <span class="ctl-label">Priority</span>
+            <span class="ctl-label" data-i18n="win.lbl.priority">Priority</span>
             <div class="chips" id="new-prio" aria-label="Priority"></div>
-            <span class="ctl-label">Due</span>
+            <span class="ctl-label" data-i18n="win.lbl.due">Due</span>
             <div class="chips" id="new-due" aria-label="Due date"></div>
-            <button id="btn-add" class="btn-accent" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+            <button id="btn-add" class="btn-accent" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="win.btn.add">Add</span></button>
           </div>
           <div class="composer-foot">
-            <span class="preview" id="new-preview" hidden><span class="pv-label">will write</span><code id="new-preview-line"></code></span>
+            <span class="preview" id="new-preview" hidden><span class="pv-label" data-i18n="win.pv.label">will write</span><code id="new-preview-line"></code></span>
             <span class="composer-hint" id="new-hint" role="status" aria-live="polite"></span>
           </div>
         </div>
@@ -55,108 +55,127 @@
 
     <section id="view-settings" hidden>
       <div class="dirty-guard" id="dirty-guard" hidden role="alert">
-        <span>You have unsaved changes.</span>
-        <button class="btn-accent sm" id="guard-save" type="button">Save</button>
-        <button class="btn-soft sm" id="guard-discard" type="button">Discard</button>
+        <span data-i18n="set.guard.text">You have unsaved changes.</span>
+        <button class="btn-accent sm" id="guard-save" type="button" data-i18n="set.guard.save">Save</button>
+        <button class="btn-soft sm" id="guard-discard" type="button" data-i18n="set.guard.discard">Discard</button>
       </div>
       <form class="settings-card" id="settings-form" autocomplete="off" onsubmit="return false">
-        <h2 class="md-h"><span class="hash">##</span> Reminders</h2>
+        <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.reminders">Reminders</span></h2>
         <div class="srow">
-          <div class="slabel"><label for="set-work-rem">Work-time reminders</label><span class="shint">inside the workday · every 5–240 min</span></div>
+          <div class="slabel"><label for="set-work-rem" data-i18n="set.workRem">Work-time reminders</label><span class="shint" data-i18n="set.workRem.hint">inside the workday · every 5–240 min</span></div>
           <div class="sctl">
             <span class="ctl-group">
-              <input id="set-work-rem" type="checkbox" role="switch" class="switch" aria-label="Work-time reminders on">
-              <input id="set-work-interval" type="number" min="5" max="240" step="5" aria-label="Work-time interval in minutes">
-              <span class="unit">min</span>
+              <input id="set-work-rem" type="checkbox" role="switch" class="switch" data-i18n-aria="set.workRem.aria">
+              <input id="set-work-interval" type="number" min="5" max="240" step="5" data-i18n-aria="set.workRem.int">
+              <span class="unit" data-i18n="set.unit.min">min</span>
             </span>
             <span class="fstat" data-for="set-work-interval" role="status"></span>
           </div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-off-rem">Off-hours reminders</label><span class="shint">evenings (and weekends, if weekend aware) · every 5–240 min</span></div>
+          <div class="slabel"><label for="set-off-rem" data-i18n="set.offRem">Off-hours reminders</label><span class="shint" data-i18n="set.offRem.hint">evenings (and weekends, if weekend aware) · every 5–240 min</span></div>
           <div class="sctl">
             <span class="ctl-group">
-              <input id="set-off-rem" type="checkbox" role="switch" class="switch" aria-label="Off-hours reminders on">
-              <input id="set-off-interval" type="number" min="5" max="240" step="5" aria-label="Off-hours interval in minutes">
-              <span class="unit">min</span>
+              <input id="set-off-rem" type="checkbox" role="switch" class="switch" data-i18n-aria="set.offRem.aria">
+              <input id="set-off-interval" type="number" min="5" max="240" step="5" data-i18n-aria="set.offRem.int">
+              <span class="unit" data-i18n="set.unit.min">min</span>
             </span>
             <span class="fstat" data-for="set-off-interval" role="status"></span>
           </div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-start">Workday start</label></div>
+          <div class="slabel"><label for="set-start" data-i18n="set.dayStart">Workday start</label></div>
           <div class="sctl"><input id="set-start" type="time"></div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-end">Workday end</label></div>
+          <div class="slabel"><label for="set-end" data-i18n="set.dayEnd">Workday end</label></div>
           <div class="sctl"><input id="set-end" type="time"></div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-weekend">Weekend aware</label><span class="shint">Sat/Sun follow the off-hours schedule (personal time)</span></div>
+          <div class="slabel"><label for="set-weekend" data-i18n="set.weekend">Weekend aware</label><span class="shint" data-i18n="set.weekend.hint">Sat/Sun follow the off-hours schedule (personal time)</span></div>
           <div class="sctl"><input id="set-weekend" type="checkbox" role="switch" class="switch"></div>
         </div>
-        <p class="note">Nothing fires after midnight until the workday starts.</p>
+        <p class="note" data-i18n="set.note.night">Nothing fires after midnight until the workday starts.</p>
 
-        <h2 class="md-h mt"><span class="hash">##</span> Island</h2>
+        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.island">Island</span></h2>
         <div class="srow">
-          <div class="slabel"><label for="set-dismiss">Auto-dismiss after</label><span class="shint">seconds · 5–600</span></div>
+          <div class="slabel"><label for="set-dismiss" data-i18n="set.dismiss">Auto-dismiss after</label><span class="shint" data-i18n="set.dismiss.hint">seconds · 5–600</span></div>
           <div class="sctl"><input id="set-dismiss" type="number" min="5" max="600" step="5"><span class="fstat" data-for="set-dismiss" role="status"></span></div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-hover">Hover-unfold delay</label><span class="shint">seconds resting on a task before it unfolds · 0.5–10</span></div>
+          <div class="slabel"><label for="set-hover" data-i18n="set.hover">Hover-unfold delay</label><span class="shint" data-i18n="set.hover.hint">seconds resting on a task before it unfolds · 0.5–10</span></div>
           <div class="sctl"><input id="set-hover" type="number" min="0.5" max="10" step="0.5"><span class="fstat" data-for="set-hover" role="status"></span></div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-focus">Focus by time</label><span class="shint">work tasks in work hours, personal tasks outside</span></div>
+          <div class="slabel"><label for="set-focus" data-i18n="set.focus">Focus by time</label><span class="shint" data-i18n="set.focus.hint">work tasks in work hours, personal tasks outside</span></div>
           <div class="sctl"><input id="set-focus" type="checkbox" role="switch" class="switch"></div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-sound">Sounds</label><span class="shint">soft chimes when the island shows and on actions</span></div>
+          <div class="slabel"><label for="set-sound" data-i18n="set.sound">Sounds</label><span class="shint" data-i18n="set.sound.hint">soft chimes when the island shows and on actions</span></div>
           <div class="sctl"><input id="set-sound" type="checkbox" role="switch" class="switch"></div>
         </div>
 
-        <h2 class="md-h mt"><span class="hash">##</span> App</h2>
+        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.app">App</span></h2>
         <div class="srow">
-          <div class="slabel"><label for="set-autostart">Start with Windows</label><span class="shint">quiet boot — no popup</span></div>
+          <div class="slabel"><label for="set-autostart" data-i18n="set.autostart">Start with Windows</label><span class="shint" data-i18n="set.autostart.hint">quiet boot — no popup</span></div>
           <div class="sctl"><input id="set-autostart" type="checkbox" role="switch" class="switch"></div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-undo">Undo window</label><span class="shint">seconds · 5–120</span></div>
+          <div class="slabel"><label for="set-undo" data-i18n="set.undo">Undo window</label><span class="shint" data-i18n="set.undo.hint">seconds · 5–120</span></div>
           <div class="sctl"><input id="set-undo" type="number" min="5" max="120" step="5"><span class="fstat" data-for="set-undo" role="status"></span></div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-shortcut">Show-island shortcut</label><span class="shint">click, then press the keys · Esc cancels</span></div>
+          <div class="slabel"><label for="set-shortcut" data-i18n="set.shortcut">Show-island shortcut</label><span class="shint" data-i18n="set.shortcut.hint">click, then press the keys · Esc cancels</span></div>
           <div class="sctl"><button id="set-shortcut" class="recorder" type="button"></button><span class="fstat" data-for="set-shortcut" role="status"></span></div>
         </div>
-
-        <h2 class="md-h mt"><span class="hash">##</span> Source files</h2>
         <div class="srow">
-          <div class="slabel"><span class="lbl">Work note</span><span class="shint file-name" id="work-name"></span></div>
-          <div class="sctl row">
-            <button id="btn-open-work" class="btn-soft sm" type="button">Open</button>
-            <button class="btn-soft sm" data-edit="work" type="button" aria-expanded="false">Change path</button>
+          <div class="slabel"><label data-i18n="set.lang">Language</label><span class="shint" data-i18n="set.lang.hint">interface only — tasks and dates stay as written</span></div>
+          <div class="sctl">
+            <div class="seg" id="lang-seg" role="radiogroup" aria-label="Language">
+              <button class="seg-btn" data-lang="system" type="button" role="radio" data-i18n="set.lang.system">System</button>
+              <button class="seg-btn" data-lang="en" type="button" role="radio">English</button>
+              <button class="seg-btn" data-lang="ar" type="button" role="radio">العربية</button>
+            </div>
+            <span class="fstat" data-for="set-lang" role="status"></span>
           </div>
         </div>
-        <div class="path-edit" id="edit-work" hidden>
-          <input id="set-work" type="text" class="full" spellcheck="false" aria-label="Work note path">
+
+        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.files">Source files</span></h2>
+        <div class="srow">
+          <div class="slabel"><label for="set-mode" data-i18n="set.mode">Tasks</label><span class="shint" data-i18n="set.mode.hint">turning a note on creates it if it doesn't exist yet</span></div>
+          <div class="sctl"><select id="set-mode">
+            <option value="both" data-i18n="set.mode.both">Work &amp; Personal</option>
+            <option value="work" data-i18n="set.mode.work">Work only</option>
+            <option value="personal" data-i18n="set.mode.personal">Personal only</option>
+          </select></div>
+        </div>
+        <div class="srow" data-note-row="work">
+          <div class="slabel"><span class="lbl" data-i18n="set.files.work">Work note</span><span class="shint file-name" id="work-name"></span></div>
+          <div class="sctl row">
+            <button id="btn-open-work" class="btn-soft sm" type="button" data-i18n="set.files.open">Open</button>
+            <button class="btn-soft sm" data-edit="work" type="button" aria-expanded="false" data-i18n="set.files.change">Change path</button>
+          </div>
+        </div>
+        <div class="path-edit" id="edit-work" data-note-row="work" hidden>
+          <input id="set-work" type="text" class="full" spellcheck="false" data-i18n-aria="set.files.workPh">
           <span class="fstat" data-for="set-work" role="status"></span>
         </div>
-        <div class="srow">
-          <div class="slabel"><span class="lbl">Personal note</span><span class="shint file-name" id="personal-name"></span></div>
+        <div class="srow" data-note-row="personal">
+          <div class="slabel"><span class="lbl" data-i18n="set.files.personal">Personal note</span><span class="shint file-name" id="personal-name"></span></div>
           <div class="sctl row">
-            <button id="btn-open-personal" class="btn-soft sm" type="button">Open</button>
-            <button class="btn-soft sm" data-edit="personal" type="button" aria-expanded="false">Change path</button>
+            <button id="btn-open-personal" class="btn-soft sm" type="button" data-i18n="set.files.open">Open</button>
+            <button class="btn-soft sm" data-edit="personal" type="button" aria-expanded="false" data-i18n="set.files.change">Change path</button>
           </div>
         </div>
-        <div class="path-edit" id="edit-personal" hidden>
-          <input id="set-personal" type="text" class="full" spellcheck="false" aria-label="Personal note path">
+        <div class="path-edit" id="edit-personal" data-note-row="personal" hidden>
+          <input id="set-personal" type="text" class="full" spellcheck="false" data-i18n-aria="set.files.personalPh">
           <span class="fstat" data-for="set-personal" role="status"></span>
         </div>
 
         <div class="save-bar">
-          <button id="btn-save-settings" class="btn-accent" type="button">Save settings</button>
-          <span id="set-dirty-note" class="dirty-note" hidden>Unsaved changes</span>
-          <span id="set-saved" class="saved" hidden role="status">Saved ✓</span>
+          <button id="btn-save-settings" class="btn-accent" type="button" data-i18n="set.save.btn">Save settings</button>
+          <span id="set-dirty-note" class="dirty-note" hidden data-i18n="set.save.dirty">Unsaved changes</span>
+          <span id="set-saved" class="saved" hidden role="status" data-i18n="set.save.saved">Saved ✓</span>
           <span id="set-err" class="err" hidden role="alert"></span>
         </div>
       </form>
@@ -165,24 +184,27 @@
 
   <footer class="statusline" id="statusline">
     <span id="st-src"></span>
-    <span class="st-right"><span id="st-write"></span><button class="st-keys" id="st-keys" type="button" aria-expanded="false" aria-controls="keys-pop" title="Keyboard shortcuts (?)">?</button></span>
+    <span class="st-right"><span id="st-write"></span><button class="st-keys" id="st-keys" type="button" aria-expanded="false" aria-controls="keys-pop" data-i18n-title="win.st.keys">?</button></span>
   </footer>
   <div class="keys-pop" id="keys-pop" hidden role="dialog" aria-label="Keyboard shortcuts">
-    <div class="kp-row"><kbd>↑</kbd><kbd>↓</kbd><span>move between tasks</span></div>
-    <div class="kp-row"><kbd>Enter</kbd><span>open the editor</span></div>
-    <div class="kp-row"><kbd>Space</kbd><kbd>x</kbd><span>complete</span></div>
-    <div class="kp-row"><kbd>*</kbd><kbd>s</kbd><span>toggle Now ★</span></div>
-    <div class="kp-row"><kbd>0</kbd><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><span>priority none · ! · !! · !!!</span></div>
-    <div class="kp-row"><kbd>Del</kbd><span>delete (undo stays open)</span></div>
-    <div class="kp-row"><kbd>/</kbd><span>search</span><kbd>n</kbd><span>new task</span></div>
-    <div class="kp-row"><kbd>?</kbd><span>this list</span></div>
+    <div class="kp-row"><kbd>↑</kbd><kbd>↓</kbd><span data-i18n="keys.move">move between tasks</span></div>
+    <div class="kp-row"><kbd>Enter</kbd><span data-i18n="keys.enter">open the editor</span></div>
+    <div class="kp-row"><kbd>Space</kbd><kbd>x</kbd><span data-i18n="keys.complete">complete</span></div>
+    <div class="kp-row"><kbd>*</kbd><kbd>s</kbd><span data-i18n="keys.now">toggle Now ★</span></div>
+    <div class="kp-row"><kbd>0</kbd><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><span data-i18n="keys.prio">priority none · ! · !! · !!!</span></div>
+    <div class="kp-row"><kbd>Del</kbd><span data-i18n="keys.del">delete (undo stays open)</span></div>
+    <div class="kp-row"><kbd>/</kbd><span data-i18n="keys.search">search</span><kbd>n</kbd><span data-i18n="keys.new">new task</span></div>
+    <div class="kp-row"><kbd>?</kbd><span data-i18n="keys.list">this list</span></div>
   </div>
 
   <div id="undo-toast" class="toast" hidden role="status" aria-live="polite"></div>
   <div id="notice" class="notice" hidden role="status" aria-live="polite"></div>
   <script src="sfx.js"></script>
   <script src="motion.js"></script>
-  <script src="ui-shared.js"></script>
+  <script src="locales/en.js"></script>
+<script src="locales/ar.js"></script>
+<script src="lib/i18n.js"></script>
+<script src="ui-shared.js"></script>
   <script src="window.js"></script>
 </body>
 </html>

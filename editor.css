@@ -42,16 +42,16 @@
   background-repeat: no-repeat; background-position: 0 58%; background-size: 100% 1.5px;
 }
 .ed-actions { display: flex; align-items: center; gap: var(--s-2); }
-.menu-wrap { position: relative; margin-left: auto; }
+.menu-wrap { position: relative; margin-inline-start: auto; }
 .menu {
-  position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 10; min-width: 160px;
+  position: absolute; inset-inline-end: 0; bottom: calc(100% + 6px); z-index: 10; min-width: 160px;
   display: flex; flex-direction: column; padding: 4px;
   background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-3); box-shadow: var(--shadow);
   animation: menuIn var(--d-1) var(--ease-out) both;
 }
 @keyframes menuIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 .menu button {
-  border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer;
+  border: 0; background: transparent; color: var(--ink); text-align: start; cursor: pointer;
   font-family: inherit; font-size: var(--fs-3); padding: 8px 10px; border-radius: var(--r-2);
 }
 .menu button:hover, .menu button:focus-visible { background: var(--hover); outline: none; }
@@ -61,7 +61,7 @@
 /* per-subtask delete "×" — sits at the row's end, red on hover */
 .subs-list li { display: flex; align-items: center; gap: 7px; }
 .sub-del {
-  margin-left: auto; flex: none; width: 24px; height: 24px;
+  margin-inline-start: auto; flex: none; width: 24px; height: 24px;
   border: 0; border-radius: var(--r-1); background: transparent; color: var(--faint);
   font-family: inherit; font-size: var(--fs-4); line-height: 1; cursor: pointer;
   display: flex; align-items: center; justify-content: center;

@@ -9,47 +9,47 @@
 </head>
 <body>
   <header>
-    <span class="logo"><span class="mark" id="ed-mark" aria-hidden="true">[ ]</span> Quick edit</span>
+    <span class="logo"><span class="mark" id="ed-mark" aria-hidden="true">[ ]</span> <span data-i18n="ed.title">Quick edit</span></span>
     <span id="ed-badge" class="badge"></span>
   </header>
   <main id="ed-main">
-    <p class="empty" id="ed-missing" hidden>Task not found — it may have been completed or removed.</p>
+    <p class="empty" id="ed-missing" hidden data-i18n="ed.missing">Task not found — it may have been completed or removed.</p>
     <div id="ed-form" hidden>
-      <div class="field"><label for="ed-title">Task <span class="label-hint">— first line is the title, lines below become its description</span></label>
+      <div class="field"><label for="ed-title"><span data-i18n="ed.task">Task</span> <span class="label-hint" data-i18n="ed.task.hint">— first line is the title, lines below become its description</span></label>
         <textarea id="ed-title" rows="1" spellcheck="false"></textarea>
       </div>
       <div class="field-row">
-        <div class="field"><label>Priority</label>
+        <div class="field"><label data-i18n="win.lbl.priority">Priority</label>
           <div class="chips" id="ed-prio" aria-label="Priority"></div>
         </div>
-        <div class="field"><label>Now</label>
-          <button class="chip" id="ed-active" type="button" aria-pressed="false">&#9733; Working on it</button>
+        <div class="field"><label data-i18n="ed.now">Now</label>
+          <button class="chip" id="ed-active" type="button" aria-pressed="false" data-i18n="ed.now.chip">&#9733; Working on it</button>
         </div>
       </div>
-      <div class="field"><label>Due</label>
+      <div class="field"><label data-i18n="win.lbl.due">Due</label>
         <div class="chips" id="ed-due" aria-label="Due date"></div>
       </div>
-      <div class="field"><label for="ed-sub">Subtasks</label>
+      <div class="field"><label for="ed-sub" data-i18n="ed.sub">Subtasks</label>
         <ul class="subs-list" id="ed-subs"></ul>
-        <div class="addsub"><input type="text" id="ed-sub" placeholder="New subtask…"><button id="ed-addsub" type="button">Add</button></div>
+        <div class="addsub"><input type="text" id="ed-sub" data-i18n-ph="ed.sub.ph"><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button></div>
       </div>
       <div class="save-bar">
-        <div class="ed-preview"><span class="pv-label">will write</span><code id="ed-preview-line"></code></div>
+        <div class="ed-preview"><span class="pv-label" data-i18n="win.pv.label">will write</span><code id="ed-preview-line"></code></div>
         <div class="ed-actions">
-          <button class="btn-accent" id="ed-save" type="button" title="Save (Ctrl+Enter)">Save</button>
+          <button class="btn-accent" id="ed-save" type="button" data-i18n-title="ed.saveTitle" data-i18n="set.guard.save">Save</button>
           <button class="btn-soft" id="ed-complete" type="button">
-            <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Complete
+            <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="ed.complete">Complete</span>
           </button>
-          <span class="saved" id="ed-saved" hidden role="status">Saved ✓</span>
+          <span class="saved" id="ed-saved" hidden role="status" data-i18n="set.save.saved">Saved ✓</span>
           <div class="menu-wrap">
-            <button class="btn-soft btn-icon" id="ed-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="ed-menu" title="More" aria-label="More actions">
+            <button class="btn-soft btn-icon" id="ed-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="ed-menu" data-i18n-title="ed.more" data-i18n-aria="ed.more.aria">
               <svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
             </button>
             <div class="menu" id="ed-menu" role="menu" hidden>
-              <button role="menuitem" id="ed-up" type="button">Move up</button>
-              <button role="menuitem" id="ed-down" type="button">Move down</button>
+              <button role="menuitem" id="ed-up" type="button" data-i18n="ed.up">Move up</button>
+              <button role="menuitem" id="ed-down" type="button" data-i18n="ed.down">Move down</button>
               <hr>
-              <button role="menuitem" id="ed-delete" class="danger" type="button">Delete task</button>
+              <button role="menuitem" id="ed-delete" class="danger" type="button" data-i18n="ed.del">Delete task</button>
             </div>
           </div>
         </div>
@@ -58,7 +58,10 @@
   </main>
   <script src="sfx.js"></script>
   <script src="motion.js"></script>
-  <script src="ui-shared.js"></script>
+  <script src="locales/en.js"></script>
+<script src="locales/ar.js"></script>
+<script src="lib/i18n.js"></script>
+<script src="ui-shared.js"></script>
   <script src="editor.js"></script>
 </body>
 </html>

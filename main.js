@@ -6,22 +6,26 @@ const path = require('path');
 const fs = require('fs');
 const { NoteFile, resolveDue, MONTHS } = require('./lib/parse.js');
 const { composeTask } = require('./lib/compose.js');
+const { planSetup, NOTE_NAME } = require('./lib/setup.js');
 const { makePngBuffer } = require('./lib/icon.js');
 
 // test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
 // E2E runs use this so they never touch the owner's real notes.
-if (process.env.TODO_ISLAND_USERDATA) app.setPath('userData', process.env.TODO_ISLAND_USERDATA);
+const SANDBOX = !!process.env.TODO_ISLAND_USERDATA;
+if (SANDBOX) app.setPath('userData', process.env.TODO_ISLAND_USERDATA);
 const STATE_PATH = path.join(app.getPath('userData'), 'state.json'); // userData: writable in dev AND packaged (asar is read-only)
 const LOGF = path.join(process.env.TEMP || __dirname, 'todo-island.log');
 const LOG = m => { try { fs.appendFileSync(LOGF, `${new Date().toISOString()} ${m}\n`); } catch (e) {} };
 
+const DEFAULT_DIR = path.join(require('os').homedir(), 'Documents', 'todos-island'); // where skipped/unpicked notes are created
 const DEFAULT_SETTINGS = {
-  workIntervalMin: 30, offIntervalMin: 60, workRemindersOn: true, offRemindersOn: true,
+  // defaults = the owner's own tuned setup (2026-09-25) — every new install starts from it
+  workIntervalMin: 60, offIntervalMin: 60, workRemindersOn: true, offRemindersOn: true,
   dayStart: '09:00', dayEnd: '17:00',
-  dismissSec: 45, undoSec: 30, hoverSec: 2, shortcut: 'Control+Alt+T', focusByTime: true,
-  weekendAware: false, autoStart: false, soundOn: false,
-  workPath: path.join(require('os').homedir(), 'Documents', 'todos-island', 'work-tasks.md'),
-  personalPath: path.join(require('os').homedir(), 'Documents', 'todos-island', 'personal.md')
+  dismissSec: 10, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
+  weekendAware: true, autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
+  workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
+  personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
 };
 const migrateSettings = s => {
   if (s.intervalMin !== undefined && s.workIntervalMin === undefined) s.workIntervalMin = s.intervalMin; // v1.2 single interval → work interval
@@ -29,11 +33,13 @@ const migrateSettings = s => {
   return s;
 };
 const saveState = () => fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
-let state = { settings: { ...DEFAULT_SETTINGS }, lastShown: 0 };
+// onboarded: false only on a truly fresh install (no state.json) — existing installs never see the first-run setup
+let state = { settings: { ...DEFAULT_SETTINGS }, lastShown: 0, onboarded: false };
 try {
   const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
   state = { ...state, ...saved, settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(saved.settings || {}) }) };
   delete state.activeId; delete state.activeFile; // dead since the * marker moved "active" into the notes
+  if (saved.onboarded === undefined) state.onboarded = true; // pre-onboarding install
 } catch (e) {
   // one-time migration: carry over a dev-era state.json that lived next to main.js
   const legacy = path.join(__dirname, 'state.json');
@@ -42,6 +48,7 @@ try {
       const old = JSON.parse(fs.readFileSync(legacy, 'utf8'));
       state = { ...state, ...old, settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(old.settings || {}) }) };
       delete state.activeId; delete state.activeFile;
+      state.onboarded = true;
       saveState();
     } catch (e2) {}
   }
@@ -76,6 +83,7 @@ function latestUndo() {
   return best ? { token: bestToken, ...best } : null;
 }
 
+const noteOn = tag => { const m = state.settings.mode || 'both'; return m === 'both' || m === tag; };
 function workFile() { return new NoteFile(state.settings.workPath, { doneHeading: '## Done', fileTag: 'work' }); }
 function personalFile() { return new NoteFile(state.settings.personalPath, { fileTag: 'personal' }); }
 // every write through fileFor() is recorded — the tasks window shows it ("wrote work-tasks.md · just now")
@@ -121,8 +129,11 @@ function snapshot() {
     }
     catch (e) { LOG('SOURCE-ERROR ' + group + ' ' + e.message); return { file: group, items: [], done: [], error: path }; }
   };
-  const work = safe('work', state.settings.workPath);
-  const personal = safe('personal', state.settings.personalPath);
+  // task mode: a disabled note is never read — no section, no error, no source
+  const on = tag => noteOn(tag);
+  const off = group => ({ file: group, items: [], done: [], error: null });
+  const work = on('work') ? safe('work', state.settings.workPath) : off('work');
+  const personal = on('personal') ? safe('personal', state.settings.personalPath) : off('personal');
   const errors = [work, personal].filter(r => r.error).map(r => ({ file: r.file, path: r.error, name: path.basename(r.error || '') }));
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   const dec = t => !t.dueTs ? 'none' : t.dueTs < today0.getTime() ? 'overdue' : t.dueTs < today0.getTime() + 864e5 ? 'today' : 'future';
@@ -132,23 +143,24 @@ function snapshot() {
     ((a.dueTs || Infinity) - (b.dueTs || Infinity)));
   sort(work.items).forEach(t => t.dueState = dec(t));
   sort(personal.items).forEach(t => t.dueState = dec(t));
-  const sections = inWorkday()
+  const sections = (inWorkday()
     ? [{ name: 'Work', items: work.items }, { name: 'Personal', items: personal.items }]
-    : [{ name: 'Personal', items: personal.items }, { name: 'Work', items: work.items }];
+    : [{ name: 'Personal', items: personal.items }, { name: 'Work', items: work.items }]).filter(s => on(s.name.toLowerCase()));
   const lu = latestUndo();
   const undo = lu
     ? { token: lu.token, kind: lu.kind, label: lu.label, starring: lu.kind === 'toggle' ? lu.prev === false : undefined, left: Math.max(0, Math.round((lu.expires - Date.now()) / 1000)) }
     : null;
-  const sources = { work: path.basename(state.settings.workPath || ''), personal: path.basename(state.settings.personalPath || '') };
-  return { sections, errors, sources, lastWrite, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, undo };
+  const sources = {};
+  for (const tag of ['work', 'personal']) if (on(tag)) sources[tag] = path.basename(state.settings[tag + 'Path'] || '');
+  return { sections, errors, sources, lastWrite, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo };
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
 function showIsland(opts = {}) {
+  if (!state.onboarded) { openOnboarding(); return; } // nothing to show until first-run setup picks the notes
   if (!island) return;
-  const wasVisible = island.isVisible();
   sendSnap(); island.showInactive();
-  if (!wasVisible) island.webContents.send('island-shown'); // replays the drop-in entry
+  island.webContents.send('island-shown'); // always: resets renderer state (cancels stuck animations, replays drop-in)
   if (state.settings.soundOn) island.webContents.send('play-sound');
   // keyboard summon only: the island takes focus so arrows/Enter/Space work. Timed pops NEVER steal focus.
   if (opts.focus) { island.setFocusable(true); island.focus(); island.webContents.send('island-focus'); }
@@ -171,6 +183,7 @@ function createIsland() {
 
 function openWindow(tab) {
   if (typeof tab !== 'string') tab = null; // tray/menu callers pass event objects
+  if (!state.onboarded) { openOnboarding(); return; }
   if (mainWin) { mainWin.show(); mainWin.focus(); if (tab) mainWin.webContents.send('show-tab', tab); return; }
   mainWin = new BrowserWindow({
     width: 920, height: 660, minWidth: 760, minHeight: 540,
@@ -225,6 +238,97 @@ ipcMain.handle('export-md', async (_e, text) => {
   return { ok: true, path: res.filePath };
 });
 
+// a new note in the v2.1 format — 'wx' so an existing file is NEVER overwritten (throws EEXIST instead)
+function createNote(p, isWork) {
+  const today = `${new Date().getDate()} ${MONTHS[new Date().getMonth()]}`;
+  const lines = [
+    `# ${isWork ? 'Work Tasks' : 'Personal Todos'}`, '',
+    '> Format: `- [ ] * !! 24 Sep — Task title` — `*` active, `!` priority, `D Mon` due (all optional, any order).',
+    `> ${isWork ? 'Done tasks move under ## Done.' : 'Tick tasks when done.'} Edit freely — the app reads whatever you write.`, '',
+    ...(isWork ? ['## Open', ''] : []),
+    `- [ ] ${isWork ? '! ' : ''}${today} — My first ${isWork ? 'work task' : 'todo'}`, '',
+    ...(isWork ? ['## Done', ''] : []),
+    ''
+  ];
+  fs.mkdirSync(path.dirname(p), { recursive: true });
+  fs.writeFileSync(p, lines.join('\n'), { flag: 'wx' });
+}
+
+// ---- first-run onboarding: 4 short screens → planSetup (lib/setup.js) → notes created/adopted → island pops ----
+let onboardWin = null;
+function openOnboarding() {
+  if (onboardWin && !onboardWin.isDestroyed()) { onboardWin.show(); onboardWin.focus(); return; }
+  onboardWin = new BrowserWindow({
+    width: 560, height: 660, resizable: false, maximizable: false, minimizable: false, center: true,
+    backgroundColor: MICA ? '#00000000' : theme().bg,
+    ...(MICA ? { backgroundMaterial: 'mica' } : {}),
+    autoHideMenuBar: true, show: false, frame: false, titleBarStyle: 'hidden',
+    titleBarOverlay: overlay(MICA),
+    webPreferences: { preload: path.join(__dirname, 'onboard-preload.js') }
+  });
+  lockZoom(onboardWin.webContents);
+  onboardWin.webContents.on('console-message', (_e, _lvl, msg) => LOG('ONBOARD-CONSOLE: ' + msg));
+  onboardWin.loadFile('onboard.html', MICA ? { query: { mica: '1' } } : undefined);
+  onboardWin.once('ready-to-show', () => onboardWin.show());
+  // closing mid-way = Skip, so the app is always usable afterwards
+  onboardWin.on('closed', () => { onboardWin = null; if (!state.onboarded) { finishOnboarding({ skip: true }); setTimeout(showIsland, 400); } });
+}
+function finishOnboarding(answers) {
+  const plan = planSetup(answers, { defaultDir: DEFAULT_DIR, exists: p => fs.existsSync(p) });
+  const errors = [];
+  for (const c of plan.create) {
+    try { createNote(c.path, c.kind === 'work'); LOG('ONBOARD-CREATED ' + c.kind); }
+    catch (e) { if (e.code !== 'EEXIST') errors.push({ kind: c.kind, message: e.message }); }
+  }
+  state.settings = { ...state.settings, ...plan.settings };
+  state.onboarded = true;
+  state.lastShown = Date.now(); // the next timed pop counts from the end of setup
+  saveState();
+  applyAutoStart(state.settings.autoStart);
+  LOG('ONBOARD-DONE mode=' + state.settings.mode + (answers && answers.skip ? ' (skipped)' : ''));
+  const name = p => path.basename(p);
+  return {
+    ok: !errors.length, errors, mode: state.settings.mode, shortcut: state.settings.shortcut,
+    notes: [...plan.create.map(c => ({ kind: c.kind, name: name(c.path), path: c.path, created: true })),
+      ...plan.adopt.map(c => ({ kind: c.kind, name: name(c.path), path: c.path, created: false }))]
+  };
+}
+ipcMain.handle('onboard-defaults', () => ({
+  defaultDir: DEFAULT_DIR, noteName: NOTE_NAME, shortcut: state.settings.shortcut,
+  dayStart: state.settings.dayStart, dayEnd: state.settings.dayEnd,
+  every: state.settings.workIntervalMin, autoStart: state.settings.autoStart
+}));
+ipcMain.handle('pick-path', async (_e, kind) => {
+  // E2E: the native dialog can't be clicked by a script — a sandbox run hands the answer in
+  if (SANDBOX && process.env.TODO_ISLAND_PICK) return { ok: true, path: process.env.TODO_ISLAND_PICK };
+  const { dialog } = require('electron');
+  const res = await dialog.showOpenDialog(onboardWin || mainWin || undefined, kind === 'folder'
+    ? { title: 'Choose a folder for the note', properties: ['openDirectory', 'createDirectory'] }
+    : { title: 'Choose your todo note', properties: ['openFile'], filters: [{ name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }] });
+  if (res.canceled || !res.filePaths.length) return { ok: false };
+  return { ok: true, path: res.filePaths[0] };
+});
+ipcMain.handle('inspect-path', (_e, kind, p, note) => {
+  // what a pick resolves to — the same rule planSetup uses (folder → <folder>/<note name>)
+  const target = kind === 'folder' ? path.join(String(p), NOTE_NAME[note] || NOTE_NAME.personal) : String(p);
+  const out = { path: target, name: path.basename(target), exists: fs.existsSync(target), open: 0, error: null };
+  if (out.exists) {
+    try { const f = new NoteFile(target, { fileTag: note }); out.open = f.topTasks().filter(t => !t.checked).length; }
+    catch (e) { out.error = 'Can’t read this file'; }
+  }
+  return out;
+});
+ipcMain.handle('onboard-finish', (_e, answers) => {
+  const res = finishOnboarding(answers || {});
+  sendSnap();
+  setTimeout(showIsland, 700); // the real island drops in behind the Ready screen
+  return res;
+});
+ipcMain.handle('onboard-close', (_e, then) => {
+  if (onboardWin && !onboardWin.isDestroyed()) onboardWin.close();
+  if (then === 'open') openWindow();
+});
+
 function openEditor(file, id) {
   if (editorWin && !editorWin.isDestroyed()) { editorWin.show(); editorWin.focus(); }
   else {
@@ -239,7 +343,7 @@ function openEditor(file, id) {
     editorWin.once('ready-to-show', () => editorWin.show());
     editorWin.on('closed', () => { editorWin = null; });
   }
-  editorWin.loadFile('editor.html', { query: { file: String(file), id: String(id) } });
+  editorWin.loadFile('editor.html', { query: { file: String(file), id: String(id), lang: uiLang() } });
 }
 
 function lockZoom(wc) {
@@ -261,8 +365,9 @@ function registerShortcut() {
   if (!sc) return true;
   try {
     const ok = globalShortcut.register(sc, () => {
-      // toggle: same key shows and dismisses — dismiss lets the pill retract (animated) via the renderer
-      if (island && island.isVisible()) { island.setFocusable(false); island.webContents.send('retract-island'); }
+      // toggle: same key shows and dismisses — dismiss lets the pill retract (animated) via the renderer,
+      // with a hard hide as backstop in case the renderer's animation promise dies silently
+      if (island && island.isVisible()) { island.setFocusable(false); island.webContents.send('retract-island'); setTimeout(() => hideIsland(), 400); }
       else showIsland({ focus: true });
     });
     LOG(ok ? `SHORTCUT-OK ${sc}` : `SHORTCUT-FAILED ${sc}`);
@@ -273,26 +378,35 @@ function registerShortcut() {
 function applyAutoStart(on) {
   // dev: electron.exe alone boots the default Electron welcome page — the app path must ride along.
   // --hidden marks a system launch (checked below) so boot stays quiet.
+  if (SANDBOX) { LOG('AUTOSTART-SKIP sandbox ' + !!on); return; } // test runs must never rewrite the real login item
   const args = [];
   if (!app.isPackaged) args.push(app.getAppPath());
   args.push('--hidden');
   app.setLoginItemSettings({ openAtLogin: !!on, openAsHidden: true, args });
 }
 
+const { resolveLang, t: tt } = require('./lib/i18n.js');
+const uiLang = () => resolveLang(state.settings.uiLang, app.getLocale()); // 'system' follows the OS
+function rebuildTrayMenu() {
+  if (!tray) return;
+  const L = uiLang();
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: tt(L, 'tray.show'), click: () => { state.lastShown = Date.now(); saveState(); showIsland(); } },
+    { label: tt(L, 'tray.open'), click: openWindow },
+    { type: 'separator' },
+    { label: tt(L, 'tray.quit'), click: () => app.quit() }
+  ]));
+}
 function createTray() {
   const img = nativeImage.createFromBuffer(makePngBuffer(32));
   tray = new Tray(img);
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Show island now', click: () => { state.lastShown = Date.now(); saveState(); showIsland(); } },
-    { label: 'Open tasks window', click: openWindow },
-    { type: 'separator' },
-    { label: 'Quit', click: () => app.quit() }
-  ]));
+  rebuildTrayMenu();
   tray.on('click', () => showIsland());
   const tick = () => {
     const nf = new Date(nextFireAt());
-    tray.setToolTip(`Todo Island — next ${String(nf.getHours()).padStart(2, '0')}:${String(nf.getMinutes()).padStart(2, '0')} (${state.settings.shortcut})`);
-    if (Date.now() >= nextFireAt()) { state.lastShown = Date.now(); saveState(); showIsland(); }
+    const time = `${String(nf.getHours()).padStart(2, '0')}:${String(nf.getMinutes()).padStart(2, '0')}`;
+    tray.setToolTip(tt(uiLang(), 'tray.tip', { t: time, sc: state.settings.shortcut }));
+    if (state.onboarded && Date.now() >= nextFireAt()) { state.lastShown = Date.now(); saveState(); showIsland(); }
   };
   tick();
   setInterval(tick, 15000);
@@ -391,7 +505,7 @@ ipcMain.handle('save-settings', (_e, s) => {
     state.settings.shortcut = clean.shortcut;
     if (!registerShortcut()) {
       state.settings.shortcut = prev; registerShortcut();
-      result.ok = false; result.errors.shortcut = 'Registration failed — invalid or already taken';
+      result.ok = false; result.errors.shortcut = 'set.err.shortcut';
     }
   }
   if (clean.autoStart !== undefined && clean.autoStart !== state.settings.autoStart) {
@@ -399,12 +513,28 @@ ipcMain.handle('save-settings', (_e, s) => {
   }
   for (const k of ['workPath', 'personalPath']) {
     if (clean[k] !== undefined && !fs.existsSync(clean[k])) {
-      result.ok = false; result.errors[k] = 'File not found';
+      result.ok = false; result.errors[k] = 'set.err.file';
       delete clean[k];
     }
   }
+  if (clean.mode !== undefined && !['both', 'work', 'personal'].includes(clean.mode)) delete clean.mode;
+  const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };
-  saveState(); sendSnap();
+  // switching a note ON creates it when its file doesn't exist yet (the user's own click — owner's hands)
+  for (const tag of ['work', 'personal']) {
+    const p = state.settings[tag + 'Path'];
+    if (!wasOn[tag] && noteOn(tag) && p && !fs.existsSync(p)) {
+      try { createNote(p, tag === 'work'); LOG('SEEDED ' + p); }
+      catch (e) { result.ok = false; result.errors[tag + 'Path'] = 'set.err.create'; }
+    }
+  }
+  saveState();
+  if (clean.uiLang !== undefined && clean.uiLang !== state.settings.uiLang) {
+    // language switch: tray re-labels, every live window re-applies its chrome, island re-renders via snapshot
+    rebuildTrayMenu();
+    for (const w of [mainWin, shareWin, editorWin]) if (w && !w.isDestroyed()) w.webContents.send('lang-changed', uiLang());
+  }
+  sendSnap();
   return result;
 });
 ipcMain.handle('update-task', (_e, file, id, patch) => {
@@ -512,36 +642,23 @@ else {
   app.on('second-instance', () => { openWindow(); });
   app.whenReady().then(() => {
     LOG('APP-START');
-    // first-run: create starter notes when the user still has the default paths
-    const seedNote = (p, isWork) => {
-      const today = `${new Date().getDate()} ${MONTHS[new Date().getMonth()]}`;
-      const lines = [
-        `# ${isWork ? 'Work Tasks' : 'Personal Todos'}`, '',
-        '> Format: `- [ ] * !! 24 Sep — Task title` — `*` active, `!` priority, `D Mon` due (all optional, any order).',
-        `> ${isWork ? 'Done tasks move under ## Done.' : 'Tick tasks when done.'} Edit freely — the app reads whatever you write.`, '',
-        ...(isWork ? ['## Open', ''] : []),
-        `- [ ] ${isWork ? '! ' : ''}${today} — My first ${isWork ? 'work task' : 'todo'}`, '',
-        ...(isWork ? ['## Done', ''] : []),
-        ''
-      ];
-      fs.writeFileSync(p, lines.join('\n'));
-    };
-    for (const [p, isWork] of [[state.settings.workPath, true], [state.settings.personalPath, false]]) {
-      if (p.startsWith(path.join(require('os').homedir(), 'Documents', 'todos-island')) && !fs.existsSync(p)) {
-        try {
-          fs.mkdirSync(path.dirname(p), { recursive: true });
-          seedNote(p, isWork);
-          LOG('SEEDED ' + p);
-        } catch (e) { LOG('SEED-ERR ' + e.message); }
+    // self-heal: a default-folder note that went missing is re-created (enabled notes only; onboarding creates the rest)
+    if (state.onboarded) {
+      for (const tag of ['work', 'personal']) {
+        const p = state.settings[tag + 'Path'];
+        if (noteOn(tag) && p && p.startsWith(DEFAULT_DIR) && !fs.existsSync(p)) {
+          try { createNote(p, tag === 'work'); LOG('SEEDED ' + p); } catch (e) { LOG('SEED-ERR ' + e.message); }
+        }
       }
     }
     createIsland();
     createTray();
     registerShortcut();
-    if (state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
+    if (state.onboarded && state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
     LOG('TRAY-READY');
     // one shakedown pop at launch — manual launches only; a system (--hidden) boot stays quiet
-    if (!process.argv.includes('--hidden')) setTimeout(showIsland, 1500);
+    if (!state.onboarded) openOnboarding(); // fresh install: first-run setup instead of the launch pop
+    else if (!process.argv.includes('--hidden')) setTimeout(showIsland, 1500);
     if (process.env.TODO_ISLAND_UNDO_TEST) {
       setTimeout(async () => {
         try {
@@ -560,6 +677,19 @@ else {
           await iStep('island-edit-handoff', `(async()=>{ const e0=document.querySelector('#body .row [data-edit]'); if(!e0) return 'no-edit-btn'; e0.click(); await new Promise(r=>setTimeout(r,900)); return 'clicked'; })()`);
           LOG('UTEST edit-handoff(main): editor=' + !!(editorWin && !editorWin.isDestroyed()) + ' main=' + !!(mainWin && !mainWin.isDestroyed() && mainWin.isVisible()) + ' islandVisible=' + (island ? island.isVisible() : 'n/a'));
           if (editorWin && !editorWin.isDestroyed()) editorWin.close();
+          { // toggle-cycle: the shortcut's exact sequence through the real functions
+            showIsland({ focus: true });
+            await new Promise(r => setTimeout(r, 500));
+            const v1 = island && island.isVisible();
+            island.setFocusable(false); island.webContents.send('retract-island');
+            setTimeout(() => hideIsland(), 400); // the backstop, same as the shortcut handler arms
+            await new Promise(r => setTimeout(r, 700));
+            const v2 = island && island.isVisible();
+            showIsland({ focus: true });
+            await new Promise(r => setTimeout(r, 500));
+            const v3 = island && island.isVisible();
+            LOG(`UTEST toggle-cycle: show=${v1} dismissed=${!v2} reshow=${v3}`);
+          }
           await iStep('island-check+undo', `(async()=>{ const c=document.querySelector('#body .row [data-chk]'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,1200)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           await step('glass+mica', `(async()=>{ const t=document.getElementById('undo-toast'); const bf=getComputedStyle(t).backdropFilter; return 'micaClass='+document.documentElement.classList.contains('mica')+' bodyBg='+getComputedStyle(document.body).backgroundColor+' toastBackdrop='+bf; })()`);
@@ -576,6 +706,7 @@ else {
           await step('composer-typed-add', `(async()=>{ const ta=document.getElementById('new-title'); ta.value='!! 26 Sep E2E composed task'; ta.dispatchEvent(new Event('input',{bubbles:true})); ${wait(400)} const pv=document.getElementById('new-preview-line').textContent; const sel=[...document.querySelectorAll('#new-prio .pchip.sel')].map(c=>c.dataset.p).join(); document.getElementById('btn-add').click(); ${wait(700)} const row=[...document.querySelectorAll('.wrow')].find(r=>r.textContent.includes('E2E composed task')); return 'preview=[' + pv + '] chip=' + sel + ' row=' + (row ? row.querySelector('.bang').textContent + '|' + (row.querySelector('.wdue')||{}).textContent : 'MISSING'); })()`);
           await step('done-tab+clear+undo', `(async()=>{ document.getElementById('tab-done').click(); ${wait(400)} const n0=document.querySelectorAll('.wrow.done').length; document.getElementById('btn-clear-done').click(); ${wait(700)} const n1=document.querySelectorAll('.wrow.done').length; ${undoClick} ${wait(900)} const n2=document.querySelectorAll('.wrow.done').length; return n0+'→'+n1+'→'+n2; })()`);
           await step('settings-dirty-guard', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(500)} const d=document.getElementById('set-dismiss'); d.value='3'; d.dispatchEvent(new Event('input',{bubbles:true})); const dot=!document.getElementById('settings-dirty').hidden; document.getElementById('tab-work').click(); ${wait(200)} const guard=!document.getElementById('dirty-guard').hidden; document.getElementById('guard-save').click(); ${wait(700)} const fs=document.querySelector('.fstat[data-for=set-dismiss]').textContent; return 'dot='+dot+' guard='+guard+' clamp=['+fs+'] tab='+document.querySelector('.tab.active').id; })()`);
+          await step('lang-switch', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(600)} const ar=document.querySelector('#lang-seg [data-lang=ar]'); if(!ar) return 'no-seg'; ar.click(); ${wait(200)} document.getElementById('btn-save-settings').click(); ${wait(1200)} const dir=document.documentElement.dir, hl=document.documentElement.lang; const tabW=document.getElementById('tab-work').textContent.trim(); const lbls=[...document.querySelectorAll('[data-i18n]')].slice(0,3).map(e=>e.textContent.trim()).join('|'); const saveBtn=document.querySelector('[data-i18n="set.save.btn"]').textContent; const back=document.querySelector('#lang-seg [data-lang=system]'); back.click(); ${wait(200)} document.getElementById('btn-save-settings').click(); ${wait(1200)} return 'dir='+dir+' htmlLang='+hl+' tabWork=['+tabW+'] first3=['+lbls+'] saveBtn=['+saveBtn+'] backDir='+document.documentElement.dir; })()`);
           { // quick editor: preview line, ⋯ menu, and a no-change Save must round-trip the note byte-identically
             const t0 = snapshot().sections.flatMap(s => s.items).find(t => t.file === 'work');
             const before = fs.readFileSync(state.settings.workPath, 'utf8');
@@ -605,7 +736,8 @@ else {
           }
           LOG('UTEST-END undoLogSize=' + undoLog.size);
           if (process.env.TODO_ISLAND_USERDATA) app.quit(); // sandboxed runs clean up after themselves
-        } catch (e) { LOG('UTEST-FATAL ' + e.message); }
+        } catch (e) { LOG('UTEST-FATAL ' + (e && e.message)); }
+        if (process.env.TODO_ISLAND_USERDATA) app.quit(); // sandbox runs ALWAYS clean up — even after a fatal step
       }, 2500);
     }
   });

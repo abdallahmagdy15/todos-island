@@ -1,0 +1,127 @@
+/* onboard.css — first-run setup. Builds on tokens.css + window.css (buttons, chips, switch, md-h).
+   Resting CSS = the FINAL frame of every animation, so reduced motion simply shows the finished picture. */
+.step-count { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
+
+main#stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.screen { position: absolute; inset: 0; overflow-y: auto; padding: var(--s-5) 36px var(--s-4); display: flex; flex-direction: column; }
+.mica main#stage { background: color-mix(in srgb, var(--paper) 88%, transparent); }
+.mica .ob-foot { background: var(--head-mica); }
+
+.lead { font-size: 24px; font-weight: 700; letter-spacing: -0.4px; line-height: 1.2; margin: var(--s-4) 0 var(--s-2); outline: none; }
+.md-h.big { font-size: var(--fs-5); margin-bottom: var(--s-1); outline: none; }
+.sub { color: var(--muted); font-size: var(--fs-3); line-height: 1.55; max-width: 460px; }
+.fine { margin-top: auto; padding-top: var(--s-4); color: var(--faint); font-size: var(--fs-1); line-height: 1.5; }
+
+/* ---- 1 · hero: your note line → highlighted → becomes the island ---- */
+.hero {
+  position: relative; height: 212px; flex: none; border-radius: var(--r-3);
+  background: var(--pane); border: 1px solid var(--rule-soft); overflow: hidden;
+}
+.screen-edge { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--rule); }
+.mini-pill {
+  position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; width: 330px; padding: 11px 16px;
+  background: var(--pill-bg); border: 1px solid var(--pill-border); border-radius: var(--r-pill);
+  font-size: var(--fs-3); white-space: nowrap; overflow: hidden;
+}
+.mini-pill::after { /* the island's top sheen */
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 60%; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, var(--sheen), transparent);
+}
+.mp-mark { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 600; color: var(--accent); letter-spacing: -0.5px; }
+.mp-title { flex: 1; min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; }
+.mp-bang { font-family: var(--font-mono); font-weight: 750; color: var(--p2); letter-spacing: -0.5px; }
+.mp-due { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); }
+.thread { /* the dotted path from the note line up to the island */
+  position: absolute; left: 50%; top: 62px; height: 46px; width: 0;
+  border-left: 1.5px dashed var(--accent-border); transform-origin: bottom;
+}
+.note-card {
+  position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); width: 400px;
+  background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-2);
+  padding: 10px 14px; display: flex; flex-direction: column; gap: 5px;
+}
+.nc-file { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
+.nc-line { font-family: var(--font-mono); font-size: var(--fs-2); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nc-line.dim { color: var(--muted); }
+.hl { /* M2 highlighter swipe — resting state = fully swiped */
+  background: linear-gradient(var(--accent-soft), var(--accent-soft)) no-repeat left center / 100% 100%;
+  border-radius: 3px; padding: 1px 2px; margin: -1px -2px;
+}
+
+.values { list-style: none; display: flex; flex-direction: column; gap: 9px; margin-top: var(--s-4); }
+.values li { display: flex; align-items: baseline; gap: var(--s-3); font-size: var(--fs-3); }
+.glyph { flex: none; width: 38px; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--muted); letter-spacing: -0.5px; }
+.glyph.p2 { color: var(--p2); }
+.glyph.acc { color: var(--accent); }
+
+/* ---- 2 · which tasks + note pickers ---- */
+.modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); margin: var(--s-4) 0 var(--s-3); }
+.mode {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left;
+  padding: 11px 12px; border-radius: var(--r-2); cursor: pointer; font-family: inherit;
+  background: var(--card); border: 1px solid var(--rule); color: var(--ink);
+}
+.mode b { font-size: var(--fs-3); font-weight: 650; }
+.mode span { font-size: var(--fs-1); color: var(--muted); }
+.mode:hover { border-color: var(--faint); }
+.mode[aria-checked="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent-soft) 100%, var(--card)); box-shadow: inset 0 0 0 1px var(--accent); }
+.notes { display: flex; flex-direction: column; gap: var(--s-2); }
+.note-pick { background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-2); padding: 11px 14px; display: flex; flex-direction: column; gap: 6px; }
+.np-head { display: flex; align-items: center; justify-content: space-between; min-height: 24px; }
+.np-head b { font-size: var(--fs-3); font-weight: 650; }
+.np-stat { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.np-stat .ok { color: var(--ok); font-weight: 700; }
+.np-stat .bad { color: var(--danger); font-weight: 700; }
+.np-btns { display: flex; gap: var(--s-2); }
+
+/* ---- 3 · reminders ---- */
+.opts { margin-top: var(--s-4); background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-2); }
+.orow { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); padding: 12px 14px; }
+.orow + .orow { border-top: 1px solid var(--rule-soft); }
+.orow label, .olabel { display: flex; flex-direction: column; gap: 2px; cursor: pointer; min-width: 0; }
+.olabel { cursor: default; }
+.orow b { font-size: var(--fs-3); font-weight: 650; }
+.orow label span, .olabel span { font-size: var(--fs-1); color: var(--faint); }
+.orow.off { opacity: 0.45; pointer-events: none; }
+.hours { display: flex; align-items: center; gap: 6px; }
+.hours input {
+  width: 112px; background: var(--input); border: 1px solid var(--rule); color: var(--ink);
+  border-radius: var(--r-2); padding: 7px 10px; font-family: inherit; font-size: var(--fs-3);
+}
+.hours input:focus { border-color: var(--accent); }
+.dash { color: var(--faint); }
+.freq { display: flex; gap: 6px; }
+.freq .chip { min-width: 46px; }
+
+/* ---- 4 · ready ---- */
+.monitor {
+  position: relative; height: 150px; flex: none; margin: 0 auto; width: 380px;
+  border: 1.5px solid var(--rule); border-radius: var(--r-3); background: var(--pane);
+}
+.monitor::after { /* stand */
+  content: ''; position: absolute; left: 50%; bottom: -11px; width: 70px; height: 10px; transform: translateX(-50%);
+  border: 1.5px solid var(--rule); border-top: 0; border-radius: 0 0 6px 6px;
+}
+.mini-pill.small { top: 10px; width: 220px; padding: 8px 13px; font-size: var(--fs-2); }
+.keys { display: flex; align-items: center; gap: 6px; margin-top: var(--s-3); flex-wrap: wrap; }
+.keys kbd {
+  font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 600; color: var(--ink);
+  background: var(--card); border: 1px solid var(--rule); border-bottom-width: 2px; border-radius: 6px; padding: 4px 9px;
+}
+.keys .plus { color: var(--faint); font-size: var(--fs-2); }
+.made { list-style: none; margin-top: var(--s-4); display: flex; flex-direction: column; gap: 5px; }
+.made li { font-size: var(--fs-2); color: var(--muted); }
+.made code { font-family: var(--font-mono); color: var(--ink); }
+.err { margin-top: var(--s-3); color: var(--danger); font-size: var(--fs-2); line-height: 1.5; }
+
+/* ---- footer: step dots + actions ---- */
+.ob-foot {
+  flex: none; display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px 14px 36px; border-top: 1px solid var(--rule-soft); background: var(--head);
+}
+.dots { display: flex; gap: 7px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--rule); transition: background var(--d-2) ease, transform var(--d-2) var(--ease-out); }
+.dots i.on { background: var(--accent); transform: scale(1.35); }
+.dots i.done { background: var(--accent-border); }
+.ob-actions { display: flex; align-items: center; gap: var(--s-2); }
