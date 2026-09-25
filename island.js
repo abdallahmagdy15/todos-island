@@ -3,9 +3,11 @@ let snap = null, expanded = false, pinned = false;
 let dismissT = null, remainMs = 0, dismissEnd = 0;
 let islandHovered = false; // cursor anywhere on the pill → countdown frozen, whatever re-renders happen
 let undoT = null, undoLeft = 0;
+let animating = 0, pendingSnap = null; // a snapshot arriving mid-animation waits — re-rendering would kill the moving row
+let prevActive = null; // ids that were Now last render — newly-Now titles get the highlighter swipe
 
-const bangCls = p => ({ '!!!': 'p3', '!!': 'p2', '!': 'p1' }[p] || 'p0');
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const { esc, bangCls } = window.UI;
+const $ = id => document.getElementById(id);
 
 function dueHtml(t) {
   if (!t.dueText) return '';
@@ -14,20 +16,24 @@ function dueHtml(t) {
   return `<span class="${cls}">${esc(label)}</span>`;
 }
 function rowHtml(t) {
-  const subsBadge = t.subs.length ? `<span class="row-sub">${t.subs.filter(s => !s.done).length}/${t.subs.length} steps</span>` : '';
-  const hasDetail = (t.notes && t.notes.length) || t.subs.length;
-  const detail = hasDetail
-    ? `<div class="row-detail">${(t.notes || []).map(n => `<div class="rd-note">${esc(n)}</div>`).join('')}${t.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
-  return `<div class="row" data-id="${esc(t.id)}" data-file="${t.file}" draggable="true">
+  const subsBadge = t.subs.length ? `<span class="row-sub">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</span>` : '';
+  const lines = [
+    ...(t.notes || []).map(n => `<div class="rd-note">${esc(n)}</div>`),
+    ...t.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`)
+  ].map((l, i) => l.replace('<div ', `<div style="--i:${Math.min(i, 6)}" `));
+  const detail = lines.length ? `<div class="rd-wrap"><div class="rd-inner">${lines.join('')}</div></div>` : '';
+  return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" draggable="true">
+    <button class="rchk" data-chk type="button" title="Complete" aria-label="Complete: ${esc(t.title)}">[ ]</button>
     <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
-    <div class="row-main"><span class="rtitle">${esc(t.title)}</span>${detail}</div>
+    <div class="row-main"><span class="rtitle"><span class="tt">${esc(t.title)}</span></span>${detail}</div>
     ${subsBadge}${dueHtml(t)}
-  </div>`;
+    <button class="rstar" data-star type="button" title="Mark as Now (★)" aria-label="Mark as Now: ${esc(t.title)}">&#9734;</button>
+  </div></div></div>`;
 }
 
 function scheduleDismiss(ms) {
   clearTimeout(dismissT);
-  const bar = document.getElementById('progress-fill');
+  const bar = $('progress-fill');
   bar.style.transition = 'none';
   bar.style.width = '100%';
   requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -35,30 +41,27 @@ function scheduleDismiss(ms) {
     bar.style.width = '0%';
   }));
   dismissEnd = Date.now() + ms;
-  dismissT = setTimeout(() => { if (!pinned) window.api.hide(); }, ms);
+  dismissT = setTimeout(() => { if (!pinned && !hasErrors()) retract(); }, ms);
 }
 function pauseDismiss() {
   clearTimeout(dismissT);
   remainMs = Math.max(0, dismissEnd - Date.now());
-  const bar = document.getElementById('progress-fill');
+  const bar = $('progress-fill');
   const px = bar.offsetWidth;
   const full = bar.parentElement.offsetWidth;
   bar.style.transition = 'none';
   bar.style.width = full ? (px / full * 100) + '%' : '0%';
 }
+const hasErrors = () => !!(snap && snap.errors && snap.errors.length);
 
-function undoTextFor(u) {
-  const verb = u.kind === 'delete' ? 'Deleted' : u.kind === 'toggle' ? (u.starring ? 'Starred' : 'Unstarred') : u.kind === 'reorder' ? 'Reordered' : 'Completed';
-  return `${verb}: ${u.label}`;
-}
 function renderUndo() {
-  const bar = document.getElementById('undo-bar');
+  const bar = $('undo-bar');
   clearInterval(undoT);
   clearTimeout(undoEndT);
   if (!snap.undo) { bar.hidden = true; return; }
   const myToken = snap.undo.token;
   undoLeft = snap.undo.left;
-  bar.innerHTML = `<span class="undo-label">${esc(undoTextFor(snap.undo))}</span>
+  bar.innerHTML = `<span class="undo-label">${esc(window.UI.undoText(snap.undo))}</span>
     <button data-undo>Undo</button><span class="undo-count">${undoLeft}s</span>
     <span class="undo-progress"><span class="undo-fill"></span></span>`;
   bar.hidden = false;
@@ -87,7 +90,14 @@ function runUndoProgress(ms) {
     fill.style.width = '0%';
   }));
   clearTimeout(undoEndT);
-  undoEndT = setTimeout(() => { document.getElementById('undo-bar').hidden = true; clearInterval(undoT); }, ms);
+  undoEndT = setTimeout(() => { $('undo-bar').hidden = true; clearInterval(undoT); }, ms);
+}
+
+// one resize timer — unfold/fold transitions finish first, stacked timeouts never pile up
+let resizeT = null;
+function scheduleResize(delay = 0) {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => window.api.resize($('wrap').offsetHeight, 0), delay);
 }
 
 function render() {
@@ -101,44 +111,48 @@ function render() {
   const flat = sections.flatMap(s => s.items);
   const total = flat.length;
   const actives = flat.filter(t => t.active);
+  const errs = hasErrors();
   document.body.classList.toggle('expanded', expanded);
-  document.body.classList.toggle('pinned', pinned);
-  document.getElementById('btn-pin').classList.toggle('pinned', pinned);
-  document.getElementById('head-title').textContent =
-    actives.length === 1 ? actives[0].title : actives.length > 1 ? actives.length + ' active tasks' : 'Todo Island';
-  document.getElementById('head-count').textContent =
-    actives.length ? `${actives.length}\u2605 \u00B7 ${total} open` : `${total} open`;
+  document.body.classList.toggle('pinned', pinned || errs); // a broken source keeps the pill up until you've seen it
+  $('btn-pin').classList.toggle('pinned', pinned);
+  $('head-title').textContent =
+    actives.length === 1 ? actives[0].title : actives.length > 1 ? actives.length + ' tasks Now' : 'Todo Island';
+  $('head-count').textContent =
+    actives.length ? `${actives.length}★ · ${total} open` : `${total} open`;
+  const mark = $('mark'); // live status mark, not decoration: [!] broken source · [★] something is Now · [ ] idle
+  mark.textContent = errs ? '[!]' : actives.length ? '[★]' : '[ ]';
+  mark.className = 'mark' + (errs ? ' err' : actives.length ? ' now' : '');
 
   let html = '';
-  if (snap.errors && snap.errors.length) {
+  if (errs) {
     html += snap.errors.map(e =>
-      `<div class="err-banner">${esc(e.file)} note not found: ${esc(e.path)}</div>`).join('');
+      `<div class="err-banner" role="alert"><span>Can't read <code>${esc(e.name || e.path)}</code> — moved or renamed?</span><button data-open-settings type="button">Open settings</button></div>`).join('');
   }
   if (actives.length) {
-    html += `<div class="sec">Active now</div>`;
+    html += `<div class="sec">Now</div>`;
     for (const a of actives) {
       const subs = a.subs.length
         ? `<div class="ac-subs">${a.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-parent="${esc(a.id)}" data-file="${a.file}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
-      html += `<div class="active-card">
+      html += `<div class="fold"><div class="fold-in"><div class="active-card" data-card="${esc(a.id)}">
         <div class="ac-head">
           <span class="star">&#9733;</span>
           <span class="bang ${bangCls(a.priority)}">${a.priority ? esc(a.priority) : ''}</span>
-          <span class="ac-title">${esc(a.title)}</span>
+          <span class="ac-title"><span class="hl"><span class="tt">${esc(a.title)}</span></span></span>
           ${dueHtml(a)}
         </div>
         ${subs}
         <div class="ac-actions">
           <button class="btn-done" data-done="${esc(a.id)}" data-file="${a.file}"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Done</button>
-          <button class="btn-keep" data-unstar="${esc(a.id)}" data-file="${a.file}">Unstage</button>
+          <button class="btn-keep" data-unstar="${esc(a.id)}" data-file="${a.file}">Not now</button>
         </div>
-      </div>`;
+      </div></div></div>`;
     }
-  } else if (!total) {
+  } else if (!total && !errs) {
     html += `<div class="hint">${snap.settings.focusByTime
       ? (snap.workday ? 'No open work tasks — the workday list is clear.' : 'No open personal tasks — enjoy the off hours.')
       : 'Nothing open right now — add tasks in the tasks window.'}</div>`;
-  } else {
-    html += `<div class="hint">Click a task to mark it as what you're working on now (★).</div>`;
+  } else if (total) {
+    html += `<div class="hint">Click a task to edit · <span class="kbd">[ ]</span> completes · <span class="kbd">&#9734;</span> marks it Now</div>`;
   }
 
   for (const sec of sections) {
@@ -155,72 +169,114 @@ function render() {
   } else if (hiddenCount > 0) {
     html += `<div class="expand-row" id="expand-toggle">Show all ${flat.length} tasks<svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>`;
   }
-  document.getElementById('body').innerHTML = html;
+  $('body').innerHTML = html;
   if (hoverRowId) { // hover-unfold survives snapshot re-renders (re-applied to the same task)
-    const again = document.getElementById('body').querySelector(`.row[data-id="${CSS.escape(hoverRowId)}"]`);
+    const again = $('body').querySelector(`.row[data-id="${CSS.escape(hoverRowId)}"]`);
     if (again) { again.classList.add('hovered'); hoverRow = again; }
   }
+  // M2 — a task that just became Now gets the highlighter swipe behind its title
+  const nowIds = new Set(actives.map(a => a.id));
+  if (prevActive) {
+    for (const id of nowIds) {
+      if (prevActive.has(id)) continue;
+      const hl = $('body').querySelector(`[data-card="${CSS.escape(id)}"] .hl`);
+      window.Motion.play(hl, [{ backgroundSize: '0% 72%' }, { backgroundSize: '100% 72%' }], { duration: 260, fill: 'none' });
+    }
+  }
+  prevActive = nowIds;
   renderUndo();
 
-  requestAnimationFrame(() => {
-    const h = document.getElementById('wrap').offsetHeight;
-    window.api.resize(h);
-  });
+  requestAnimationFrame(() => window.api.resize($('wrap').offsetHeight));
+  if (errs) { clearTimeout(dismissT); return; }
   if (!pinned && !islandHovered) scheduleDismiss((snap.settings.dismissSec || 45) * 1000);
   else if (!pinned) pauseDismiss(); // hovered: freeze the countdown even after action-triggered re-renders
 }
 
-// ---- hover preview: rest on a row for 2s → the row itself unfolds (full title + subtasks) ----
+function flush() {
+  if (animating || !pendingSnap) return;
+  snap = pendingSnap; pendingSnap = null;
+  render();
+}
+
+// M1 — ink strike: the literal checkbox ticks, a pen line crosses the title, the row folds away.
+// Runs in parallel with the write (never before it) and is timed to the 'complete' arpeggio.
+async function inkStrike(fold, tt, chk) {
+  if (chk) { chk.textContent = '[x]'; chk.classList.add('checked'); }
+  if (tt) tt.classList.add('striking');
+  await window.Motion.play(tt, [{ backgroundSize: '0% 1.5px' }, { backgroundSize: '100% 1.5px' }], { duration: 220, delay: 120 });
+  await window.Motion.play(fold, [{ gridTemplateRows: '1fr', opacity: 1 }, { gridTemplateRows: '0fr', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
+}
+async function completeWithInk(id, file, fold, tt, chk) {
+  window.SFX.play('complete');
+  animating++;
+  try {
+    await Promise.all([window.api.complete(id, file), inkStrike(fold, tt, chk)]);
+  } catch (err) {
+    fold.getAnimations().forEach(a => a.cancel());
+    if (tt) { tt.classList.remove('striking'); tt.getAnimations().forEach(a => a.cancel()); }
+    if (chk) { chk.textContent = '[ ]'; chk.classList.remove('checked'); }
+    showNotice("Couldn't complete — the note isn't reachable.");
+  } finally {
+    animating--;
+    flush();
+    scheduleResize(0);
+  }
+}
+function showNotice(msg) {
+  const el = document.createElement('div');
+  el.className = 'err-banner'; el.setAttribute('role', 'alert'); el.textContent = msg;
+  $('body').prepend(el);
+  scheduleResize(0);
+  setTimeout(() => { el.remove(); scheduleResize(0); }, 4000);
+}
+
+// ---- dwell → unfold → settle: rest on a row; a hairline charges for hoverSec, then the row itself unfolds ----
 let hoverT = null, hoverRow = null;
 function clearHover() {
   clearTimeout(hoverT);
-  if (hoverRow) hoverRow.classList.remove('hovered');
-  const old = document.getElementById('body').querySelector('.row.hovered');
-  if (old) old.classList.remove('hovered');
+  $('body').querySelectorAll('.row.hovered, .row.dwelling').forEach(r => r.classList.remove('hovered', 'dwelling'));
   hoverRow = null;
-  setTimeout(() => window.api.resize(document.getElementById('wrap').offsetHeight, 0), 320);
+  scheduleResize(300);
 }
-document.getElementById('body').addEventListener('mouseover', e => {
+$('body').addEventListener('mouseover', e => {
   const row = e.target.closest('.row');
-  if (!row) return;
-  if (row !== hoverRow) {
-    clearHover();
-    hoverRow = row;
-    hoverT = setTimeout(() => {
-      row.classList.add('hovered');
-      setTimeout(() => window.api.resize(document.getElementById('wrap').offsetHeight, 0), 320);
-    }, Math.max(0.2, (snap && snap.settings.hoverSec) || 2) * 1000);
+  if (!row || row === hoverRow) return;
+  clearHover();
+  hoverRow = row;
+  const sec = Math.max(0.2, (snap && snap.settings.hoverSec) || 2);
+  if (row.querySelector('.rd-wrap') || row.querySelector('.rtitle').scrollHeight > row.querySelector('.rtitle').clientHeight + 1) {
+    row.style.setProperty('--dwell', sec + 's');
+    requestAnimationFrame(() => row.classList.add('dwelling')); // M3 — the charge is visible, so the unfold never surprises
   }
+  hoverT = setTimeout(() => {
+    row.classList.remove('dwelling');
+    row.classList.add('hovered');
+    scheduleResize(300);
+  }, sec * 1000);
 });
-document.getElementById('body').addEventListener('mouseout', e => {
+$('body').addEventListener('mouseout', e => {
   const row = e.target.closest('.row');
   if (row && hoverRow === row && !row.contains(e.relatedTarget)) clearHover();
 });
 
-document.addEventListener('dblclick', e => {
-  const row = e.target.closest('.row'); // two single-clicks cancel each other's star toggle — dblclick is free
-  if (row) window.api.openEditor(row.dataset.file, row.dataset.id);
-});
-
 // drag & drop reorder — same semantics as the main window (drop on a row = insert before it)
 let dragId = null;
-document.getElementById('body').addEventListener('dragstart', e => {
+$('body').addEventListener('dragstart', e => {
   const row = e.target.closest('.row');
   if (!row) { e.preventDefault(); return; }
   dragId = row.dataset.id;
   row.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', dragId);
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); }
 });
-document.getElementById('body').addEventListener('dragover', e => {
+$('body').addEventListener('dragover', e => {
   if (!dragId) return;
   e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   const over = e.target.closest('.row');
   document.querySelectorAll('.row.drop-above').forEach(r => r.classList.remove('drop-above'));
   if (over && over.dataset.id !== dragId) over.classList.add('drop-above');
 });
-document.getElementById('body').addEventListener('drop', async e => {
+$('body').addEventListener('drop', async e => {
   e.preventDefault();
   const over = e.target.closest('.row');
   const beforeId = over && over.dataset.id !== dragId ? over.dataset.id : null;
@@ -231,17 +287,17 @@ document.getElementById('body').addEventListener('drop', async e => {
   }
   dragId = null;
 });
-document.getElementById('body').addEventListener('dragend', () => {
+$('body').addEventListener('dragend', () => {
   dragId = null;
   document.querySelectorAll('.row.dragging, .row.drop-above').forEach(r => r.classList.remove('dragging', 'drop-above'));
 });
 
-const findTask = id => snap && snap.sections.flatMap(s => s.items).find(t => t.id === id);
-
+// clicks never write as a side effect of looking: row = open the editor; explicit [ ] / ☆ / Done / Not now controls write
 document.addEventListener('click', e => {
   if (e.target.closest('#expand-toggle')) { window.SFX.play('tick'); expanded = !expanded; render(); return; }
+  if (e.target.closest('[data-open-settings]')) { window.api.openWindow('settings'); return; }
   const sub = e.target.closest('[data-sub]');
-  if (sub) { // tick a subtask — works in hover-unfold rows AND in Active-now cards
+  if (sub) { // tick a subtask — works in hover-unfold rows AND in Now cards
     e.stopPropagation();
     window.SFX.play('tick');
     const row = sub.closest('.row');
@@ -250,49 +306,78 @@ document.addEventListener('click', e => {
     window.api.toggleSubtask(file, parent, sub.dataset.sub);
     return;
   }
-  const done = e.target.closest('[data-done]');
-  if (done) { window.SFX.play('complete'); window.api.complete(done.dataset.done, done.dataset.file); return; }
-  const unstar = e.target.closest('[data-unstar]');
-  if (unstar) { window.SFX.play('starOff'); window.api.toggleActive(unstar.dataset.unstar, unstar.dataset.file); return; }
-  const row = e.target.closest('.row');
-  if (row) {
-    window.SFX.play(findTask(row.dataset.id) && findTask(row.dataset.id).active ? 'starOff' : 'starOn');
+  const chk = e.target.closest('[data-chk]');
+  if (chk) {
+    const row = chk.closest('.row');
+    completeWithInk(row.dataset.id, row.dataset.file, row.closest('.fold'), row.querySelector('.tt'), chk);
+    return;
+  }
+  const star = e.target.closest('[data-star]');
+  if (star) {
+    const row = star.closest('.row');
+    window.SFX.play('starOn');
     window.api.toggleActive(row.dataset.id, row.dataset.file);
     return;
   }
+  const done = e.target.closest('[data-done]');
+  if (done) {
+    const card = done.closest('.active-card');
+    completeWithInk(done.dataset.done, done.dataset.file, card.closest('.fold'), card.querySelector('.tt'), null);
+    return;
+  }
+  const unstar = e.target.closest('[data-unstar]');
+  if (unstar) { window.SFX.play('starOff'); window.api.toggleActive(unstar.dataset.unstar, unstar.dataset.file); return; }
+  const row = e.target.closest('.row');
+  if (row) { window.api.openEditor(row.dataset.file, row.dataset.id); return; }
 });
 
-document.getElementById('pill').addEventListener('mouseenter', () => { islandHovered = true; if (!pinned) pauseDismiss(); });
-document.getElementById('pill').addEventListener('mouseleave', () => {
+$('pill').addEventListener('mouseenter', () => { islandHovered = true; if (!pinned) pauseDismiss(); });
+$('pill').addEventListener('mouseleave', () => {
   islandHovered = false;
-  if (!pinned) scheduleDismiss(((snap && snap.settings.dismissSec) || 45) * 1000); // fresh countdown once you leave
+  if (!pinned && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 45) * 1000); // fresh countdown once you leave
 });
 
-document.getElementById('btn-pin').addEventListener('click', () => {
+$('btn-pin').addEventListener('click', () => {
   pinned = !pinned;
   window.SFX.play('pin');
   if (pinned) {
     clearTimeout(dismissT);
     document.body.classList.add('pinned');
-    document.getElementById('btn-pin').classList.add('pinned');
+    $('btn-pin').classList.add('pinned');
   } else {
-    document.body.classList.remove('pinned');
-    document.getElementById('btn-pin').classList.remove('pinned');
-    if (!islandHovered) scheduleDismiss((snap && snap.settings.dismissSec || 45) * 1000); // hovering the pin = still on the island
+    document.body.classList.toggle('pinned', hasErrors());
+    $('btn-pin').classList.remove('pinned');
+    if (!islandHovered && !hasErrors()) scheduleDismiss((snap && snap.settings.dismissSec || 45) * 1000); // hovering the pin = still on the island
   }
 });
-document.getElementById('btn-expand').addEventListener('click', () => { window.SFX.play('tick'); expanded = !expanded; render(); });
-document.getElementById('btn-gear').addEventListener('click', () => { window.api.openWindow(); window.api.hide(); });
-document.getElementById('btn-close').addEventListener('click', () => window.api.hide());
-document.addEventListener('keydown', e => { if (e.key === 'Escape') window.api.hide(); });
+
+// M4 — the pill retracts upward instead of vanishing; the drop-in entry replays on every show
+let retracting = false;
+function retract() {
+  if (retracting) return;
+  retracting = true;
+  clearTimeout(dismissT);
+  window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN })
+    .then(() => { window.api.hide(); retracting = false; });
+}
+window.api.onShown(() => {
+  const pill = $('pill');
+  pill.getAnimations().forEach(a => a.cancel());
+  window.Motion.play(pill, [{ transform: 'translateY(-115%)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 340, easing: 'cubic-bezier(.22,.9,.36,1)', fill: 'none' });
+});
+
+$('btn-expand').addEventListener('click', () => { window.SFX.play('tick'); expanded = !expanded; render(); });
+$('btn-gear').addEventListener('click', () => { window.api.openWindow(); retract(); });
+$('btn-close').addEventListener('click', () => retract());
+document.addEventListener('keydown', e => { if (e.key === 'Escape') retract(); });
 
 // soft blip when the island shows — synthesized in sfx.js, gated by the soundOn setting
 window.api.onPlaySound(() => window.SFX.play('show'));
 
 window.api.onSnapshot(s => {
-  const firstTime = !snap;
+  if (s && s.settings) window.SFX.enabled = !!s.settings.soundOn;
+  if (!snap) expanded = false;
+  if (animating) { pendingSnap = s; return; }
   snap = s;
-  if (snap && snap.settings) window.SFX.enabled = !!snap.settings.soundOn;
-  if (firstTime) { expanded = false; }
   render();
 });

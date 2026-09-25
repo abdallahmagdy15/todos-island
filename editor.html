@@ -9,7 +9,7 @@
 </head>
 <body>
   <header>
-    <span class="logo"><span class="dot"></span> Quick edit</span>
+    <span class="logo"><span class="mark" id="ed-mark" aria-hidden="true">[ ]</span> Quick edit</span>
     <span id="ed-badge" class="badge"></span>
   </header>
   <main id="ed-main">
@@ -21,15 +21,15 @@
       <div class="field"><label>Priority</label>
         <div class="chips" id="ed-prio"></div>
       </div>
-      <div class="field"><label>State</label>
+      <div class="field"><label>Now</label>
         <div class="chips">
-          <button class="chip" id="ed-active" type="button">&#9733; Active now</button>
+          <button class="chip" id="ed-active" type="button" aria-pressed="false">&#9733; Working on it now</button>
         </div>
       </div>
       <div class="field"><label>Due</label>
         <div class="chips" id="ed-due"></div>
       </div>
-      <div class="field"><label>Subtasks (add only)</label>
+      <div class="field"><label>Subtasks</label>
         <ul class="subs-list" id="ed-subs"></ul>
         <div class="addsub"><input type="text" id="ed-sub" placeholder="New subtask…"><button id="ed-addsub" type="button">Add</button></div>
       </div>

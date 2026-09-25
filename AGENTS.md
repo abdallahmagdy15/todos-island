@@ -59,6 +59,13 @@ Standing instructions for AI agents working in this repo. Read this first, every
 
 In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rollback material (`captureBlock` = task lines + index). One-shot per token; entries die via the popup's own `undo-expire` countdown — there is NO sweeper interval and nothing persists to disk. If you add an undoable action, follow the same shape (see `delete-task`).
 
+## UI contract (v1.4 redesign)
+
+- **Vocabulary:** the `*` state is **Now** (★); clearing it is **Not now**; children are **subtasks**. Undo verbs come from `UI.undoText` only.
+- **Island clicks never write as a side effect of looking:** row click = open the editor; writes happen only on explicit controls (`[ ]` complete, ☆ Now, Done, Not now, subtask tick).
+- **Honest failure:** a note that can't be read shows `[!]` + a persistent banner (island pins itself; window shows an error strip, `Work ·!` tab and an "unavailable" empty state) — never an empty "Nice." list.
+- **Motion writes in parallel, never first:** animate while the IPC write runs (`Promise.all`), roll the animation back on failure. While an animation runs, incoming snapshots/refreshes are deferred (`animating` counter) so the moving row isn't destroyed.
+
 ## Commands
 
 - `npm start` — run the app in dev

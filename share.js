@@ -1,8 +1,7 @@
 'use strict';
 // Share window — all tasks in one view (active / work / personal / done), pick any mix,
 // copy as WhatsApp text or Markdown, or export the Markdown to a file.
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const { MONTHS, esc } = window.UI;
 const $ = id => document.getElementById(id);
 
 let snap = null, fmt = 'wa';
@@ -13,7 +12,7 @@ function sections() {
   const personal = (snap.sections.find(s => s.name === 'Personal') || { items: [] }).items;
   const flat = [...work, ...personal];
   return [
-    { name: '\u2605 Active now', items: flat.filter(t => t.active) },
+    { name: '\u2605 Now', items: flat.filter(t => t.active) },
     { name: 'Work', items: work.filter(t => !t.active) },
     { name: 'Personal', items: personal.filter(t => !t.active) },
     { name: '\u2705 Done', items: (snap.done || []).map(d => ({ ...d, isDone: true })) }
@@ -31,6 +30,12 @@ function render() {
         ${t.dueText ? `<span class="tag">${esc(t.dueText)}</span>` : ''}
       </div>`).join('')}
   `).join('') || '<p class="empty">Nothing to share — no tasks found.</p>';
+  syncButtons();
+}
+function syncButtons() { // zero selection: buttons say so instead of silently doing nothing
+  const n = sel.size;
+  $('btn-copy').disabled = !n; $('btn-export').disabled = !n;
+  $('sel-hint').textContent = n ? `${n} selected` : 'Select tasks to share';
 }
 function selected() {
   const all = sections().flatMap(s => s.items);
@@ -68,6 +73,7 @@ $('share-list').addEventListener('click', e => {
   row.classList.toggle('sel', sel.has(id));
   const box = row.querySelector('.selbox');
   if (box) box.classList.toggle('on', sel.has(id));
+  syncButtons();
 });
 $('sel-all').addEventListener('click', () => {
   for (const t of sections().flatMap(s => s.items)) sel.add(t.id);
@@ -84,7 +90,7 @@ $('fmt-seg').addEventListener('click', e => {
 $('btn-copy').addEventListener('click', async () => {
   if (!sel.size) return;
   await window.api.copyText(buildText(fmt));
-  window.SFX.enabled = true; window.SFX.play('tick');
+  window.SFX.play('tick');
   const old = $('btn-copy').textContent;
   $('btn-copy').textContent = 'Copied \u2713';
   setTimeout(() => { $('btn-copy').textContent = old; }, 1200);
@@ -93,14 +99,16 @@ $('btn-export').addEventListener('click', async () => {
   if (!sel.size) return;
   const res = await window.api.exportMd(buildText('md'));
   if (res && res.ok) {
-    window.SFX.enabled = true; window.SFX.play('tick');
-    $('share-note').textContent = `saved: ${res.path}`;
+    window.SFX.play('tick');
+    $('share-note').textContent = `saved ${res.path.split(/[\\/]/).pop()}`; // filename only — full path on hover
+    $('share-note').title = res.path;
   }
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
 
 (async () => {
   snap = await window.api.getSnapshot();
+  window.SFX.enabled = !!(snap.settings && snap.settings.soundOn); // respects the app's sound setting
   render();
 })();
 window.api.onTasksChanged(async () => { snap = await window.api.getSnapshot(); render(); });

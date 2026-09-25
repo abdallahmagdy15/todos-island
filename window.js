@@ -12,6 +12,9 @@ function taskRows() {
 
 const openRows = new Set(); // expanded rows survive refreshes
 let freshFrom = null; // ids present before an add/undo — rows not in it get the "fresh ink" settle
+let prevNow = null; // ids that were Now last render — newly-Now titles get the highlighter swipe
+let animating = 0, refreshPending = false; // a refresh mid-animation waits — re-rendering would kill the moving row
+const fileErr = tag => (snap && snap.errors || []).find(e => e.file === tag);
 function matches(t, q) {
   return !q || t.title.toLowerCase().includes(q)
     || t.subs.some(s => s.t.toLowerCase().includes(q))
@@ -25,7 +28,7 @@ function renderDone(q) { // Done tab: both files, restore or delete (both undoab
   $('task-list').innerHTML = items.map(d => `
     <div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}">
       <span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>
-      <div class="wrow-main"><span class="wtitle">${esc(d.title)}</span></div>
+      <div class="wrow-main"><span class="wtitle"><span class="tt">${esc(d.title)}</span></span></div>
       ${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}
       <button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button>
       <button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
@@ -38,7 +41,9 @@ function renderList() {
   $('done-head').hidden = !isDone;
   $('composer').hidden = isDone; // nothing to add to the Done list
   if (isDone) { renderDone(q); markFresh(); return; }
-  const rows = taskRows().filter(t => matches(t, q));
+  const all = taskRows();
+  const rows = all.filter(t => matches(t, q));
+  $('search-count').textContent = q ? `${rows.length} / ${all.length}` : '';
   $('task-list').innerHTML = rows.map(t => {
     const open = openRows.has(t.id);
     const expandBody = open ? `<div class="wexp-body">
@@ -46,21 +51,37 @@ function renderList() {
       ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}
     </div>` : '';
     return `
-    <div class="wrow ${open ? 'open' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="${esc(t.title)}" draggable="true">
+    <div class="fold"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="${esc(t.title)}" draggable="true">
       <span class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="Complete task"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span>
       <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
       ${t.active ? '<span class="wstar">&#9733;</span>' : ''}
       <div class="wrow-main">
-        <span class="wtitle">${esc(t.title)}</span>
+        <span class="wtitle">${t.active ? `<span class="hl"><span class="tt">${esc(t.title)}</span></span>` : `<span class="tt">${esc(t.title)}</span>`}</span>
         ${expandBody}
         ${!open && t.subs.length ? `<div class="wsub">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
       </div>
       ${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${esc(t.dueText)}</span>` : ''}
       ${(t.notes || []).length || t.subs.length ? `<button class="wexp ${open ? 'open' : ''}" data-exp="${esc(t.id)}" title="${open ? 'Collapse' : 'Expand'}" aria-label="${open ? 'Collapse task' : 'Expand task'}"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>` : ''}
       <button class="wtrash" data-del="${esc(t.id)}" data-file="${t.file}" type="button" title="Delete" aria-label="Delete task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
-    </div>`;
-  }).join('') || `<p class="empty">${q ? 'No matches.' : 'Nothing open here. Nice.'}</p>`;
+    </div></div></div>`;
+  }).join('') || emptyState(q);
   markFresh();
+  // M2 — a task that just became Now gets the highlighter swipe behind its title
+  const nowIds = new Set(all.filter(t => t.active).map(t => t.id));
+  if (prevNow && prevNow.tab === currentTab) {
+    for (const id of nowIds) {
+      if (prevNow.ids.has(id)) continue;
+      const hl = document.querySelector(`#task-list .wrow[data-id="${CSS.escape(id)}"] .hl`);
+      window.Motion.play(hl, [{ backgroundSize: '0% 72%' }, { backgroundSize: '100% 72%' }], { duration: 260, fill: 'none' });
+    }
+  }
+  prevNow = { tab: currentTab, ids: nowIds };
+}
+function emptyState(q) { // honest: a missing note is "unavailable", never "Nice."
+  if (q) return '<p class="empty">No matches.</p>';
+  const err = fileErr(currentTab);
+  if (err) return `<p class="empty bad">${currentTab === 'work' ? 'Work' : 'Personal'} tasks unavailable — <code>${esc(err.name || err.path)}</code> can't be read.</p>`;
+  return '<p class="empty">Nothing open here. Nice.</p>';
 }
 function markFresh() { // M5 — rows that just appeared (after add / undo) settle in with a fading highlight
   if (!freshFrom) return;
@@ -72,16 +93,74 @@ const visibleIds = () => new Set([...document.querySelectorAll('#task-list .wrow
 function updateTabCounts() {
   if (!snap) return;
   const n = name => { const s = snap.sections.find(x => x.name === name); return s ? s.items.length : 0; };
-  $('tab-work').textContent = `Work (${n('Work')})`;
-  $('tab-personal').textContent = `Personal (${n('Personal')})`;
+  const label = (tag, name) => fileErr(tag) ? `${name} \u00B7!` : `${name} (${n(name)})`; // a broken source never reads as (0)
+  $('tab-work').textContent = label('work', 'Work');
+  $('tab-personal').textContent = label('personal', 'Personal');
   $('tab-done').textContent = `Done (${(snap.done || []).length})`;
 }
+function renderChrome() { // status mark, error strip, status line — the notes-are-the-state layer
+  const errs = snap.errors || [];
+  const nowCount = snap.sections.flatMap(s => s.items).filter(t => t.active).length;
+  const mark = $('mark');
+  mark.textContent = errs.length ? '[!]' : nowCount ? '[\u2605]' : '[ ]';
+  mark.className = 'mark' + (errs.length ? ' err' : nowCount ? ' now' : '');
+  mark.title = errs.length ? 'A note can\'t be read' : nowCount ? `${nowCount} task${nowCount === 1 ? '' : 's'} Now` : 'Nothing marked Now';
+  const strip = $('err-strip');
+  strip.hidden = !errs.length;
+  strip.innerHTML = errs.map(e => `<span>Can't read <code>${esc(e.name || e.path)}</code> — moved or renamed?</span>`).join('') +
+    (errs.length ? '<button class="btn-soft sm" data-retry type="button">Retry</button><button class="btn-accent sm" data-open-settings type="button">Open settings</button>' : '');
+  const src = snap.sources || {};
+  $('st-src').innerHTML = ['work', 'personal'].map(tag =>
+    `<span class="${fileErr(tag) ? 'bad' : ''}">${esc(src[tag] || tag)}</span>`).join(' \u00B7 ');
+  renderLastWrite();
+}
+const ago = ms => ms < 45e3 ? 'just now' : ms < 3600e3 ? `${Math.round(ms / 60e3)}m ago` : ms < 86400e3 ? `${Math.round(ms / 3600e3)}h ago` : `${Math.round(ms / 86400e3)}d ago`;
+let lastSeenWrite = 0;
+function renderLastWrite() {
+  const lw = snap && snap.lastWrite;
+  const el = $('st-write');
+  if (!lw) { el.textContent = 'no writes this session'; return; }
+  el.textContent = `last write ${lw.file} \u00B7 ${ago(Date.now() - lw.at)}`;
+  if (lw.at !== lastSeenWrite) { // M8-style flash: a write just landed in the note
+    const first = !lastSeenWrite; lastSeenWrite = lw.at;
+    if (!first) { el.textContent = `wrote ${lw.file}`; el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+  }
+}
+setInterval(() => { if (snap) renderLastWrite(); }, 30e3);
 
 async function refresh() {
+  if (animating) { refreshPending = true; return; }
   snap = await window.api.getSnapshot();
   if (snap && snap.settings) window.SFX.enabled = !!snap.settings.soundOn;
   updateTabCounts();
+  renderChrome();
   renderList();
+}
+window.addEventListener('focus', refresh); // no file watcher: coming back to the window re-reads the notes
+
+// M1 — ink strike: checkbox ticks, a pen line crosses the title, the row folds. Parallel to the write, never before it.
+async function completeWithInk(chk) {
+  const row = chk.closest('.wrow'), fold = row.closest('.fold'), tt = row.querySelector('.tt');
+  window.SFX.play('complete');
+  animating++;
+  chk.classList.add('checked');
+  try {
+    await Promise.all([
+      window.api.complete(chk.dataset.chk, chk.dataset.file),
+      (async () => {
+        tt.classList.add('striking');
+        await window.Motion.play(tt, [{ backgroundSize: '0% 1.5px' }, { backgroundSize: '100% 1.5px' }], { duration: 220, delay: 120 });
+        await window.Motion.play(fold, [{ gridTemplateRows: '1fr', opacity: 1 }, { gridTemplateRows: '0fr', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
+      })()
+    ]);
+  } catch (err) {
+    fold.getAnimations().forEach(a => a.cancel()); tt.getAnimations().forEach(a => a.cancel());
+    tt.classList.remove('striking'); chk.classList.remove('checked');
+    notice("Couldn't complete — the note isn't reachable.", 'bad');
+  } finally {
+    animating--;
+    if (!animating) { refreshPending = false; await refresh(); }
+  }
 }
 
 $('task-list').addEventListener('click', onListAction);
@@ -91,7 +170,7 @@ $('task-list').addEventListener('keydown', async e => {
 });
 async function onListAction(e) {
   const chk = e.target.closest('[data-chk]');
-  if (chk) { window.SFX.play('complete'); await window.api.complete(chk.dataset.chk, chk.dataset.file); await refresh(); return; }
+  if (chk) { if (!chk.classList.contains('checked')) completeWithInk(chk); return; }
   const exp = e.target.closest('[data-exp]');
   if (exp) {
     window.SFX.play('tick');
@@ -111,6 +190,10 @@ async function onListAction(e) {
 }
 
 $('btn-share').addEventListener('click', () => window.api.openShare());
+$('err-strip').addEventListener('click', e => {
+  if (e.target.closest('[data-retry]')) refresh();
+  if (e.target.closest('[data-open-settings]')) $('tab-settings').click();
+});
 $('btn-clear-done').addEventListener('click', async () => { // undoable — no native confirm
   window.SFX.play('delete');
   const n = await window.api.clearDoneAll();
@@ -125,13 +208,12 @@ $('task-list').addEventListener('dragstart', e => {
   if (!row || row.classList.contains('done')) { e.preventDefault(); return; }
   dragId = row.dataset.id;
   row.classList.add('dragging');
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', dragId);
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); }
 });
 $('task-list').addEventListener('dragover', e => {
   if (!dragId) return;
   e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
   const over = e.target.closest('.wrow');
   document.querySelectorAll('.wrow.drop-above').forEach(r => r.classList.remove('drop-above'));
   if (over && over.dataset.id !== dragId) over.classList.add('drop-above');
@@ -181,7 +263,15 @@ function composerHint(msg) {
   if (msg) hintT = setTimeout(() => { $('new-hint').textContent = ''; }, 3000);
 }
 
-$('search').addEventListener('input', renderList);
+function onSearch() { $('search-clear').hidden = !$('search').value; renderList(); }
+$('search').addEventListener('input', onSearch);
+$('search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('search').value) { e.stopPropagation(); $('search').value = ''; onSearch(); } });
+$('search-clear').addEventListener('click', () => { $('search').value = ''; onSearch(); $('search').focus(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== '/' || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+  if (!$('view-tasks').hidden) { e.preventDefault(); $('search').focus(); }
+});
 const MAX_TA = 212; // ≈ 10 visible lines, scrolls inside beyond
 function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, MAX_TA) + 'px'; }
 $('new-title').addEventListener('input', () => {
@@ -201,8 +291,9 @@ $('btn-add').addEventListener('click', async () => {
     $('new-title').focus();
     return;
   }
-  const res = await window.api.addTask(currentTab, { title: r.title, priority: r.priority, desc: r.desc, dueText: r.dueText, active: r.active });
-  if (!res || !res.ok) { composerHint('Could not add — is the note file reachable?'); return; }
+  let res = null;
+  try { res = await window.api.addTask(currentTab, { title: r.title, priority: r.priority, desc: r.desc, dueText: r.dueText, active: r.active }); } catch (err) {}
+  if (!res || !res.ok) { composerHint("Couldn't add — the note can't be read."); return; }
   window.SFX.play('add');
   freshFrom = visibleIds();
   resetComposer();
@@ -227,10 +318,13 @@ for (const tab of ['work', 'personal', 'done']) {
     showTab(tab);
   });
 }
-{ // restore last tab
+{ // restore last tab (or the one the island asked for)
+  const asked = new URLSearchParams(location.search).get('tab');
   const saved = localStorage.getItem('ti-tab');
-  if (saved === 'personal' || saved === 'done') showTab(saved);
+  if (asked === 'settings') setTimeout(() => $('tab-settings').click(), 0);
+  else if (saved === 'personal' || saved === 'done') showTab(saved);
 }
+window.api.onShowTab(tab => { if (tab === 'settings') $('tab-settings').click(); else if (['work', 'personal', 'done'].includes(tab)) $('tab-' + tab).click(); });
 
 // ---- settings: manual Save, visible dirty state, every error and clamp shown at its own field ----
 let settingsDirty = false;
@@ -389,12 +483,11 @@ function runUndoToastProgress(ms) {
     fill.style.width = '0%';
   }));
 }
-const undoVerb = d => d.kind === 'delete' ? 'Deleted' : d.kind === 'toggle' ? (d.starring ? 'Starred' : 'Unstarred') : d.kind === 'reorder' ? 'Reordered' : d.kind === 'clear' ? 'Cleared' : 'Completed';
 window.api.onShowUndo(d => {
   const toast = $('undo-toast');
   clearInterval(undoToastT);
   let left = d.left;
-  toast.innerHTML = `<span class="undo-label">${undoVerb(d)}: ${esc(d.label)}</span>
+  toast.innerHTML = `<span class="undo-label">${esc(window.UI.undoText(d))}</span>
     <button data-undo type="button">Undo</button><span class="undo-count">${left}s</span>
     <span class="undo-progress"><span class="undo-fill"></span></span>`;
   toast.hidden = false;

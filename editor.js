@@ -22,12 +22,14 @@ async function load(full = false) { // full = first open / after save; subtask e
   $('ed-form').hidden = !t;
   if (!t) return;
   $('ed-badge').textContent = t.file === 'work' ? 'Work' : 'Personal';
-  $('ed-title').value = [t.title, ...(t.notes || [])].join('\n');
-  autoGrow($('ed-title'));
-  activeState = !!t.active;
-  $('ed-active').classList.toggle('sel', activeState);
-  prioCtl.set(t.priority);
-  dueCtl.set(parseDueText(t.dueText));
+  if (full) {
+    $('ed-title').value = [t.title, ...(t.notes || [])].join('\n');
+    autoGrow($('ed-title'));
+    activeState = !!t.active;
+    paintActive();
+    prioCtl.set(t.priority);
+    dueCtl.set(parseDueText(t.dueText));
+  }
   $('ed-subs').innerHTML = t.subs.map(s =>
     `<li class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}<button class="sub-del" type="button" aria-label="Delete subtask">&times;</button></li>`).join('')
     || '<li class="none-yet">No subtasks yet.</li>';
@@ -40,10 +42,16 @@ $('ed-subs').addEventListener('click', async e => {
   load();
 });
 
+function paintActive() {
+  $('ed-active').classList.toggle('sel', activeState);
+  $('ed-active').setAttribute('aria-pressed', activeState);
+  $('ed-mark').textContent = activeState ? '[★]' : '[ ]';
+  $('ed-mark').classList.toggle('now', activeState);
+}
 $('ed-active').addEventListener('click', () => {
   activeState = !activeState;
   window.SFX.play(activeState ? 'starOn' : 'starOff');
-  $('ed-active').classList.toggle('sel', activeState);
+  paintActive();
 });
 $('ed-addsub').addEventListener('click', async () => {
   window.SFX.play('tick');

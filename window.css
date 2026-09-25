@@ -52,12 +52,18 @@ header {
   -webkit-app-region: drag;
 }
 .logo { font-weight: 700; font-size: 13.5px; display: flex; align-items: center; gap: 9px; letter-spacing: 0.01em; }
-.dot {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, var(--accent-hi), var(--accent-lo));
-  box-shadow: 0 0 8px var(--accent-soft);
+.mark { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 600; color: var(--faint); letter-spacing: -0.5px; }
+.mark.now { color: var(--accent); }
+.mark.err { color: var(--p3); }
+nav { display: flex; gap: 4px; margin-left: auto; -webkit-app-region: no-drag; }
+.hdr-btn {
+  -webkit-app-region: no-drag; margin-left: var(--s-2); width: 32px; height: 32px; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  border: 0; border-radius: var(--r-2); background: transparent; color: var(--muted); cursor: pointer;
+  transition: background var(--d-1) ease, color var(--d-1) ease;
 }
-nav { display: flex; gap: 4px; -webkit-app-region: no-drag; }
+.hdr-btn:hover { background: var(--row-hover); color: var(--text); }
+.hdr-btn .ic { width: 16px; height: 16px; }
 .tab {
   border: 0; background: transparent; color: var(--muted); font-family: inherit; font-size: 13px;
   padding: 7px 15px; border-radius: 999px; cursor: pointer; font-weight: 600;
@@ -315,8 +321,19 @@ input.invalid { border-color: var(--p3) !important; box-shadow: 0 0 0 3px rgba(2
 @keyframes fadeUp { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 
 /* ---- search box (single-line sibling of the new-task textarea styling) ---- */
+.search-box { position: relative; display: flex; margin: 12px 12px 0; }
+.search-count {
+  position: absolute; right: 38px; top: 50%; transform: translateY(-50%); pointer-events: none;
+  font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint);
+}
+.search-clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border: 0; border-radius: var(--r-1); background: transparent;
+  color: var(--faint); font-size: 16px; line-height: 1; cursor: pointer;
+}
+.search-clear:hover { background: var(--row-hover); color: var(--text); }
 #search {
-  margin: 12px 12px 0;
+  flex: 1; min-width: 0; padding-right: 96px;
   background: var(--input-bg); border: 1px solid var(--border); color: var(--text);
   border-radius: 10px; padding: 9px 13px; font-family: inherit; font-size: 13px;
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
@@ -408,3 +425,40 @@ input.invalid { border-color: var(--p3) !important; box-shadow: 0 0 0 3px rgba(2
   animation: fadeUp var(--d-2) var(--ease-out) both;
 }
 .notice.bad { border-color: var(--danger); color: var(--danger); }
+
+/* ---- honesty layer: error strip + status line ---- */
+.err-strip {
+  display: flex; align-items: center; flex-wrap: wrap; gap: var(--s-2);
+  margin: 12px 12px 0; padding: 8px 8px 8px 12px; border-radius: var(--r-3);
+  border: 1px solid var(--p3); color: var(--p3); font-size: var(--fs-2); font-weight: 600;
+}
+.err-strip span { flex: 1 1 60%; }
+.err-strip code, .empty code { font-family: var(--font-mono); font-size: var(--fs-1); }
+.empty.bad { color: var(--p3); }
+.statusline {
+  flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--s-4);
+  padding: 5px 14px; border-top: 1px solid var(--border-soft); background: var(--bg-head);
+  font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint);
+  white-space: nowrap; overflow: hidden;
+}
+.statusline span { overflow: hidden; text-overflow: ellipsis; }
+.statusline .bad { color: var(--p3); }
+#st-write.flash { color: var(--accent); animation: stFlash 1.6s var(--ease-out) forwards; }
+@keyframes stFlash { 0%, 60% { opacity: 1; } 100% { opacity: 0.85; } }
+
+/* ---- fold wrapper (M1 row fold) + ink strike + highlighter (M2) ---- */
+.fold { display: grid; grid-template-rows: 1fr; }
+.fold-in { min-height: 0; }
+.tt.striking {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat; background-position: 0 58%; background-size: 100% 1.5px;
+}
+.hl {
+  background-image: linear-gradient(var(--accent-soft), var(--accent-soft));
+  background-repeat: no-repeat; background-position: 0 70%; background-size: 100% 72%;
+  border-radius: 3px; padding: 0 2px; margin: 0 -2px;
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.wrow .chk.checked { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
+.wrow .chk.checked .ic path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: drawTick 160ms var(--ease-out) forwards; }
+@keyframes drawTick { to { stroke-dashoffset: 0; } }

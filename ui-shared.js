@@ -76,5 +76,13 @@
     return { get value() { return value; }, set: v => set(v || null, false) };
   }
 
-  window.UI = { MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl };
+  // one vocabulary everywhere: the * state is "Now" (★); clearing it is "Not now"; children are "subtasks"
+  const undoVerb = u => u.kind === 'delete' ? 'Deleted'
+    : u.kind === 'toggle' ? (u.starring ? 'Marked Now' : 'Cleared Now')
+    : u.kind === 'reorder' ? 'Moved'
+    : u.kind === 'clear' ? 'Cleared'
+    : 'Completed';
+  const undoText = u => `${undoVerb(u)}: ${u.label}`;
+
+  window.UI = { MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText };
 })();

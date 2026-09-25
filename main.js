@@ -68,7 +68,14 @@ function latestUndo() {
 
 function workFile() { return new NoteFile(state.settings.workPath, { doneHeading: '## Done', fileTag: 'work' }); }
 function personalFile() { return new NoteFile(state.settings.personalPath, { fileTag: 'personal' }); }
-const fileFor = tag => (tag === 'work' ? workFile() : personalFile());
+// every write through fileFor() is recorded — the tasks window shows it ("wrote work-tasks.md · just now")
+let lastWrite = null;
+function fileFor(tag) {
+  const f = tag === 'work' ? workFile() : personalFile();
+  const save = f.save.bind(f);
+  f.save = () => { save(); lastWrite = { file: path.basename(f.path), at: Date.now() }; };
+  return f;
+}
 
 function inWorkday() {
   const now = new Date();
@@ -100,13 +107,13 @@ function snapshot() {
   const safe = (group, path) => {
     try {
       const f = group === 'work' ? workFile() : personalFile();
-      return { items: collect(f, group), done: doneOf(f, group), error: null };
+      return { file: group, items: collect(f, group), done: doneOf(f, group), error: null };
     }
-    catch (e) { LOG('SOURCE-ERROR ' + group + ' ' + e.message); return { items: [], done: [], error: path }; }
+    catch (e) { LOG('SOURCE-ERROR ' + group + ' ' + e.message); return { file: group, items: [], done: [], error: path }; }
   };
   const work = safe('work', state.settings.workPath);
   const personal = safe('personal', state.settings.personalPath);
-  const errors = [work, personal].filter(r => r.error).map(r => ({ file: r.file, path: r.error }));
+  const errors = [work, personal].filter(r => r.error).map(r => ({ file: r.file, path: r.error, name: path.basename(r.error || '') }));
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   const dec = t => !t.dueTs ? 'none' : t.dueTs < today0.getTime() ? 'overdue' : t.dueTs < today0.getTime() + 864e5 ? 'today' : 'future';
   const sort = arr => arr.sort((a, b) =>
@@ -122,11 +129,18 @@ function snapshot() {
   const undo = lu
     ? { token: lu.token, kind: lu.kind, label: lu.label, starring: lu.kind === 'toggle' ? lu.prev === false : undefined, left: Math.max(0, Math.round((lu.expires - Date.now()) / 1000)) }
     : null;
-  return { sections, errors, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, undo };
+  const sources = { work: path.basename(state.settings.workPath || ''), personal: path.basename(state.settings.personalPath || '') };
+  return { sections, errors, sources, lastWrite, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, undo };
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
-function showIsland() { if (!island) return; sendSnap(); island.showInactive(); if (state.settings.soundOn) island.webContents.send('play-sound'); }
+function showIsland() {
+  if (!island) return;
+  const wasVisible = island.isVisible();
+  sendSnap(); island.showInactive();
+  if (!wasVisible) island.webContents.send('island-shown'); // replays the drop-in entry
+  if (state.settings.soundOn) island.webContents.send('play-sound');
+}
 function hideIsland() { if (island) island.hide(); }
 
 function createIsland() {
@@ -143,8 +157,9 @@ function createIsland() {
   island.loadFile('island.html');
 }
 
-function openWindow() {
-  if (mainWin) { mainWin.show(); mainWin.focus(); return; }
+function openWindow(tab) {
+  if (typeof tab !== 'string') tab = null; // tray/menu callers pass event objects
+  if (mainWin) { mainWin.show(); mainWin.focus(); if (tab) mainWin.webContents.send('show-tab', tab); return; }
   mainWin = new BrowserWindow({
     width: 920, height: 660, minWidth: 760, minHeight: 540,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f13' : '#f5f5f8',
@@ -159,7 +174,7 @@ function openWindow() {
   applyOverlay();
   lockZoom(mainWin.webContents);
   mainWin.webContents.on('console-message', (_e, _lvl, msg) => LOG('WIN-CONSOLE: ' + msg));
-  mainWin.loadFile('window.html');
+  mainWin.loadFile('window.html', tab ? { query: { tab } } : undefined);
   mainWin.once('ready-to-show', () => mainWin.show());
   mainWin.on('render-process-gone', (_e, d) => LOG('WIN-GONE: ' + d.reason));
   mainWin.on('closed', () => { mainWin = null; });
@@ -285,7 +300,7 @@ ipcMain.on('island-size', (_e, h, top = 0) => {
   island.setBounds({ x: b.x, y, width: b.width, height });
 });
 ipcMain.on('hide-island', hideIsland);
-ipcMain.on('open-window', openWindow);
+ipcMain.on('open-window', (_e, tab) => openWindow(tab));
 ipcMain.handle('toggle-active', (_e, id, file) => {
   const f = fileFor(file);
   const t = f.findById(id);
@@ -339,6 +354,7 @@ ipcMain.handle('undo-action', (_e, token) => {
       try { now = fs.readFileSync(c.path, 'utf8'); } catch (err) {}
       if (now !== c.after) { changed.push(path.basename(c.path)); continue; }
       writeNoteText(c.path, c.before);
+      lastWrite = { file: path.basename(c.path), at: Date.now() };
     }
     sendSnap();
     if (mainWin) mainWin.webContents.send('tasks-changed');
@@ -530,7 +546,10 @@ else {
           await step('delete+undo', `(async()=>{ const d=document.querySelector('.wtrash'); if(!d) return 'no-trash'; d.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           const iStep = (name, js) => island.webContents.executeJavaScript(js)
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
-          await iStep('island-star+undo', `(async()=>{ const row=document.querySelector('#body .row'); if(!row) return 'no-row'; row.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(r=>setTimeout(r,900)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
+          await iStep('island-click-no-write', `(async()=>{ const before=JSON.stringify(window.__lastUndoToken||null); const t=document.querySelector('#body .row .rtitle'); if(!t) return 'no-row'; t.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(r=>setTimeout(r,700)); return document.getElementById('undo-bar').hidden ? 'no-write' : 'WROTE'; })()`);
+          if (editorWin && !editorWin.isDestroyed()) { LOG('UTEST island-click-opened-editor: yes'); editorWin.close(); }
+          await iStep('island-star+undo', `(async()=>{ const b0=document.querySelector('#body .row [data-star]'); if(!b0) return 'no-star-btn'; b0.click(); await new Promise(r=>setTimeout(r,900)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; const lbl=document.querySelector('#undo-bar .undo-label').textContent; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok ['+lbl+']'; })()`);
+          await iStep('island-check+undo', `(async()=>{ const c=document.querySelector('#body .row [data-chk]'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,1200)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           const wait = ms => `await new Promise(r=>setTimeout(r,${ms}));`;
           await step('composer-empty-add', `(async()=>{ document.getElementById('new-title').value=''; document.getElementById('btn-add').click(); ${wait(300)} return 'hint=' + document.getElementById('new-hint').textContent; })()`);
@@ -544,6 +563,15 @@ else {
           LOG('CLIP-WA: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
           await shStep('share-fmt-md+copy', `(async()=>{ document.querySelector('.seg-btn[data-fmt=md]').click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return 'ok'; })()`);
           LOG('CLIP-MD: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
+          if (process.env.TODO_ISLAND_USERDATA) { // sandbox only: a vanished note must be admitted honestly, in both surfaces
+            const wp = state.settings.workPath;
+            fs.renameSync(wp, wp + '.gone');
+            try {
+              await step('missing-note-window', `(async()=>{ document.getElementById('tab-work').click(); await refresh(); await new Promise(r=>setTimeout(r,300)); return 'strip=' + !document.getElementById('err-strip').hidden + ' tab=' + document.getElementById('tab-work').textContent + ' mark=' + document.getElementById('mark').textContent + ' empty=' + (document.querySelector('#task-list .empty')||{}).textContent; })()`);
+              sendSnap();
+              await iStep('missing-note-island', `(async()=>{ await new Promise(r=>setTimeout(r,400)); const b=document.querySelector('.err-banner'); return 'mark=' + document.getElementById('mark').textContent + ' banner=' + (b ? b.textContent.replace(/\\s+/g,' ').trim() : 'NONE') + ' pinned=' + document.body.classList.contains('pinned'); })()`);
+            } finally { fs.renameSync(wp + '.gone', wp); sendSnap(); }
+          }
           LOG('UTEST-END undoLogSize=' + undoLog.size);
           if (process.env.TODO_ISLAND_USERDATA) app.quit(); // sandboxed runs clean up after themselves
         } catch (e) { LOG('UTEST-FATAL ' + e.message); }

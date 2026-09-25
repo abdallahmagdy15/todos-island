@@ -8,20 +8,27 @@
 </head>
 <body>
   <header>
-    <span class="logo"><span class="dot"></span> Todo Island</span>
+    <span class="logo"><span class="mark" id="mark" aria-hidden="true">[ ]</span> Todo Island</span>
     <nav>
       <button id="tab-work" class="tab active">Work</button>
       <button id="tab-personal" class="tab">Personal</button>
       <button id="tab-done" class="tab">Done</button>
       <button id="tab-settings" class="tab">Settings<span class="dirty-dot" id="settings-dirty" hidden aria-label="unsaved changes"></span></button>
-      <button id="btn-share" class="tab share" title="Open the share window — pick tasks, copy or export as a progress message">Share</button>
     </nav>
+    <button id="btn-share" class="hdr-btn" type="button" title="Share progress — pick tasks, copy or export" aria-label="Share progress">
+      <svg class="ic" viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>
+    </button>
   </header>
 
   <main>
     <section id="view-tasks">
       <div class="list-pane">
-        <input id="search" type="text" placeholder="Search…" spellcheck="false" autocomplete="off" aria-label="Search tasks">
+        <div class="err-strip" id="err-strip" hidden role="alert"></div>
+        <div class="search-box">
+          <input id="search" type="text" placeholder="Search…   ( / )" spellcheck="false" autocomplete="off" aria-label="Search tasks">
+          <span class="search-count" id="search-count" aria-live="polite"></span>
+          <button class="search-clear" id="search-clear" type="button" hidden aria-label="Clear search" title="Clear (Esc)">&times;</button>
+        </div>
         <div class="list-head" id="done-head" hidden>
           <h3 class="md-h"><span class="hash">##</span> Done <span class="md-count" id="done-count"></span></h3>
           <button id="btn-clear-done" class="btn-text danger" type="button" title="Remove every completed task from both notes — undo stays available">Clear all</button>
@@ -154,6 +161,8 @@
       </form>
     </section>
   </main>
+
+  <footer class="statusline" id="statusline"><span id="st-src"></span><span id="st-write"></span></footer>
 
   <div id="undo-toast" hidden></div>
   <div id="notice" class="notice" hidden role="status" aria-live="polite"></div>

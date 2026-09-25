@@ -9,8 +9,8 @@
 </head>
 <body>
   <header>
-    <span class="logo"><span class="dot"></span> Share progress</span>
-    <span id="share-note" class="note-inline">pick tasks → copy or export</span>
+    <span class="logo">Share progress</span>
+    <span id="share-note" class="note-inline" role="status">pick tasks → copy or export</span>
   </header>
   <main id="share-list"></main>
   <footer>
@@ -23,8 +23,9 @@
         <button class="seg-btn sel" data-fmt="wa" type="button">WhatsApp</button>
         <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
       </div>
-      <button id="btn-copy" class="btn-accent" type="button">Copy</button>
-      <button id="btn-export" class="btn-soft" type="button">Export .md</button>
+      <span class="sel-hint" id="sel-hint">Select tasks to share</span>
+      <button id="btn-copy" class="btn-accent" type="button" disabled>Copy</button>
+      <button id="btn-export" class="btn-soft" type="button" disabled>Export .md</button>
     </div>
   </footer>
   <script src="sfx.js"></script>
