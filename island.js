@@ -30,7 +30,7 @@ function rowHtml(t) {
     <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
     <div class="row-main"><span class="rtitle"><span class="tt">${esc(t.title)}</span></span>${detail}</div>
     ${subsBadge}${dueHtml(t)}
-    <button class="rstar" data-star type="button" title="Mark as Now (★)" aria-label="Mark as Now: ${esc(t.title)}">&#9734;</button>
+    <button class="redit" data-edit type="button" title="Edit task" aria-label="Edit: ${esc(t.title)}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button>
   </div></div></div>`;
 }
 
@@ -289,11 +289,10 @@ document.addEventListener('click', e => {
     completeWithInk(row.dataset.id, row.dataset.file, row.closest('.fold'), row.querySelector('.tt'), chk);
     return;
   }
-  const star = e.target.closest('[data-star]');
-  if (star) {
-    const row = star.closest('.row');
-    window.SFX.play('starOn');
-    window.api.toggleActive(row.dataset.id, row.dataset.file);
+  const edit = e.target.closest('[data-edit]');
+  if (edit) {
+    const row = edit.closest('.row');
+    editFromIsland(row.dataset.file, row.dataset.id);
     return;
   }
   const done = e.target.closest('[data-done]');
@@ -305,7 +304,7 @@ document.addEventListener('click', e => {
   const unstar = e.target.closest('[data-unstar]');
   if (unstar) { window.SFX.play('starOff'); window.api.toggleActive(unstar.dataset.unstar, unstar.dataset.file); return; }
   const row = e.target.closest('.row');
-  if (row) { window.api.openEditor(row.dataset.file, row.dataset.id); return; }
+  if (row) { window.SFX.play('starOn'); window.api.toggleActive(row.dataset.id, row.dataset.file); return; } // row click = stage as Now
 });
 
 $('pill').addEventListener('mouseenter', () => { islandHovered = true; if (!pinned) pauseDismiss(); });
@@ -337,6 +336,13 @@ function retract() {
   window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN })
     .then(() => { window.api.hide(); retracting = false; });
 }
+// edit hand-off: the pill steps aside, the tasks window takes over, the editor opens on top for that task
+function editFromIsland(file, id) {
+  retract();
+  window.SFX.play('tick');
+  window.api.openWindow();
+  window.api.openEditor(file, id);
+}
 window.api.onShown(() => {
   const pill = $('pill');
   pill.getAnimations().forEach(a => a.cancel());
@@ -348,6 +354,7 @@ $('btn-gear').addEventListener('click', () => { window.api.openWindow(); retract
 $('btn-close').addEventListener('click', () => retract());
 // ---- keyboard (only reachable when summoned by the shortcut — the window is focusable just then) ----
 let kbdActive = false;
+window.api.onRetract(() => retract()); // shortcut toggle: dismiss side
 window.api.onFocusRequest(() => {
   kbdActive = true;
   pauseDismiss();
@@ -368,9 +375,13 @@ document.addEventListener('keydown', e => {
   if (k === 'ArrowDown' || k === 'ArrowUp') { e.preventDefault(); const n = navs[i + (k === 'ArrowDown' ? 1 : -1)]; if (n) n.focus(); return; }
   const isCard = el.classList.contains('active-card');
   const id = isCard ? el.dataset.card : el.dataset.id, file = el.dataset.file;
-  if (k === 'Enter') { e.preventDefault(); window.api.openEditor(file, id); return; }
+  if (k === 'Enter') { e.preventDefault(); editFromIsland(file, id); return; }
   if (k === ' ' || k === 'x') { e.preventDefault(); (isCard ? el.querySelector('[data-done]') : el.querySelector('[data-chk]')).click(); return; }
-  if (k === '*' || k === 's') { e.preventDefault(); (isCard ? el.querySelector('[data-unstar]') : el.querySelector('[data-star]')).click(); }
+  if (k === '*' || k === 's') {
+    e.preventDefault();
+    if (isCard) el.querySelector('[data-unstar]').click();
+    else { window.SFX.play('starOn'); window.api.toggleActive(id, file); } // row click semantics
+  }
 });
 
 // soft blip when the island shows — synthesized in sfx.js, gated by the soundOn setting

@@ -260,7 +260,11 @@ function registerShortcut() {
   const sc = (state.settings.shortcut || '').trim();
   if (!sc) return true;
   try {
-    const ok = globalShortcut.register(sc, () => showIsland({ focus: true }));
+    const ok = globalShortcut.register(sc, () => {
+      // toggle: same key shows and dismisses — dismiss lets the pill retract (animated) via the renderer
+      if (island && island.isVisible()) { island.setFocusable(false); island.webContents.send('retract-island'); }
+      else showIsland({ focus: true });
+    });
     LOG(ok ? `SHORTCUT-OK ${sc}` : `SHORTCUT-FAILED ${sc}`);
     return !!ok;
   } catch (e) { LOG('SHORTCUT-ERROR ' + e.message); return false; }
@@ -551,9 +555,11 @@ else {
           await step('delete+undo', `(async()=>{ const d=document.querySelector('.wtrash'); if(!d) return 'no-trash'; d.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           const iStep = (name, js) => island.webContents.executeJavaScript(js)
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
-          await iStep('island-click-no-write', `(async()=>{ const before=JSON.stringify(window.__lastUndoToken||null); const t=document.querySelector('#body .row .rtitle'); if(!t) return 'no-row'; t.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(r=>setTimeout(r,700)); return document.getElementById('undo-bar').hidden ? 'no-write' : 'WROTE'; })()`);
-          if (editorWin && !editorWin.isDestroyed()) { LOG('UTEST island-click-opened-editor: yes'); editorWin.close(); }
-          await iStep('island-star+undo', `(async()=>{ const b0=document.querySelector('#body .row [data-star]'); if(!b0) return 'no-star-btn'; b0.click(); await new Promise(r=>setTimeout(r,900)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; const lbl=document.querySelector('#undo-bar .undo-label').textContent; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok ['+lbl+']'; })()`);
+          await iStep('island-click-stages+undo', `(async()=>{ const t=document.querySelector('#body .row .rtitle'); if(!t) return 'no-row'; t.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(r=>setTimeout(r,900)); const bar=document.getElementById('undo-bar'); const b=bar.querySelector('[data-undo]'); if(!b||bar.hidden) return 'NO-WRITE'; const lbl=bar.querySelector('.undo-label').textContent; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok ['+lbl+']'; })()`); // row click = stage as Now (owner 2026-09-25)
+          LOG('UTEST island-click-opened-editor: ' + (editorWin && !editorWin.isDestroyed() ? 'UNEXPECTED' : 'no (correct)'));
+          await iStep('island-edit-handoff', `(async()=>{ const e0=document.querySelector('#body .row [data-edit]'); if(!e0) return 'no-edit-btn'; e0.click(); await new Promise(r=>setTimeout(r,900)); return 'clicked'; })()`);
+          LOG('UTEST edit-handoff(main): editor=' + !!(editorWin && !editorWin.isDestroyed()) + ' main=' + !!(mainWin && !mainWin.isDestroyed() && mainWin.isVisible()) + ' islandVisible=' + (island ? island.isVisible() : 'n/a'));
+          if (editorWin && !editorWin.isDestroyed()) editorWin.close();
           await iStep('island-check+undo', `(async()=>{ const c=document.querySelector('#body .row [data-chk]'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,1200)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           await step('glass+mica', `(async()=>{ const t=document.getElementById('undo-toast'); const bf=getComputedStyle(t).backdropFilter; return 'micaClass='+document.documentElement.classList.contains('mica')+' bodyBg='+getComputedStyle(document.body).backgroundColor+' toastBackdrop='+bf; })()`);

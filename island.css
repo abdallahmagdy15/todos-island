@@ -121,13 +121,15 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 }
 .rchk:hover, .rchk.checked { color: var(--accent); }
 .rchk:hover { background: var(--accent-soft); }
-.rstar {
+.redit {
   flex: none; width: 24px; height: 24px; margin: -3px -4px -3px 0; border: 0; border-radius: var(--r-1);
-  background: transparent; color: var(--faint); cursor: pointer; font-size: var(--fs-3); line-height: 1;
+  background: transparent; color: var(--faint); cursor: pointer; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
   opacity: 0; transition: opacity var(--d-1) ease, color var(--d-1) ease, background var(--d-1) ease;
 }
-.row:hover .rstar, .row:focus-within .rstar, .rstar:focus-visible { opacity: 1; }
-.rstar:hover { color: var(--accent); background: var(--accent-soft); }
+.redit .ic { width: 13px; height: 13px; }
+.row:hover .redit, .row:focus-within .redit, .redit:focus-visible { opacity: 1; }
+.redit:hover { color: var(--accent); background: var(--accent-soft); }
 
 /* M1 ink strike + M2 highlighter: inline backgrounds, so they sweep line by line across wrapped titles */
 .tt.striking {

@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('api', {
   openWindow: tab => ipcRenderer.send('open-window', tab),
   onShown: cb => ipcRenderer.on('island-shown', () => cb()),
   onFocusRequest: cb => ipcRenderer.on('island-focus', () => cb()),
+  onRetract: cb => ipcRenderer.on('retract-island', () => cb()),
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
   reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
   hide: () => ipcRenderer.send('hide-island'),
