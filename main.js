@@ -48,6 +48,13 @@ try {
 }
 
 let tray = null, island = null, mainWin = null;
+// native chrome colors — must match tokens.css (--paper / --head / --muted) so the title bar blends in
+const THEME = {
+  light: { bg: '#f7f6f2', overlay: '#f7f6f2', symbol: '#5c5a55' },
+  dark: { bg: '#121211', overlay: '#121211', symbol: '#a9a69e' }
+};
+const theme = () => THEME[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
+const overlay = () => ({ color: theme().overlay, symbolColor: theme().symbol, height: 46 });
 // in-memory undo log — one entry per interaction, tokened, countdown-driven cleanup.
 // entries live ONLY for the undo window: each popup fires undo-expire(token) when its countdown ends,
 // undo-action(token) consumes its entry; pushUndo lazily drops anything expired. Nothing on disk.
@@ -134,14 +141,16 @@ function snapshot() {
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
-function showIsland() {
+function showIsland(opts = {}) {
   if (!island) return;
   const wasVisible = island.isVisible();
   sendSnap(); island.showInactive();
   if (!wasVisible) island.webContents.send('island-shown'); // replays the drop-in entry
   if (state.settings.soundOn) island.webContents.send('play-sound');
+  // keyboard summon only: the island takes focus so arrows/Enter/Space work. Timed pops NEVER steal focus.
+  if (opts.focus) { island.setFocusable(true); island.focus(); island.webContents.send('island-focus'); }
 }
-function hideIsland() { if (island) island.hide(); }
+function hideIsland() { if (island) { island.hide(); island.setFocusable(false); } }
 
 function createIsland() {
   const wa = screen.getPrimaryDisplay().workArea;
@@ -162,13 +171,11 @@ function openWindow(tab) {
   if (mainWin) { mainWin.show(); mainWin.focus(); if (tab) mainWin.webContents.send('show-tab', tab); return; }
   mainWin = new BrowserWindow({
     width: 920, height: 660, minWidth: 760, minHeight: 540,
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f0f13' : '#f5f5f8',
+    backgroundColor: theme().bg,
     autoHideMenuBar: true, show: false,
     frame: false, titleBarStyle: 'hidden',
     // overlay must exist at creation — setTitleBarOverlay throws otherwise ("Titlebar overlay is not enabled")
-    titleBarOverlay: nativeTheme.shouldUseDarkColors
-      ? { color: '#0c0c10', symbolColor: '#b9b9c2', height: 46 }
-      : { color: '#f5f5f8', symbolColor: '#4a4a55', height: 46 },
+    titleBarOverlay: overlay(),
     webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
   });
   applyOverlay();
@@ -183,17 +190,14 @@ function openWindow(tab) {
 let editorWin = null;
 let shareWin = null;
 function openShare() {
-  const dark = nativeTheme.shouldUseDarkColors;
   if (shareWin && !shareWin.isDestroyed()) { shareWin.show(); shareWin.focus(); }
   else {
     shareWin = new BrowserWindow({
       width: 620, height: 680, minWidth: 480, minHeight: 480,
-      backgroundColor: dark ? '#0f0f13' : '#f5f5f8',
+      backgroundColor: theme().bg,
       autoHideMenuBar: true, show: false, parent: mainWin || undefined,
       frame: false, titleBarStyle: 'hidden',
-      titleBarOverlay: dark
-        ? { color: '#0c0c10', symbolColor: '#b9b9c2', height: 46 }
-        : { color: '#f5f5f8', symbolColor: '#4a4a55', height: 46 },
+      titleBarOverlay: overlay(),
       webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
     });
     shareWin.once('ready-to-show', () => shareWin.show());
@@ -217,17 +221,14 @@ ipcMain.handle('export-md', async (_e, text) => {
 });
 
 function openEditor(file, id) {
-  const dark = nativeTheme.shouldUseDarkColors;
   if (editorWin && !editorWin.isDestroyed()) { editorWin.show(); editorWin.focus(); }
   else {
     editorWin = new BrowserWindow({
       width: 480, height: 620, minWidth: 420, minHeight: 500,
-      backgroundColor: dark ? '#0f0f13' : '#f5f5f8',
+      backgroundColor: theme().bg,
       autoHideMenuBar: true, show: false, parent: mainWin || undefined,
       frame: false, titleBarStyle: 'hidden',
-      titleBarOverlay: dark
-        ? { color: '#0c0c10', symbolColor: '#b9b9c2', height: 46 }
-        : { color: '#f5f5f8', symbolColor: '#4a4a55', height: 46 },
+      titleBarOverlay: overlay(),
       webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
     });
     editorWin.once('ready-to-show', () => editorWin.show());
@@ -243,9 +244,8 @@ function lockZoom(wc) {
 
 function applyOverlay() {
   if (!mainWin) return;
-  const dark = nativeTheme.shouldUseDarkColors;
   try {
-    mainWin.setTitleBarOverlay({ color: dark ? '#0c0c10' : '#f5f5f8', symbolColor: dark ? '#b9b9c2' : '#4a4a55', height: 46 });
+    mainWin.setTitleBarOverlay(overlay());
   } catch (e) { LOG('OVERLAY-SKIP ' + e.message); }
 }
 nativeTheme.on('updated', applyOverlay);
@@ -255,7 +255,7 @@ function registerShortcut() {
   const sc = (state.settings.shortcut || '').trim();
   if (!sc) return true;
   try {
-    const ok = globalShortcut.register(sc, () => showIsland());
+    const ok = globalShortcut.register(sc, () => showIsland({ focus: true }));
     LOG(ok ? `SHORTCUT-OK ${sc}` : `SHORTCUT-FAILED ${sc}`);
     return !!ok;
   } catch (e) { LOG('SHORTCUT-ERROR ' + e.message); return false; }
@@ -552,7 +552,13 @@ else {
           await iStep('island-check+undo', `(async()=>{ const c=document.querySelector('#body .row [data-chk]'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,1200)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           const wait = ms => `await new Promise(r=>setTimeout(r,${ms}));`;
-          await step('composer-empty-add', `(async()=>{ document.getElementById('new-title').value=''; document.getElementById('btn-add').click(); ${wait(300)} return 'hint=' + document.getElementById('new-hint').textContent; })()`);
+          const key = k => `document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'${k}',bubbles:true}));`;
+          await step('kbd-roving+priority', `(async()=>{ document.getElementById('tab-work').click(); ${wait(300)} const rows=[...document.querySelectorAll('#task-list .wrow')]; rows[0].focus(); ${key('ArrowDown')} const moved=document.activeElement===rows[1]; const stops=rows.filter(r=>r.tabIndex===0).length; ${key('3')} ${wait(700)} const b1=document.activeElement.querySelector('.bang').textContent; ${key('0')} ${wait(700)} const b2=document.activeElement.querySelector('.bang').textContent; return 'moved='+moved+' tabstops='+stops+' after3=['+b1+'] after0=['+b2+'] role='+document.querySelector('#task-list .fold').getAttribute('role'); })()`);
+          showIsland({ focus: true });
+          await iStep('island-kbd-summon', `(async()=>{ await new Promise(r=>setTimeout(r,600)); const a=document.activeElement; const onNav=!!(a&&a.hasAttribute&&a.hasAttribute('data-nav')); a.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true})); const moved=document.activeElement!==a && document.activeElement.hasAttribute('data-nav'); return 'focused-nav='+onNav+' arrow-moved='+moved; })()`);
+          LOG('UTEST island-focusable-after-summon: ' + island.isFocusable());
+          await step('kbd-complete+undo',`(async()=>{ const r=document.querySelector('#task-list .wrow'); r.focus(); const t=r.querySelector('.tt').textContent; ${key('x')} ${wait(900)} const gone=![...document.querySelectorAll('#task-list .tt')].some(e=>e.textContent===t); ${undoClick} ${wait(900)} const back=[...document.querySelectorAll('#task-list .tt')].some(e=>e.textContent===t); return 'gone='+gone+' back='+back+' live='+document.getElementById('undo-toast').getAttribute('aria-live'); })()`);
+          await step('composer-empty-add',`(async()=>{ document.getElementById('new-title').value=''; document.getElementById('btn-add').click(); ${wait(300)} return 'hint=' + document.getElementById('new-hint').textContent; })()`);
           await step('composer-typed-add', `(async()=>{ const ta=document.getElementById('new-title'); ta.value='!! 26 Sep E2E composed task'; ta.dispatchEvent(new Event('input',{bubbles:true})); ${wait(400)} const pv=document.getElementById('new-preview-line').textContent; const sel=[...document.querySelectorAll('#new-prio .pchip.sel')].map(c=>c.dataset.p).join(); document.getElementById('btn-add').click(); ${wait(700)} const row=[...document.querySelectorAll('.wrow')].find(r=>r.textContent.includes('E2E composed task')); return 'preview=[' + pv + '] chip=' + sel + ' row=' + (row ? row.querySelector('.bang').textContent + '|' + (row.querySelector('.wdue')||{}).textContent : 'MISSING'); })()`);
           await step('done-tab+clear+undo', `(async()=>{ document.getElementById('tab-done').click(); ${wait(400)} const n0=document.querySelectorAll('.wrow.done').length; document.getElementById('btn-clear-done').click(); ${wait(700)} const n1=document.querySelectorAll('.wrow.done').length; ${undoClick} ${wait(900)} const n2=document.querySelectorAll('.wrow.done').length; return n0+'→'+n1+'→'+n2; })()`);
           await step('settings-dirty-guard', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(500)} const d=document.getElementById('set-dismiss'); d.value='3'; d.dispatchEvent(new Event('input',{bubbles:true})); const dot=!document.getElementById('settings-dirty').hidden; document.getElementById('tab-work').click(); ${wait(200)} const guard=!document.getElementById('dirty-guard').hidden; document.getElementById('guard-save').click(); ${wait(700)} const fs=document.querySelector('.fstat[data-for=set-dismiss]').textContent; return 'dot='+dot+' guard='+guard+' clamp=['+fs+'] tab='+document.querySelector('.tab.active').id; })()`);

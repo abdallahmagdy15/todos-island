@@ -1,6 +1,9 @@
-/* tokens.css — ONE design-token source for every window (loaded before each window's own sheet).
-   Scales: 5 type sizes · 4 radii · 4px spacing · 3 motion durations. */
+/* tokens.css — THE design-token source for every window (linked before each window's own sheet).
+   "Ink & Notation": paper + ink chrome; color only means something —
+   blue = interactive / Now · vermilion → ochre → slate = !!! → !! → ! · vermilion = danger.
+   Every text pair is gated by scripts/contrast.js (npm run contrast). */
 :root {
+  color-scheme: light dark;
   --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace; /* machine notation: bangs, dates, counts, ## */
 
@@ -12,12 +15,40 @@
   --ease-in: cubic-bezier(.4, 0, 1, 1); /* exits only */
   --d-1: 120ms; --d-2: 200ms; --d-3: 320ms;
 
-  /* color aliases onto each window's current palette */
-  --ink: var(--text); --paper: var(--bg); --card: var(--bg-card); --input: var(--input-bg);
-  --rule: var(--border); --rule-soft: var(--border-soft); --hover: var(--row-hover); --danger: var(--p3);
+  /* light — warm paper, near-black ink, fountain-pen blue */
+  --paper: #f7f6f2; --card: #ffffff; --input: #efeee9; --head: rgba(247, 246, 242, 0.88); --pane: rgba(28, 27, 25, 0.015);
+  --ink: #1c1b19; --muted: #5c5a55; --faint: #69665f;
+  --rule: rgba(28, 27, 25, 0.12); --rule-soft: rgba(28, 27, 25, 0.07);
+  --hover: rgba(28, 27, 25, 0.045); --chip: rgba(28, 27, 25, 0.055);
+  --accent: #2d4fc4; --accent-ink: #ffffff; --accent-soft: rgba(45, 79, 196, 0.10); --accent-border: rgba(45, 79, 196, 0.30);
+  --p3: #c0392b; --p2: #8f5f00; --p1: #56607a;
+  --ok: #2b7a3a; --danger: var(--p3);
+  --shadow: 0 10px 30px rgba(28, 27, 25, 0.16);
+  --pill-bg: #fbfaf7; --pill-border: rgba(28, 27, 25, 0.12); --prog-bg: rgba(28, 27, 25, 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #121211; --card: #1a1a18; --input: #1f1f1c; --head: rgba(18, 18, 17, 0.9); --pane: rgba(236, 235, 230, 0.012);
+    --ink: #ecebe6; --muted: #a9a69e; --faint: #939088;
+    --rule: rgba(236, 235, 230, 0.12); --rule-soft: rgba(236, 235, 230, 0.07);
+    --hover: rgba(236, 235, 230, 0.05); --chip: rgba(236, 235, 230, 0.07);
+    --accent: #8ba6ff; --accent-ink: #121211; --accent-soft: rgba(139, 166, 255, 0.14); --accent-border: rgba(139, 166, 255, 0.30);
+    --p3: #ff7b6b; --p2: #f0b547; --p1: #a3abc0;
+    --ok: #7fd18b;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+    --pill-bg: #171716; --pill-border: rgba(236, 235, 230, 0.10); --prog-bg: rgba(236, 235, 230, 0.06);
+  }
 }
 
 [hidden] { display: none !important; } /* kills ghost elements whose display rule overrides the attribute */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+/* one focus ring everywhere (keyboard only) */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; } /* fields show their own focus border */
+/* one thin scrollbar for every scroll container */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--chip); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--rule); }
+::-webkit-scrollbar-track { background: transparent; }

@@ -7,6 +7,7 @@
   "scripts": {
     "start": "electron .",
     "test": "node lib/parse.test.js && node lib/schedule.test.js && node lib/compose.test.js",
+    "contrast": "node scripts/contrast.js",
     "icon": "node scripts/make-icon.js",
     "dist": "electron-builder --win"
   },

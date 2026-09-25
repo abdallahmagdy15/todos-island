@@ -1,5 +1,5 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <title>Todo Island — Tasks</title>
@@ -33,7 +33,7 @@
           <h3 class="md-h"><span class="hash">##</span> Done <span class="md-count" id="done-count"></span></h3>
           <button id="btn-clear-done" class="btn-text danger" type="button" title="Remove every completed task from both notes — undo stays available">Clear all</button>
         </div>
-        <div id="task-list"></div>
+        <div id="task-list" role="list" aria-label="Tasks"></div>
         <div class="new-task" id="composer">
           <textarea id="new-title" rows="1" spellcheck="false" aria-label="New task"
             placeholder="New task…  try  !! 26 Sep Fix login   ·   Shift+Enter adds a description line"></textarea>
@@ -162,9 +162,22 @@
     </section>
   </main>
 
-  <footer class="statusline" id="statusline"><span id="st-src"></span><span id="st-write"></span></footer>
+  <footer class="statusline" id="statusline">
+    <span id="st-src"></span>
+    <span class="st-right"><span id="st-write"></span><button class="st-keys" id="st-keys" type="button" aria-expanded="false" aria-controls="keys-pop" title="Keyboard shortcuts (?)">?</button></span>
+  </footer>
+  <div class="keys-pop" id="keys-pop" hidden role="dialog" aria-label="Keyboard shortcuts">
+    <div class="kp-row"><kbd>↑</kbd><kbd>↓</kbd><span>move between tasks</span></div>
+    <div class="kp-row"><kbd>Enter</kbd><span>open the editor</span></div>
+    <div class="kp-row"><kbd>Space</kbd><kbd>x</kbd><span>complete</span></div>
+    <div class="kp-row"><kbd>*</kbd><kbd>s</kbd><span>toggle Now ★</span></div>
+    <div class="kp-row"><kbd>0</kbd><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><span>priority none · ! · !! · !!!</span></div>
+    <div class="kp-row"><kbd>Del</kbd><span>delete (undo stays open)</span></div>
+    <div class="kp-row"><kbd>/</kbd><span>search</span><kbd>n</kbd><span>new task</span></div>
+    <div class="kp-row"><kbd>?</kbd><span>this list</span></div>
+  </div>
 
-  <div id="undo-toast" hidden></div>
+  <div id="undo-toast" hidden role="status" aria-live="polite"></div>
   <div id="notice" class="notice" hidden role="status" aria-live="polite"></div>
   <script src="sfx.js"></script>
   <script src="motion.js"></script>

@@ -26,13 +26,13 @@ function renderDone(q) { // Done tab: both files, restore or delete (both undoab
   $('done-count').textContent = all.length ? `· ${all.length}` : '';
   $('btn-clear-done').hidden = !all.length;
   $('task-list').innerHTML = items.map(d => `
-    <div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}">
+    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(d.title)}">
       <span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>
       <div class="wrow-main"><span class="wtitle"><span class="tt">${esc(d.title)}</span></span></div>
       ${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}
       <button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button>
       <button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
-    </div>`).join('') || `<p class="empty">${q ? 'No matches.' : 'Nothing done yet.'}</p>`;
+    </div></div></div>`).join('') || `<p class="empty">${q ? 'No matches.' : 'Nothing done yet.'}</p>`;
 }
 function renderList() {
   if (!snap) return; // first snapshot not in yet (tab restore runs before refresh resolves)
@@ -40,7 +40,8 @@ function renderList() {
   const isDone = currentTab === 'done';
   $('done-head').hidden = !isDone;
   $('composer').hidden = isDone; // nothing to add to the Done list
-  if (isDone) { renderDone(q); markFresh(); return; }
+  const hadFocus = $('task-list').contains(document.activeElement);
+  if (isDone) { renderDone(q); markFresh(); settleFocus(hadFocus); return; }
   const all = taskRows();
   const rows = all.filter(t => matches(t, q));
   $('search-count').textContent = q ? `${rows.length} / ${all.length}` : '';
@@ -51,8 +52,8 @@ function renderList() {
       ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}
     </div>` : '';
     return `
-    <div class="fold"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="${esc(t.title)}" draggable="true">
-      <span class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" role="button" tabindex="0" aria-label="Complete task"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span>
+    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}" draggable="true">
+      <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(t.title)}"><span class="box"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span></button>
       <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
       ${t.active ? '<span class="wstar">&#9733;</span>' : ''}
       <div class="wrow-main">
@@ -60,12 +61,13 @@ function renderList() {
         ${expandBody}
         ${!open && t.subs.length ? `<div class="wsub">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
       </div>
-      ${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${esc(t.dueText)}</span>` : ''}
+      ${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${esc(dueLabel(t))}</span>` : ''}
       ${(t.notes || []).length || t.subs.length ? `<button class="wexp ${open ? 'open' : ''}" data-exp="${esc(t.id)}" title="${open ? 'Collapse' : 'Expand'}" aria-label="${open ? 'Collapse task' : 'Expand task'}"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>` : ''}
       <button class="wtrash" data-del="${esc(t.id)}" data-file="${t.file}" type="button" title="Delete" aria-label="Delete task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
     </div></div></div>`;
   }).join('') || emptyState(q);
   markFresh();
+  settleFocus(hadFocus);
   // M2 — a task that just became Now gets the highlighter swipe behind its title
   const nowIds = new Set(all.filter(t => t.active).map(t => t.id));
   if (prevNow && prevNow.tab === currentTab) {
@@ -77,6 +79,40 @@ function renderList() {
   }
   prevNow = { tab: currentTab, ids: nowIds };
 }
+// overdue never relies on color alone: "2 Sep · 23d late"
+function daysLate(t) {
+  if (!t.dueTs) return 0;
+  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+  return Math.round((today0.getTime() - (t.dueTs - 12 * 3600e3)) / 864e5); // dueTs is noon of the due day
+}
+const dueLabel = t => (t.dueState === 'overdue' ? `${t.dueText} \u00B7 ${daysLate(t)}d late` : t.dueState === 'today' ? `${t.dueText} \u00B7 today` : t.dueText);
+const PRIO_NAME = { '!!!': 'high', '!!': 'medium', '!': 'low' };
+const rowLabel = t => [t.title, t.priority && `${PRIO_NAME[t.priority]} priority`, t.dueText && `due ${dueLabel(t)}`, t.active && 'Now'].filter(Boolean).join(', ');
+
+// roving focus: ONE tab stop for the whole list; arrows move inside it
+let focusId = null;
+const rowEls = () => [...document.querySelectorAll('#task-list .wrow')];
+function settleFocus(hadFocus) {
+  const rows = rowEls();
+  if (!rows.length) return;
+  let cur = rows.find(r => r.dataset.id === focusId);
+  if (!cur) cur = rows[Math.min(focusIndex, rows.length - 1)] || rows[0];
+  rows.forEach(r => r.tabIndex = -1);
+  cur.tabIndex = 0;
+  if (hadFocus) cur.focus({ preventScroll: false });
+}
+let focusIndex = 0;
+function focusRow(row) {
+  if (!row) return;
+  rowEls().forEach(r => r.tabIndex = -1);
+  row.tabIndex = 0; row.focus();
+  focusId = row.dataset.id; focusIndex = rowEls().indexOf(row);
+}
+$('task-list').addEventListener('focusin', e => {
+  const row = e.target.closest('.wrow');
+  if (row) { focusId = row.dataset.id; focusIndex = rowEls().indexOf(row); }
+});
+
 function emptyState(q) { // honest: a missing note is "unavailable", never "Nice."
   if (q) return '<p class="empty">No matches.</p>';
   const err = fileErr(currentTab);
@@ -165,8 +201,28 @@ async function completeWithInk(chk) {
 
 $('task-list').addEventListener('click', onListAction);
 $('task-list').addEventListener('keydown', async e => {
-  if (e.key !== 'Enter' && e.key !== ' ') return;
-  if (e.target.matches('[data-chk], [data-exp]')) { e.preventDefault(); onListAction(e); }
+  const row = e.target.closest('.wrow');
+  if (!row || e.target !== row || e.ctrlKey || e.altKey || e.metaKey) return; // buttons inside keep their native keys
+  const rows = rowEls(), i = rows.indexOf(row);
+  const id = row.dataset.id, file = row.dataset.file, done = row.classList.contains('done');
+  const k = e.key;
+  if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'Home' || k === 'End') {
+    e.preventDefault();
+    focusRow(k === 'Home' ? rows[0] : k === 'End' ? rows[rows.length - 1] : rows[Math.max(0, Math.min(rows.length - 1, i + (k === 'ArrowDown' ? 1 : -1)))]);
+    return;
+  }
+  if (k === 'Delete') { e.preventDefault(); focusIndex = i; window.SFX.play('delete'); await window.api.deleteTask(id, file); await refresh(); return; }
+  if (done) { if (k === 'r' || k === 'Enter') { e.preventDefault(); window.SFX.play('add'); await window.api.uncomplete(id, file); await refresh(); } return; }
+  if (k === 'Enter') { e.preventDefault(); window.api.openEditor(file, id); return; }
+  if (k === ' ' || k === 'x') { e.preventDefault(); focusIndex = i; const chk = row.querySelector('.chk'); if (!chk.classList.contains('checked')) completeWithInk(chk); return; }
+  if (k === '*' || k === 's') { e.preventDefault(); window.SFX.play(row.classList.contains('is-now') ? 'starOff' : 'starOn'); await window.api.toggleActive(id, file); await refresh(); return; }
+  if (['0', '1', '2', '3'].includes(k)) {
+    e.preventDefault();
+    const res = await window.api.updateTask(file, id, { priority: ['', '!', '!!', '!!!'][+k] || null });
+    if (res && res.id) focusId = res.id; // id changes with priority — keep focus on the same task
+    window.SFX.play('tick');
+    await refresh();
+  }
 });
 async function onListAction(e) {
   const chk = e.target.closest('[data-chk]');
@@ -268,10 +324,21 @@ $('search').addEventListener('input', onSearch);
 $('search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('search').value) { e.stopPropagation(); $('search').value = ''; onSearch(); } });
 $('search-clear').addEventListener('click', () => { $('search').value = ''; onSearch(); $('search').focus(); });
 document.addEventListener('keydown', e => {
-  if (e.key !== '/' || e.ctrlKey || e.altKey || e.metaKey) return;
-  if (e.target.closest('input, textarea, select, [contenteditable]')) return;
-  if (!$('view-tasks').hidden) { e.preventDefault(); $('search').focus(); }
+  if (e.key === 'Escape' && !$('keys-pop').hidden) { toggleKeys(false); return; }
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  if (e.target.closest('input, textarea, select, [contenteditable], .recorder')) return;
+  if (e.key === '?') { e.preventDefault(); toggleKeys(); return; }
+  if ($('view-tasks').hidden) return;
+  if (e.key === '/') { e.preventDefault(); $('search').focus(); }
+  else if (e.key === 'n' && !$('composer').hidden) { e.preventDefault(); $('new-title').focus(); }
 });
+function toggleKeys(force) {
+  const open = force === undefined ? $('keys-pop').hidden : force;
+  $('keys-pop').hidden = !open;
+  $('st-keys').setAttribute('aria-expanded', open);
+}
+$('st-keys').addEventListener('click', () => toggleKeys());
+document.addEventListener('click', e => { if (!$('keys-pop').hidden && !e.target.closest('#keys-pop, #st-keys')) toggleKeys(false); });
 const MAX_TA = 212; // ≈ 10 visible lines, scrolls inside beyond
 function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, MAX_TA) + 'px'; }
 $('new-title').addEventListener('input', () => {

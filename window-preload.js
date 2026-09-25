@@ -4,6 +4,7 @@ contextBridge.exposeInMainWorld('api', {
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
   saveSettings: s => ipcRenderer.invoke('save-settings', s),
   updateTask: (file, id, patch) => ipcRenderer.invoke('update-task', file, id, patch),
+  toggleActive: (id, file) => ipcRenderer.invoke('toggle-active', id, file),
   addTask: (file, data) => ipcRenderer.invoke('add-task', file, data),
   addSubtask: (file, parentId, title) => ipcRenderer.invoke('add-subtask', file, parentId, title),
   toggleSubtask: (file, parentId, title) => ipcRenderer.invoke('toggle-subtask', file, parentId, title),

@@ -85,7 +85,10 @@ $('ed-save').addEventListener('click', async () => {
   setTimeout(() => { $('ed-saved').hidden = true; }, 1400);
   load(true);
 });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') window.close();
+  if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); $('ed-save').click(); } // Ctrl+Enter saves from anywhere
+});
 $('ed-complete').addEventListener('click', async () => {
   window.SFX.play('complete'); await window.api.complete(ID, FILE);
   window.close();

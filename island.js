@@ -12,7 +12,11 @@ const $ = id => document.getElementById(id);
 function dueHtml(t) {
   if (!t.dueText) return '';
   const cls = t.dueState === 'today' ? 'due today' : t.dueState === 'overdue' ? 'due overdue' : 'due';
-  const label = t.dueState === 'today' ? 'Today' : t.dueText;
+  let label = t.dueState === 'today' ? 'Today' : t.dueText;
+  if (t.dueState === 'overdue' && t.dueTs) { // overdue never relies on color alone
+    const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+    label += ` \u00B7 ${Math.round((today0.getTime() - (t.dueTs - 12 * 3600e3)) / 864e5)}d late`;
+  }
   return `<span class="${cls}">${esc(label)}</span>`;
 }
 function rowHtml(t) {
@@ -22,7 +26,7 @@ function rowHtml(t) {
     ...t.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`)
   ].map((l, i) => l.replace('<div ', `<div style="--i:${Math.min(i, 6)}" `));
   const detail = lines.length ? `<div class="rd-wrap"><div class="rd-inner">${lines.join('')}</div></div>` : '';
-  return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" draggable="true">
+  return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(t.title)}" draggable="true">
     <button class="rchk" data-chk type="button" title="Complete" aria-label="Complete: ${esc(t.title)}">[ ]</button>
     <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
     <div class="row-main"><span class="rtitle"><span class="tt">${esc(t.title)}</span></span>${detail}</div>
@@ -103,6 +107,7 @@ function scheduleResize(delay = 0) {
 function render() {
   if (!snap) return;
   const hoverRowId = hoverRow ? hoverRow.dataset.id : null;
+  const focusedId = kbdActive && document.activeElement && document.activeElement.dataset ? (document.activeElement.dataset.id || document.activeElement.dataset.card) : null;
   clearTimeout(hoverT); hoverRow = null;
   // focus by time: the pill mirrors the clock — work tasks in the workday, personal outside (toggle in Settings).
   // snapshot keeps both sections, so the tasks/share windows are never filtered — this is island-only.
@@ -133,7 +138,7 @@ function render() {
     for (const a of actives) {
       const subs = a.subs.length
         ? `<div class="ac-subs">${a.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-parent="${esc(a.id)}" data-file="${a.file}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
-      html += `<div class="fold"><div class="fold-in"><div class="active-card" data-card="${esc(a.id)}">
+      html += `<div class="fold"><div class="fold-in"><div class="active-card" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="Now: ${esc(a.title)}">
         <div class="ac-head">
           <span class="star">&#9733;</span>
           <span class="bang ${bangCls(a.priority)}">${a.priority ? esc(a.priority) : ''}</span>
@@ -184,12 +189,17 @@ function render() {
     }
   }
   prevActive = nowIds;
+  if (kbdActive) { // keyboard mode survives re-renders: focus returns to the same task (or the first one)
+    const navs = [...$('body').querySelectorAll('[data-nav]')];
+    const again = navs.find(n => (n.dataset.id || n.dataset.card) === focusedId) || navs[0];
+    if (again) again.focus();
+  }
   renderUndo();
 
   requestAnimationFrame(() => window.api.resize($('wrap').offsetHeight));
   if (errs) { clearTimeout(dismissT); return; }
-  if (!pinned && !islandHovered) scheduleDismiss((snap.settings.dismissSec || 45) * 1000);
-  else if (!pinned) pauseDismiss(); // hovered: freeze the countdown even after action-triggered re-renders
+  if (!pinned && !islandHovered && !kbdActive) scheduleDismiss((snap.settings.dismissSec || 45) * 1000);
+  else if (!pinned) pauseDismiss(); // hovered / keyboard-driven: freeze the countdown even after action-triggered re-renders
 }
 
 function flush() {
@@ -369,7 +379,32 @@ window.api.onShown(() => {
 $('btn-expand').addEventListener('click', () => { window.SFX.play('tick'); expanded = !expanded; render(); });
 $('btn-gear').addEventListener('click', () => { window.api.openWindow(); retract(); });
 $('btn-close').addEventListener('click', () => retract());
-document.addEventListener('keydown', e => { if (e.key === 'Escape') retract(); });
+// ---- keyboard (only reachable when summoned by the shortcut — the window is focusable just then) ----
+let kbdActive = false;
+window.api.onFocusRequest(() => {
+  kbdActive = true;
+  pauseDismiss();
+  const first = $('body').querySelector('[data-nav]');
+  if (first) first.focus(); else $('btn-close').focus();
+});
+window.addEventListener('blur', () => {
+  if (!kbdActive) return;
+  kbdActive = false;
+  if (!pinned && !islandHovered && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 45) * 1000);
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { retract(); return; }
+  const el = document.activeElement && document.activeElement.closest ? document.activeElement.closest('[data-nav]') : null;
+  if (!el || e.target !== el) return;
+  const navs = [...$('body').querySelectorAll('[data-nav]')], i = navs.indexOf(el);
+  const k = e.key;
+  if (k === 'ArrowDown' || k === 'ArrowUp') { e.preventDefault(); const n = navs[i + (k === 'ArrowDown' ? 1 : -1)]; if (n) n.focus(); return; }
+  const isCard = el.classList.contains('active-card');
+  const id = isCard ? el.dataset.card : el.dataset.id, file = el.dataset.file;
+  if (k === 'Enter') { e.preventDefault(); window.api.openEditor(file, id); return; }
+  if (k === ' ' || k === 'x') { e.preventDefault(); (isCard ? el.querySelector('[data-done]') : el.querySelector('[data-chk]')).click(); return; }
+  if (k === '*' || k === 's') { e.preventDefault(); (isCard ? el.querySelector('[data-unstar]') : el.querySelector('[data-star]')).click(); }
+});
 
 // soft blip when the island shows — synthesized in sfx.js, gated by the soundOn setting
 window.api.onPlaySound(() => window.SFX.play('show'));
