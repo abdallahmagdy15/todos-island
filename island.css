@@ -14,6 +14,16 @@ body { font-family: var(--font-sans); color: var(--ink); user-select: none; font
   border-radius: var(--r-pill);
   overflow: hidden; /* drop-in entry + retract exit are played from island.js on each show/hide */
 }
+/* G1 glass-look, drawn entirely INSIDE the pill (the transparent window has nothing to blur, and any outer
+   shadow/backdrop material would square-halo): specular rim via .rim::before + a faint top sheen. Body stays solid. */
+#pill::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 44px; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, var(--sheen), transparent);
+}
+/* G2: the one lifted object — Now card + its Done button carry the same rim */
+.active-card.rim::before { opacity: 0.8; }
+.active-card.rim:hover::before { opacity: 1; }
+.btn-done.rim::before { opacity: 0.55; }
 
 /* dismiss countdown (M7): hairline drains with transform scaleX, never width */
 #progress { height: 2px; background: var(--prog-bg); }

@@ -54,7 +54,10 @@ const THEME = {
   dark: { bg: '#121211', overlay: '#121211', symbol: '#a9a69e' }
 };
 const theme = () => THEME[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
-const overlay = () => ({ color: theme().overlay, symbolColor: theme().symbol, height: 46 });
+// G5: real Windows 11 Mica behind the tasks window — only on 22H2+ (build >= 22621); older builds keep the solid paper.
+// (a frameless window with a transparent background but NO material would show the raw desktop.)
+const MICA = process.platform === 'win32' && +String(require('os').release()).split('.')[2] >= 22621 && !process.env.TODO_ISLAND_NO_MICA;
+const overlay = (mica = false) => ({ color: mica ? '#00000000' : theme().overlay, symbolColor: theme().symbol, height: 46 });
 // in-memory undo log — one entry per interaction, tokened, countdown-driven cleanup.
 // entries live ONLY for the undo window: each popup fires undo-expire(token) when its countdown ends,
 // undo-action(token) consumes its entry; pushUndo lazily drops anything expired. Nothing on disk.
@@ -171,17 +174,19 @@ function openWindow(tab) {
   if (mainWin) { mainWin.show(); mainWin.focus(); if (tab) mainWin.webContents.send('show-tab', tab); return; }
   mainWin = new BrowserWindow({
     width: 920, height: 660, minWidth: 760, minHeight: 540,
-    backgroundColor: theme().bg,
+    backgroundColor: MICA ? '#00000000' : theme().bg,
+    ...(MICA ? { backgroundMaterial: 'mica' } : {}),
     autoHideMenuBar: true, show: false,
     frame: false, titleBarStyle: 'hidden',
     // overlay must exist at creation — setTitleBarOverlay throws otherwise ("Titlebar overlay is not enabled")
-    titleBarOverlay: overlay(),
+    titleBarOverlay: overlay(MICA),
     webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
   });
   applyOverlay();
   lockZoom(mainWin.webContents);
   mainWin.webContents.on('console-message', (_e, _lvl, msg) => LOG('WIN-CONSOLE: ' + msg));
-  mainWin.loadFile('window.html', tab ? { query: { tab } } : undefined);
+  const query = { ...(tab ? { tab } : {}), ...(MICA ? { mica: '1' } : {}) };
+  mainWin.loadFile('window.html', Object.keys(query).length ? { query } : undefined);
   mainWin.once('ready-to-show', () => mainWin.show());
   mainWin.on('render-process-gone', (_e, d) => LOG('WIN-GONE: ' + d.reason));
   mainWin.on('closed', () => { mainWin = null; });
@@ -245,7 +250,7 @@ function lockZoom(wc) {
 function applyOverlay() {
   if (!mainWin) return;
   try {
-    mainWin.setTitleBarOverlay(overlay());
+    mainWin.setTitleBarOverlay(overlay(MICA));
   } catch (e) { LOG('OVERLAY-SKIP ' + e.message); }
 }
 nativeTheme.on('updated', applyOverlay);
@@ -551,6 +556,9 @@ else {
           await iStep('island-star+undo', `(async()=>{ const b0=document.querySelector('#body .row [data-star]'); if(!b0) return 'no-star-btn'; b0.click(); await new Promise(r=>setTimeout(r,900)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; const lbl=document.querySelector('#undo-bar .undo-label').textContent; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok ['+lbl+']'; })()`);
           await iStep('island-check+undo', `(async()=>{ const c=document.querySelector('#body .row [data-chk]'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,1200)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
+          await step('glass+mica', `(async()=>{ const t=document.getElementById('undo-toast'); const bf=getComputedStyle(t).backdropFilter; return 'micaClass='+document.documentElement.classList.contains('mica')+' bodyBg='+getComputedStyle(document.body).backgroundColor+' toastBackdrop='+bf; })()`);
+          LOG('UTEST mica-enabled(main): ' + MICA + ' os=' + require('os').release());
+          await iStep('island-rim', `(async()=>{ const p=document.getElementById('pill'); const cs=getComputedStyle(p); return 'rimClass='+p.classList.contains('rim')+' pillShadow='+cs.boxShadow+' before='+getComputedStyle(p,'::before').content+' sheen='+getComputedStyle(p,'::after').content; })()`);
           const wait = ms => `await new Promise(r=>setTimeout(r,${ms}));`;
           const key = k => `document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'${k}',bubbles:true}));`;
           await step('kbd-roving+priority', `(async()=>{ document.getElementById('tab-work').click(); ${wait(300)} const rows=[...document.querySelectorAll('#task-list .wrow')]; rows[0].focus(); ${key('ArrowDown')} const moved=document.activeElement===rows[1]; const stops=rows.filter(r=>r.tabIndex===0).length; ${key('3')} ${wait(700)} const b1=document.activeElement.querySelector('.bang').textContent; ${key('0')} ${wait(700)} const b2=document.activeElement.querySelector('.bang').textContent; return 'moved='+moved+' tabstops='+stops+' after3=['+b1+'] after0=['+b2+'] role='+document.querySelector('#task-list .fold').getAttribute('role'); })()`);

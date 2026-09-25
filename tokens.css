@@ -25,6 +25,10 @@
   --ok: #2b7a3a; --danger: var(--p3);
   --shadow: 0 10px 30px rgba(28, 27, 25, 0.16);
   --pill-bg: #fbfaf7; --pill-border: rgba(28, 27, 25, 0.12); --prog-bg: rgba(28, 27, 25, 0.06);
+  /* glass: translucent surface for FLOATING layers only + specular rim/sheen drawn inside surfaces */
+  --glass: rgba(255, 255, 255, 0.72); --rim-hi: rgba(255, 255, 255, 0.95); --rim-lo: rgba(255, 255, 255, 0);
+  --sheen: rgba(255, 255, 255, 0.55);
+  --head-mica: rgba(247, 246, 242, 0.55); /* frosted strips over Mica (tasks window, Win 11 22H2+) */
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -37,12 +41,27 @@
     --ok: #7fd18b;
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     --pill-bg: #171716; --pill-border: rgba(236, 235, 230, 0.10); --prog-bg: rgba(236, 235, 230, 0.06);
+    --glass: rgba(30, 30, 28, 0.66); --rim-hi: rgba(255, 255, 255, 0.16); --rim-lo: rgba(255, 255, 255, 0);
+    --sheen: rgba(255, 255, 255, 0.045);
+    --head-mica: rgba(18, 18, 17, 0.45);
   }
 }
 
 [hidden] { display: none !important; } /* kills ghost elements whose display rule overrides the attribute */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+/* G4 "liquid" press: a quick settle-in on press (transform only, no bounce) */
+button { transition-property: background, border-color, color, filter, opacity, transform; }
+button:active:not(:disabled) { transform: scale(0.97); transition-duration: 90ms; }
+/* specular rim: a 1px light edge drawn INSIDE a surface (strongest at the top, fading down) — never an outer shadow */
+.rim { position: relative; isolation: isolate; }
+.rim::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; z-index: 1;
+  background: linear-gradient(180deg, var(--rim-hi), var(--rim-lo) 55%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  transition: opacity var(--d-1) ease;
 }
 /* one focus ring everywhere (keyboard only) */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

@@ -18,6 +18,9 @@ const CHECKS = {
     ['ink', 'accent-soft over paper', 4.5],
     ['ink', 'pill-bg', 4.5], ['muted', 'pill-bg', 4.5], ['faint', 'pill-bg', 4.5],
     ['accent', 'pill-bg', 4.5], ['p1', 'pill-bg', 4.5], ['p2', 'pill-bg', 4.5], ['p3', 'pill-bg', 4.5],
+    ['ink', 'glass over paper', 4.5], ['muted', 'glass over paper', 4.5], ['accent', 'glass over paper', 4.5],
+    ['ink', 'glass over card over paper', 4.5], ['muted', 'glass over card over paper', 4.5],
+    ['ink', 'head-mica over paper', 4.5], ['muted', 'head-mica over paper', 4.5], ['faint', 'head-mica over paper', 4.5],
     ['accent', 'accent-soft over pill-bg', 4.5], ['ink', 'accent-soft over pill-bg', 4.5], ['faint', 'chip over pill-bg', 4.5], ['muted', 'chip over card over paper', 4.5]
   ]
 };

@@ -428,3 +428,27 @@ kbd {
 }
 .selbox.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
 .selbox.on::after { content: '✓'; }
+
+/* ---- G3 liquid glass: ONLY floating layers (content really scrolls under them, so the blur means something) ---- */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .toast, .notice, .keys-pop, .menu {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5);
+  }
+}
+.toast::before, .notice::before, .keys-pop::before, .menu::before { /* specular rim, inside the surface */
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+  background: linear-gradient(180deg, var(--rim-hi), var(--rim-lo) 55%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+/* press transforms that must keep their own transform */
+.search-clear:active { transform: translateY(-50%) scale(0.94); }
+.wexp.open:active:not(:disabled) { transform: rotate(180deg) scale(0.97); }
+
+/* ---- G5 Mica (tasks window, Win 11 22H2+): body goes transparent so the system material shows;
+   chrome strips become frosted veils; the reading area stays a near-solid paper veil ---- */
+.mica body { background: transparent; }
+.mica header, .mica .new-task, .mica .statusline { background: var(--head-mica); }
+.mica #view-tasks .list-pane, .mica #view-settings { background: color-mix(in srgb, var(--paper) 88%, transparent); }
+.mica .search-box #search, .mica .new-task textarea { background: var(--card); }

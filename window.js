@@ -1,5 +1,7 @@
 'use strict';
 let snap = null, currentTab = 'work';
+// Mica mode (main process enables it on Win 11 22H2+): body goes transparent over the system material
+if (new URLSearchParams(location.search).get('mica') === '1') document.documentElement.classList.add('mica');
 
 const { esc, bangCls } = window.UI;
 const $ = id => document.getElementById(id);

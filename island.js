@@ -101,7 +101,7 @@ function render() {
     for (const a of actives) {
       const subs = a.subs.length
         ? `<div class="ac-subs">${a.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-parent="${esc(a.id)}" data-file="${a.file}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
-      html += `<div class="fold"><div class="fold-in"><div class="active-card" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="Now: ${esc(a.title)}">
+      html += `<div class="fold"><div class="fold-in"><div class="active-card rim" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="Now: ${esc(a.title)}">
         <div class="ac-head">
           <span class="star">&#9733;</span>
           <span class="bang ${bangCls(a.priority)}">${a.priority ? esc(a.priority) : ''}</span>
@@ -110,7 +110,7 @@ function render() {
         </div>
         ${subs}
         <div class="ac-actions">
-          <button class="btn-done" data-done="${esc(a.id)}" data-file="${a.file}"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Done</button>
+          <button class="btn-done rim" data-done="${esc(a.id)}" data-file="${a.file}"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>Done</button>
           <button class="btn-keep" data-unstar="${esc(a.id)}" data-file="${a.file}">Not now</button>
         </div>
       </div></div></div>`;
