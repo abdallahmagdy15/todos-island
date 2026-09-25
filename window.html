@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Todo Island — Tasks</title>
+<link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="window.css">
 </head>
 <body>
@@ -12,7 +13,7 @@
       <button id="tab-work" class="tab active">Work</button>
       <button id="tab-personal" class="tab">Personal</button>
       <button id="tab-done" class="tab">Done</button>
-      <button id="tab-settings" class="tab">Settings</button>
+      <button id="tab-settings" class="tab">Settings<span class="dirty-dot" id="settings-dirty" hidden aria-label="unsaved changes"></span></button>
       <button id="btn-share" class="tab share" title="Open the share window — pick tasks, copy or export as a progress message">Share</button>
     </nav>
   </header>
@@ -21,91 +22,144 @@
     <section id="view-tasks">
       <div class="list-pane">
         <input id="search" type="text" placeholder="Search…" spellcheck="false" autocomplete="off" aria-label="Search tasks">
+        <div class="list-head" id="done-head" hidden>
+          <h3 class="md-h"><span class="hash">##</span> Done <span class="md-count" id="done-count"></span></h3>
+          <button id="btn-clear-done" class="btn-text danger" type="button" title="Remove every completed task from both notes — undo stays available">Clear all</button>
+        </div>
         <div id="task-list"></div>
-        <div class="new-task">
-          <textarea id="new-title" rows="1" spellcheck="false" placeholder="New task… (first line = title, lines below = description)"></textarea>
+        <div class="new-task" id="composer">
+          <textarea id="new-title" rows="1" spellcheck="false" aria-label="New task"
+            placeholder="New task…  try  !! 26 Sep Fix login   ·   Shift+Enter adds a description line"></textarea>
           <div class="new-task-controls">
-            <div class="chips" id="new-prio"></div>
-            <button class="chip mini" id="btn-today" type="button">Today</button>
-            <button class="chip mini" id="btn-tomorrow" type="button">Tomorrow</button>
-            <input id="new-day" type="number" min="1" max="31" placeholder="Day">
-            <select id="new-month"></select>
-            <button id="btn-add" class="btn-accent"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+            <span class="ctl-label">Priority</span>
+            <div class="chips" id="new-prio" aria-label="Priority"></div>
+            <span class="ctl-label">Due</span>
+            <div class="chips" id="new-due" aria-label="Due date"></div>
+            <button id="btn-add" class="btn-accent" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Add</button>
+          </div>
+          <div class="composer-foot">
+            <span class="preview" id="new-preview" hidden><span class="pv-label">will write</span><code id="new-preview-line"></code></span>
+            <span class="composer-hint" id="new-hint" role="status" aria-live="polite"></span>
           </div>
         </div>
       </div>
     </section>
 
     <section id="view-settings" hidden>
-      <div class="settings-card">
-        <h2>Reminders</h2>
-        <label>Work-time reminders
-          <span class="ctl-group">
-            <input id="set-work-rem" type="checkbox" aria-label="Work-time reminders on">
-            <input id="set-work-interval" type="number" min="5" max="240" step="5">
-            <span class="unit">min</span>
-          </span>
-        </label>
-        <label>Off-hours reminders
-          <span class="ctl-group">
-            <input id="set-off-rem" type="checkbox" aria-label="Off-hours reminders on">
-            <input id="set-off-interval" type="number" min="5" max="240" step="5">
-            <span class="unit">min</span>
-          </span>
-        </label>
-        <label>Workday start
-          <input id="set-start" type="time">
-        </label>
-        <label>Workday end
-          <input id="set-end" type="time">
-        </label>
-        <label class="check-row"><input id="set-weekend" type="checkbox"> Weekend aware — weekends follow the off-hours schedule (personal time)</label>
-        <p class="note">Work-time reminders fire inside the workday; off-hours reminders cover evenings and
-          (with weekend aware) Sat/Sun. Both stay quiet for the night after midnight until the workday starts.</p>
-
-        <h2 class="mt">Island</h2>
-        <label>Auto-dismiss island after (seconds)
-          <input id="set-dismiss" type="number" min="5" max="600" step="5">
-        </label>
-        <label>Task hover-unfold delay (seconds)
-          <input id="set-hover" type="number" min="0.5" max="10" step="0.5">
-        </label>
-        <label class="check-row"><input id="set-focus" type="checkbox"> Focus by time — island shows work tasks in work hours, personal tasks outside</label>
-        <label class="check-row"><input id="set-sound" type="checkbox"> Sound when island shows</label>
-
-        <h2 class="mt">App</h2>
-        <label class="check-row"><input id="set-autostart" type="checkbox"> Start with Windows (quiet — no popup on boot)</label>
-        <label>Undo window (seconds)
-          <input id="set-undo" type="number" min="5" max="120" step="5">
-        </label>
-        <label>Show-island shortcut
-          <input id="set-shortcut" type="text" placeholder="Control+Alt+T">
-        </label>
-        <p class="note">Shortcut uses Electron accelerator format, e.g. Control+Alt+T.</p>
-
-        <h2 class="mt">Source files</h2>
-        <label>Work note path
-          <input id="set-work" type="text" class="full">
-        </label>
-        <label>Personal note path
-          <input id="set-personal" type="text" class="full">
-        </label>
-        <div class="btn-row">
-          <button id="btn-open-work" class="btn-soft" type="button">Open work note</button>
-          <button id="btn-open-personal" class="btn-soft" type="button">Open personal note</button>
-          <button id="btn-clear-done" class="btn-danger" type="button">Clear Done</button>
-        </div>
-        <div class="save-bar">
-          <button id="btn-save-settings" class="btn-accent">Save settings</button>
-          <span id="set-saved" class="saved" hidden>Saved ✓</span>
-          <span id="set-err" class="err" hidden></span>
-        </div>
+      <div class="dirty-guard" id="dirty-guard" hidden role="alert">
+        <span>You have unsaved changes.</span>
+        <button class="btn-accent sm" id="guard-save" type="button">Save</button>
+        <button class="btn-soft sm" id="guard-discard" type="button">Discard</button>
       </div>
+      <form class="settings-card" id="settings-form" autocomplete="off" onsubmit="return false">
+        <h2 class="md-h"><span class="hash">##</span> Reminders</h2>
+        <div class="srow">
+          <div class="slabel"><label for="set-work-rem">Work-time reminders</label><span class="shint">inside the workday · every 5–240 min</span></div>
+          <div class="sctl">
+            <span class="ctl-group">
+              <input id="set-work-rem" type="checkbox" role="switch" class="switch" aria-label="Work-time reminders on">
+              <input id="set-work-interval" type="number" min="5" max="240" step="5" aria-label="Work-time interval in minutes">
+              <span class="unit">min</span>
+            </span>
+            <span class="fstat" data-for="set-work-interval" role="status"></span>
+          </div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-off-rem">Off-hours reminders</label><span class="shint">evenings (and weekends, if weekend aware) · every 5–240 min</span></div>
+          <div class="sctl">
+            <span class="ctl-group">
+              <input id="set-off-rem" type="checkbox" role="switch" class="switch" aria-label="Off-hours reminders on">
+              <input id="set-off-interval" type="number" min="5" max="240" step="5" aria-label="Off-hours interval in minutes">
+              <span class="unit">min</span>
+            </span>
+            <span class="fstat" data-for="set-off-interval" role="status"></span>
+          </div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-start">Workday start</label></div>
+          <div class="sctl"><input id="set-start" type="time"></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-end">Workday end</label></div>
+          <div class="sctl"><input id="set-end" type="time"></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-weekend">Weekend aware</label><span class="shint">Sat/Sun follow the off-hours schedule (personal time)</span></div>
+          <div class="sctl"><input id="set-weekend" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <p class="note">Nothing fires after midnight until the workday starts.</p>
+
+        <h2 class="md-h mt"><span class="hash">##</span> Island</h2>
+        <div class="srow">
+          <div class="slabel"><label for="set-dismiss">Auto-dismiss after</label><span class="shint">seconds · 5–600</span></div>
+          <div class="sctl"><input id="set-dismiss" type="number" min="5" max="600" step="5"><span class="fstat" data-for="set-dismiss" role="status"></span></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-hover">Hover-unfold delay</label><span class="shint">seconds resting on a task before it unfolds · 0.5–10</span></div>
+          <div class="sctl"><input id="set-hover" type="number" min="0.5" max="10" step="0.5"><span class="fstat" data-for="set-hover" role="status"></span></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-focus">Focus by time</label><span class="shint">work tasks in work hours, personal tasks outside</span></div>
+          <div class="sctl"><input id="set-focus" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-sound">Sounds</label><span class="shint">soft chimes when the island shows and on actions</span></div>
+          <div class="sctl"><input id="set-sound" type="checkbox" role="switch" class="switch"></div>
+        </div>
+
+        <h2 class="md-h mt"><span class="hash">##</span> App</h2>
+        <div class="srow">
+          <div class="slabel"><label for="set-autostart">Start with Windows</label><span class="shint">quiet boot — no popup</span></div>
+          <div class="sctl"><input id="set-autostart" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-undo">Undo window</label><span class="shint">seconds · 5–120</span></div>
+          <div class="sctl"><input id="set-undo" type="number" min="5" max="120" step="5"><span class="fstat" data-for="set-undo" role="status"></span></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-shortcut">Show-island shortcut</label><span class="shint">click, then press the keys · Esc cancels</span></div>
+          <div class="sctl"><button id="set-shortcut" class="recorder" type="button"></button><span class="fstat" data-for="set-shortcut" role="status"></span></div>
+        </div>
+
+        <h2 class="md-h mt"><span class="hash">##</span> Source files</h2>
+        <div class="srow">
+          <div class="slabel"><span class="lbl">Work note</span><span class="shint file-name" id="work-name"></span></div>
+          <div class="sctl row">
+            <button id="btn-open-work" class="btn-soft sm" type="button">Open</button>
+            <button class="btn-soft sm" data-edit="work" type="button" aria-expanded="false">Change path</button>
+          </div>
+        </div>
+        <div class="path-edit" id="edit-work" hidden>
+          <input id="set-work" type="text" class="full" spellcheck="false" aria-label="Work note path">
+          <span class="fstat" data-for="set-work" role="status"></span>
+        </div>
+        <div class="srow">
+          <div class="slabel"><span class="lbl">Personal note</span><span class="shint file-name" id="personal-name"></span></div>
+          <div class="sctl row">
+            <button id="btn-open-personal" class="btn-soft sm" type="button">Open</button>
+            <button class="btn-soft sm" data-edit="personal" type="button" aria-expanded="false">Change path</button>
+          </div>
+        </div>
+        <div class="path-edit" id="edit-personal" hidden>
+          <input id="set-personal" type="text" class="full" spellcheck="false" aria-label="Personal note path">
+          <span class="fstat" data-for="set-personal" role="status"></span>
+        </div>
+
+        <div class="save-bar">
+          <button id="btn-save-settings" class="btn-accent" type="button">Save settings</button>
+          <span id="set-dirty-note" class="dirty-note" hidden>Unsaved changes</span>
+          <span id="set-saved" class="saved" hidden role="status">Saved ✓</span>
+          <span id="set-err" class="err" hidden role="alert"></span>
+        </div>
+      </form>
     </section>
   </main>
 
   <div id="undo-toast" hidden></div>
+  <div id="notice" class="notice" hidden role="status" aria-live="polite"></div>
   <script src="sfx.js"></script>
+  <script src="motion.js"></script>
+  <script src="ui-shared.js"></script>
   <script src="window.js"></script>
 </body>
 </html>

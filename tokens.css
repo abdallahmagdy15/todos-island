@@ -1,0 +1,23 @@
+/* tokens.css — ONE design-token source for every window (loaded before each window's own sheet).
+   Scales: 5 type sizes · 4 radii · 4px spacing · 3 motion durations. */
+:root {
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace; /* machine notation: bangs, dates, counts, ## */
+
+  --fs-1: 11px; --fs-2: 12.5px; --fs-3: 13.5px; --fs-4: 15px; --fs-5: 18px;
+  --r-1: 5px; --r-2: 9px; --r-3: 13px; --r-pill: 26px;
+  --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
+
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1); /* exits only */
+  --d-1: 120ms; --d-2: 200ms; --d-3: 320ms;
+
+  /* color aliases onto each window's current palette */
+  --ink: var(--text); --paper: var(--bg); --card: var(--bg-card); --input: var(--input-bg);
+  --rule: var(--border); --rule-soft: var(--border-soft); --hover: var(--row-hover); --danger: var(--p3);
+}
+
+[hidden] { display: none !important; } /* kills ghost elements whose display rule overrides the attribute */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

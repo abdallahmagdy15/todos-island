@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <title>Quick edit</title>
+<link rel="stylesheet" href="tokens.css">
 <link rel="stylesheet" href="window.css">
 <link rel="stylesheet" href="editor.css">
 </head>
@@ -25,12 +26,8 @@
           <button class="chip" id="ed-active" type="button">&#9733; Active now</button>
         </div>
       </div>
-      <div class="field"><label>Due (current year)</label>
-        <div class="due-row">
-          <input type="number" id="ed-day" min="1" max="31" placeholder="24">
-          <select id="ed-month"><option value="">Month…</option></select>
-          <button class="clear" id="ed-clear-due" type="button">Clear</button>
-        </div>
+      <div class="field"><label>Due</label>
+        <div class="chips" id="ed-due"></div>
       </div>
       <div class="field"><label>Subtasks (add only)</label>
         <ul class="subs-list" id="ed-subs"></ul>
@@ -49,6 +46,8 @@
     </div>
   </main>
   <script src="sfx.js"></script>
+  <script src="motion.js"></script>
+  <script src="ui-shared.js"></script>
   <script src="editor.js"></script>
 </body>
 </html>

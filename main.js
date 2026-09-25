@@ -5,8 +5,12 @@ const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShor
 const path = require('path');
 const fs = require('fs');
 const { NoteFile, resolveDue, MONTHS } = require('./lib/parse.js');
+const { composeTask } = require('./lib/compose.js');
 const { makePngBuffer } = require('./lib/icon.js');
 
+// test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
+// E2E runs use this so they never touch the owner's real notes.
+if (process.env.TODO_ISLAND_USERDATA) app.setPath('userData', process.env.TODO_ISLAND_USERDATA);
 const STATE_PATH = path.join(app.getPath('userData'), 'state.json'); // userData: writable in dev AND packaged (asar is read-only)
 const LOGF = path.join(process.env.TEMP || __dirname, 'todo-island.log');
 const LOG = m => { try { fs.appendFileSync(LOGF, `${new Date().toISOString()} ${m}\n`); } catch (e) {} };
@@ -327,6 +331,19 @@ ipcMain.handle('undo-action', (_e, token) => {
   const e = undoLog.get(token);
   if (!e || Date.now() > e.expires) { undoLog.delete(token); return { ok: false }; }
   undoLog.delete(token); // one-time — consumed
+  if (e.kind === 'clear') {
+    // whole-file rollback, but only if nobody touched the note since the clear — never clobber edits made in Obsidian
+    const changed = [];
+    for (const c of e.caps) {
+      let now = null;
+      try { now = fs.readFileSync(c.path, 'utf8'); } catch (err) {}
+      if (now !== c.after) { changed.push(path.basename(c.path)); continue; }
+      writeNoteText(c.path, c.before);
+    }
+    sendSnap();
+    if (mainWin) mainWin.webContents.send('tasks-changed');
+    return changed.length ? { ok: false, reason: 'changed', files: changed } : { ok: true };
+  }
   const f = fileFor(e.file);
   if (e.kind === 'toggle') {
     const t = f.findById(e.id);
@@ -388,12 +405,15 @@ ipcMain.handle('update-task', (_e, file, id, patch) => {
   sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return t ? { id: f.id(t) } : { id: null }; // id may change — editor adopts the new one
 });
+ipcMain.handle('compose-task', (_e, data) => composeTask(data || {})); // live "will write" preview — same serializer the note uses
 ipcMain.handle('add-task', (_e, file, data) => {
+  if (file !== 'work' && file !== 'personal') return { ok: false };
   const f = fileFor(file);
   const m = String(data.dueText || '').match(/^(\d{1,2})\s+([A-Za-z]{3})/);
-  const t = f.addTask({ title: data.title, priority: data.priority || null, due: m ? { d: +m[1], m: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() } : null });
-  if (t && data.desc) f.setNotes(f.id(t), data.desc);
+  const t = f.addTask({ title: data.title, priority: data.priority || null, active: !!data.active, due: m ? { d: +m[1], m: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() } : null });
+  if (t && data.desc && data.desc.length) f.setNotes(f.id(t), data.desc);
   f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
+  return { ok: !!t, id: t ? f.id(t) : null };
 });
 ipcMain.handle('add-subtask', (_e, file, parentId, title) => {
   const f = fileFor(file); f.addSubtask(parentId, title); f.save(); sendSnap();
@@ -432,11 +452,30 @@ ipcMain.handle('reorder-task', (_e, file, id, beforeId) => {
   }
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
-ipcMain.handle('clear-done', (_e, file) => {
-  const f = fileFor(file);
-  const count = f.clearDone(); f.save(); sendSnap();
+function writeNoteText(p, text) { // same atomic write NoteFile.save uses
+  try { fs.writeFileSync(p + '.tmp', text); fs.renameSync(p + '.tmp', p); }
+  catch (e) { fs.writeFileSync(p, text); }
+}
+// Clear all done tasks in both notes — undoable (whole-file capture, restored only if the note is unchanged since)
+ipcMain.handle('clear-done-all', () => {
+  const caps = []; let n = 0;
+  for (const tag of ['work', 'personal']) {
+    try {
+      const f = fileFor(tag);
+      const before = f.text();
+      const c = f.clearDone();
+      if (!c) continue;
+      f.save(); n += c;
+      caps.push({ path: f.path, before, after: fs.readFileSync(f.path, 'utf8') });
+    } catch (e) { LOG('CLEAR-DONE-ERR ' + tag + ' ' + e.message); }
+  }
+  if (n) {
+    const token = pushUndo({ kind: 'clear', caps, label: `${n} done task${n === 1 ? '' : 's'}`, expires: Date.now() + state.settings.undoSec * 1000 });
+    pushUndoToWindow(token);
+  }
+  sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
-  return count;
+  return n;
 });
 ipcMain.handle('copy-text', async (_e, text) => { await clipboard.writeText(String(text || '')); return true; }); // Electron 44 clipboard is async — await so the invoke resolves after the write
 ipcMain.handle('open-note', (_e, file) => {
@@ -493,7 +532,12 @@ else {
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
           await iStep('island-star+undo', `(async()=>{ const row=document.querySelector('#body .row'); if(!row) return 'no-row'; row.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(r=>setTimeout(r,900)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
-          await step('open-share', `(async()=>{ document.getElementById('btn-share').click(); await new Promise(r=>setTimeout(r,900)); return 'clicked'; })()`);
+          const wait = ms => `await new Promise(r=>setTimeout(r,${ms}));`;
+          await step('composer-empty-add', `(async()=>{ document.getElementById('new-title').value=''; document.getElementById('btn-add').click(); ${wait(300)} return 'hint=' + document.getElementById('new-hint').textContent; })()`);
+          await step('composer-typed-add', `(async()=>{ const ta=document.getElementById('new-title'); ta.value='!! 26 Sep E2E composed task'; ta.dispatchEvent(new Event('input',{bubbles:true})); ${wait(400)} const pv=document.getElementById('new-preview-line').textContent; const sel=[...document.querySelectorAll('#new-prio .pchip.sel')].map(c=>c.dataset.p).join(); document.getElementById('btn-add').click(); ${wait(700)} const row=[...document.querySelectorAll('.wrow')].find(r=>r.textContent.includes('E2E composed task')); return 'preview=[' + pv + '] chip=' + sel + ' row=' + (row ? row.querySelector('.bang').textContent + '|' + (row.querySelector('.wdue')||{}).textContent : 'MISSING'); })()`);
+          await step('done-tab+clear+undo', `(async()=>{ document.getElementById('tab-done').click(); ${wait(400)} const n0=document.querySelectorAll('.wrow.done').length; document.getElementById('btn-clear-done').click(); ${wait(700)} const n1=document.querySelectorAll('.wrow.done').length; ${undoClick} ${wait(900)} const n2=document.querySelectorAll('.wrow.done').length; return n0+'→'+n1+'→'+n2; })()`);
+          await step('settings-dirty-guard', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(500)} const d=document.getElementById('set-dismiss'); d.value='3'; d.dispatchEvent(new Event('input',{bubbles:true})); const dot=!document.getElementById('settings-dirty').hidden; document.getElementById('tab-work').click(); ${wait(200)} const guard=!document.getElementById('dirty-guard').hidden; document.getElementById('guard-save').click(); ${wait(700)} const fs=document.querySelector('.fstat[data-for=set-dismiss]').textContent; return 'dot='+dot+' guard='+guard+' clamp=['+fs+'] tab='+document.querySelector('.tab.active').id; })()`);
+          await step('open-share',`(async()=>{ document.getElementById('btn-share').click(); await new Promise(r=>setTimeout(r,900)); return 'clicked'; })()`);
           const shStep = (name, js) => (shareWin && shareWin.webContents.executeJavaScript(js))
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
           await shStep('share-pick+copy-wa', `(async()=>{ const rows=document.querySelectorAll('.sh-row'); if(rows.length<2) return 'need-2-rows:'+rows.length; rows[0].click(); await new Promise(r=>setTimeout(r,150)); rows[rows.length-1].click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return document.querySelectorAll('.sh-row.sel').length + ' selected'; })()`);
@@ -501,6 +545,7 @@ else {
           await shStep('share-fmt-md+copy', `(async()=>{ document.querySelector('.seg-btn[data-fmt=md]').click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return 'ok'; })()`);
           LOG('CLIP-MD: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
           LOG('UTEST-END undoLogSize=' + undoLog.size);
+          if (process.env.TODO_ISLAND_USERDATA) app.quit(); // sandboxed runs clean up after themselves
         } catch (e) { LOG('UTEST-FATAL ' + e.message); }
       }, 2500);
     }
