@@ -12,17 +12,23 @@ const LOGF = path.join(process.env.TEMP || __dirname, 'todo-island.log');
 const LOG = m => { try { fs.appendFileSync(LOGF, `${new Date().toISOString()} ${m}\n`); } catch (e) {} };
 
 const DEFAULT_SETTINGS = {
-  intervalMin: 30, dayStart: '09:00', dayEnd: '17:00',
-  dismissSec: 45, undoSec: 30, hoverSec: 2, shortcut: 'Control+Alt+T',
+  workIntervalMin: 30, offIntervalMin: 60, workRemindersOn: true, offRemindersOn: true,
+  dayStart: '09:00', dayEnd: '17:00',
+  dismissSec: 45, undoSec: 30, hoverSec: 2, shortcut: 'Control+Alt+T', focusByTime: true,
   weekendAware: false, autoStart: false, soundOn: false,
   workPath: path.join(require('os').homedir(), 'Documents', 'todos-island', 'work-tasks.md'),
   personalPath: path.join(require('os').homedir(), 'Documents', 'todos-island', 'personal.md')
+};
+const migrateSettings = s => {
+  if (s.intervalMin !== undefined && s.workIntervalMin === undefined) s.workIntervalMin = s.intervalMin; // v1.2 single interval → work interval
+  delete s.intervalMin;
+  return s;
 };
 const saveState = () => fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
 let state = { settings: { ...DEFAULT_SETTINGS }, lastShown: 0 };
 try {
   const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8'));
-  state = { ...state, ...saved, settings: { ...DEFAULT_SETTINGS, ...(saved.settings || {}) } };
+  state = { ...state, ...saved, settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(saved.settings || {}) }) };
   delete state.activeId; delete state.activeFile; // dead since the * marker moved "active" into the notes
 } catch (e) {
   // one-time migration: carry over a dev-era state.json that lived next to main.js
@@ -30,7 +36,7 @@ try {
   if (legacy !== STATE_PATH && fs.existsSync(legacy)) {
     try {
       const old = JSON.parse(fs.readFileSync(legacy, 'utf8'));
-      state = { ...state, ...old, settings: { ...DEFAULT_SETTINGS, ...(old.settings || {}) } };
+      state = { ...state, ...old, settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(old.settings || {}) }) };
       delete state.activeId; delete state.activeFile;
       saveState();
     } catch (e2) {}
@@ -70,25 +76,8 @@ function inWorkday() {
   return now >= s && now <= e;
 }
 
-function nextFireAt() {
-  const now = new Date();
-  const [sh, sm] = state.settings.dayStart.split(':').map(Number);
-  const [eh, em] = state.settings.dayEnd.split(':').map(Number);
-  const s = new Date(now); s.setHours(sh, sm, 0, 0);
-  const e = new Date(now); e.setHours(eh, em, 0, 0);
-  if (state.settings.weekendAware && (now.getDay() === 0 || now.getDay() === 6)) {
-    const mon = new Date(s);
-    while (mon.getDay() !== 1) mon.setDate(mon.getDate() + 1); // weekend → next Monday's dayStart
-    return mon.getTime();
-  }
-  if (now < s) return s.getTime();
-  if (now > e) {
-    const t = new Date(s); t.setDate(t.getDate() + 1);
-    if (state.settings.weekendAware) while (t.getDay() === 0 || t.getDay() === 6) t.setDate(t.getDate() + 1); // Fri eve → Mon
-    return t.getTime();
-  }
-  return Math.max(state.lastShown + state.settings.intervalMin * 60000, now.getTime());
-}
+const { nextFireAt: scheduleNext } = require('./lib/schedule.js');
+const nextFireAt = () => scheduleNext(state.settings, state.lastShown, Date.now());
 
 const RANK = { '!!!': 3, '!!': 2, '!': 1 };
 function snapshot() {
@@ -253,6 +242,15 @@ function registerShortcut() {
   } catch (e) { LOG('SHORTCUT-ERROR ' + e.message); return false; }
 }
 
+function applyAutoStart(on) {
+  // dev: electron.exe alone boots the default Electron welcome page — the app path must ride along.
+  // --hidden marks a system launch (checked below) so boot stays quiet.
+  const args = [];
+  if (!app.isPackaged) args.push(app.getAppPath());
+  args.push('--hidden');
+  app.setLoginItemSettings({ openAtLogin: !!on, openAsHidden: true, args });
+}
+
 function createTray() {
   const img = nativeImage.createFromBuffer(makePngBuffer(32));
   tray = new Tray(img);
@@ -355,7 +353,7 @@ ipcMain.handle('save-settings', (_e, s) => {
     }
   }
   if (clean.autoStart !== undefined && clean.autoStart !== state.settings.autoStart) {
-    app.setLoginItemSettings({ openAtLogin: !!clean.autoStart });
+    applyAutoStart(clean.autoStart);
   }
   for (const k of ['workPath', 'personalPath']) {
     if (clean[k] !== undefined && !fs.existsSync(clean[k])) {
@@ -476,8 +474,10 @@ else {
     createIsland();
     createTray();
     registerShortcut();
+    if (state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
     LOG('TRAY-READY');
-    setTimeout(showIsland, 1500); // one shakedown pop at launch
+    // one shakedown pop at launch — manual launches only; a system (--hidden) boot stays quiet
+    if (!process.argv.includes('--hidden')) setTimeout(showIsland, 1500);
     if (process.env.TODO_ISLAND_UNDO_TEST) {
       setTimeout(async () => {
         try {

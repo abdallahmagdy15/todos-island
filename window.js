@@ -193,11 +193,19 @@ $('tab-settings').addEventListener('click', async () => {
   $('tab-settings').classList.add('active');
   $('view-tasks').hidden = true; $('view-settings').hidden = false;
   const s = (await window.api.getSnapshot()).settings;
-  $('set-interval').value = s.intervalMin; $('set-start').value = s.dayStart; $('set-end').value = s.dayEnd;
+  $('set-work-rem').checked = s.workRemindersOn !== false; $('set-work-interval').value = s.workIntervalMin;
+  $('set-off-rem').checked = s.offRemindersOn !== false; $('set-off-interval').value = s.offIntervalMin;
+  $('set-work-interval').disabled = !$('set-work-rem').checked; $('set-off-interval').disabled = !$('set-off-rem').checked;
+  $('set-start').value = s.dayStart; $('set-end').value = s.dayEnd;
   $('set-dismiss').value = s.dismissSec; $('set-undo').value = s.undoSec; $('set-hover').value = s.hoverSec;
   $('set-shortcut').value = s.shortcut; $('set-work').value = s.workPath; $('set-personal').value = s.personalPath;
   $('set-weekend').checked = !!s.weekendAware; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn;
+  $('set-focus').checked = !!s.focusByTime;
 });
+// a schedule's interval input greys out while its toggle is off
+for (const [t, i] of [['set-work-rem', 'set-work-interval'], ['set-off-rem', 'set-off-interval']]) {
+  $(t).addEventListener('change', () => { $(i).disabled = !$(t).checked; });
+}
 $('btn-open-work').addEventListener('click', () => window.api.openNote('work'));
 $('btn-open-personal').addEventListener('click', () => window.api.openNote('personal'));
 $('btn-clear-done').addEventListener('click', async () => {
@@ -210,13 +218,16 @@ $('btn-save-settings').addEventListener('click', async () => {
   for (const id of ['set-shortcut', 'set-work', 'set-personal']) $(id).classList.remove('invalid');
   $('set-err').hidden = true;
   const res = await window.api.saveSettings({
-    intervalMin: Math.max(5, Math.min(240, +$('set-interval').value || 30)),
+    workIntervalMin: Math.max(5, Math.min(240, +$('set-work-interval').value || 30)),
+    offIntervalMin: Math.max(5, Math.min(240, +$('set-off-interval').value || 60)),
+    workRemindersOn: $('set-work-rem').checked, offRemindersOn: $('set-off-rem').checked,
     dayStart: $('set-start').value || '09:00', dayEnd: $('set-end').value || '17:00',
     dismissSec: Math.max(5, Math.min(600, +$('set-dismiss').value || 45)),
     undoSec: Math.max(5, Math.min(120, +$('set-undo').value || 30)),
     hoverSec: Math.max(0.5, Math.min(10, +$('set-hover').value || 2)),
     shortcut: $('set-shortcut').value.trim() || 'Control+Alt+T',
     weekendAware: $('set-weekend').checked, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked,
+    focusByTime: $('set-focus').checked,
     workPath: $('set-work').value.trim() || undefined,
     personalPath: $('set-personal').value.trim() || undefined
   });

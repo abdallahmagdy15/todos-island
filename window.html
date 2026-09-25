@@ -38,9 +38,20 @@
 
     <section id="view-settings" hidden>
       <div class="settings-card">
-        <h2>Reminder</h2>
-        <label>Interval (minutes)
-          <input id="set-interval" type="number" min="5" max="240" step="5">
+        <h2>Reminders</h2>
+        <label>Work-time reminders
+          <span class="ctl-group">
+            <input id="set-work-rem" type="checkbox" aria-label="Work-time reminders on">
+            <input id="set-work-interval" type="number" min="5" max="240" step="5">
+            <span class="unit">min</span>
+          </span>
+        </label>
+        <label>Off-hours reminders
+          <span class="ctl-group">
+            <input id="set-off-rem" type="checkbox" aria-label="Off-hours reminders on">
+            <input id="set-off-interval" type="number" min="5" max="240" step="5">
+            <span class="unit">min</span>
+          </span>
         </label>
         <label>Workday start
           <input id="set-start" type="time">
@@ -48,28 +59,30 @@
         <label>Workday end
           <input id="set-end" type="time">
         </label>
+        <label class="check-row"><input id="set-weekend" type="checkbox"> Weekend aware — weekends follow the off-hours schedule (personal time)</label>
+        <p class="note">Work-time reminders fire inside the workday; off-hours reminders cover evenings and
+          (with weekend aware) Sat/Sun. Both stay quiet for the night after midnight until the workday starts.</p>
+
+        <h2 class="mt">Island</h2>
         <label>Auto-dismiss island after (seconds)
           <input id="set-dismiss" type="number" min="5" max="600" step="5">
-        </label>
-        <label>Undo window (seconds)
-          <input id="set-undo" type="number" min="5" max="120" step="5">
         </label>
         <label>Task hover-unfold delay (seconds)
           <input id="set-hover" type="number" min="0.5" max="10" step="0.5">
         </label>
+        <label class="check-row"><input id="set-focus" type="checkbox"> Focus by time — island shows work tasks in work hours, personal tasks outside</label>
+        <label class="check-row"><input id="set-sound" type="checkbox"> Sound when island shows</label>
+
+        <h2 class="mt">App</h2>
+        <label class="check-row"><input id="set-autostart" type="checkbox"> Start with Windows (quiet — no popup on boot)</label>
+        <label>Undo window (seconds)
+          <input id="set-undo" type="number" min="5" max="120" step="5">
+        </label>
         <label>Show-island shortcut
           <input id="set-shortcut" type="text" placeholder="Control+Alt+T">
         </label>
-        <p class="note">Outside the workday the island stays quiet (personal tasks lead after hours).
-          Work tasks always rank first during the day. Shortcut uses Electron accelerator format, e.g. Control+Alt+T.</p>
-        <label class="check-row"><input id="set-weekend" type="checkbox"> Weekend aware (stay quiet Sat/Sun)</label>
-        <label class="check-row"><input id="set-autostart" type="checkbox"> Start with Windows</label>
-        <label class="check-row"><input id="set-sound" type="checkbox"> Sound when island shows</label>
-        <div class="btn-row">
-          <button id="btn-open-work" class="btn-soft" type="button">Open work note</button>
-          <button id="btn-open-personal" class="btn-soft" type="button">Open personal note</button>
-          <button id="btn-clear-done" class="btn-danger" type="button">Clear Done</button>
-        </div>
+        <p class="note">Shortcut uses Electron accelerator format, e.g. Control+Alt+T.</p>
+
         <h2 class="mt">Source files</h2>
         <label>Work note path
           <input id="set-work" type="text" class="full">
@@ -77,6 +90,11 @@
         <label>Personal note path
           <input id="set-personal" type="text" class="full">
         </label>
+        <div class="btn-row">
+          <button id="btn-open-work" class="btn-soft" type="button">Open work note</button>
+          <button id="btn-open-personal" class="btn-soft" type="button">Open personal note</button>
+          <button id="btn-clear-done" class="btn-danger" type="button">Clear Done</button>
+        </div>
         <div class="save-bar">
           <button id="btn-save-settings" class="btn-accent">Save settings</button>
           <span id="set-saved" class="saved" hidden>Saved ✓</span>

@@ -6,7 +6,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node lib/parse.test.js",
+    "test": "node lib/parse.test.js && node lib/schedule.test.js",
     "icon": "node scripts/make-icon.js",
     "dist": "electron-builder --win"
   },

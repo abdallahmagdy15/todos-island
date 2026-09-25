@@ -236,6 +236,12 @@ h2.mt { margin-top: 30px; }
 .settings-card input:focus { outline: none; border-color: var(--accent); }
 .settings-card input[type=text] { width: 300px; }
 .settings-card input.full { width: auto; flex: 1; max-width: 520px; }
+/* paired schedule rows: [toggle] every [N] min — interval greys out when its toggle is off */
+.ctl-group { display: flex; align-items: center; gap: 8px; flex: none; }
+.ctl-group input[type=number] { width: 76px; text-align: center; }
+.ctl-group input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+.ctl-group .unit { color: var(--muted); font-size: 12px; font-weight: 600; }
+.ctl-group input:disabled { opacity: 0.45; }
 .note { color: var(--muted); font-size: 12.5px; margin-top: 16px; line-height: 1.6; }
 .mono { font-family: Consolas, monospace; font-size: 12px; }
 .selbox {

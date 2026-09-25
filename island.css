@@ -164,6 +164,8 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .star { flex: none; color: var(--accent); font-size: 15px; line-height: 1; }
 .active-card .ac-title { flex: 1; font-weight: 650; font-size: 14px; line-height: 1.4; }
 .ac-subs { margin-top: 8px; font-size: 12.5px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+.ac-subs div[data-sub] { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: 0 -4px; }
+.ac-subs div[data-sub]:hover { color: var(--text); background: var(--row-hover); }
 .ac-subs .done { color: var(--faint); text-decoration: line-through; }
 .ac-actions { display: flex; gap: 8px; margin-top: 12px; }
 .ac-actions button {

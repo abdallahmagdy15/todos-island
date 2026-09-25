@@ -94,7 +94,11 @@ function render() {
   if (!snap) return;
   const hoverRowId = hoverRow ? hoverRow.dataset.id : null;
   clearTimeout(hoverT); hoverRow = null;
-  const flat = snap.sections.flatMap(s => s.items);
+  // focus by time: the pill mirrors the clock — work tasks in the workday, personal outside (toggle in Settings).
+  // snapshot keeps both sections, so the tasks/share windows are never filtered — this is island-only.
+  let sections = snap.sections;
+  if (snap.settings.focusByTime) sections = sections.filter(s => s.name === (snap.workday ? 'Work' : 'Personal'));
+  const flat = sections.flatMap(s => s.items);
   const total = flat.length;
   const actives = flat.filter(t => t.active);
   document.body.classList.toggle('expanded', expanded);
@@ -114,7 +118,7 @@ function render() {
     html += `<div class="sec">Active now</div>`;
     for (const a of actives) {
       const subs = a.subs.length
-        ? `<div class="ac-subs">${a.subs.map(s => `<div class="${s.done ? 'done' : ''}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
+        ? `<div class="ac-subs">${a.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-parent="${esc(a.id)}" data-file="${a.file}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
       html += `<div class="active-card">
         <div class="ac-head">
           <span class="star">&#9733;</span>
@@ -129,11 +133,15 @@ function render() {
         </div>
       </div>`;
     }
+  } else if (!total) {
+    html += `<div class="hint">${snap.settings.focusByTime
+      ? (snap.workday ? 'No open work tasks — the workday list is clear.' : 'No open personal tasks — enjoy the off hours.')
+      : 'Nothing open right now — add tasks in the tasks window.'}</div>`;
   } else {
     html += `<div class="hint">Click a task to mark it as what you're working on now (★).</div>`;
   }
 
-  for (const sec of snap.sections) {
+  for (const sec of sections) {
     const rest = sec.items.filter(t => !t.active);
     const items = expanded ? rest : rest.slice(0, 3);
     if (!items.length && !expanded) continue;
@@ -141,7 +149,7 @@ function render() {
   }
   // one expand control, at the very bottom of the list — standard "show more" pattern
   const hiddenCount = flat.filter(t => !t.active).length -
-    snap.sections.reduce((n, sec) => n + Math.min(3, sec.items.filter(t => !t.active).length), 0);
+    sections.reduce((n, sec) => n + Math.min(3, sec.items.filter(t => !t.active).length), 0);
   if (expanded) {
     html += `<div class="expand-row" id="expand-toggle"><svg class="ic" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>Show less</div>`;
   } else if (hiddenCount > 0) {
@@ -233,9 +241,14 @@ const findTask = id => snap && snap.sections.flatMap(s => s.items).find(t => t.i
 document.addEventListener('click', e => {
   if (e.target.closest('#expand-toggle')) { window.SFX.play('tick'); expanded = !expanded; render(); return; }
   const sub = e.target.closest('[data-sub]');
-  if (sub) {
+  if (sub) { // tick a subtask — works in hover-unfold rows AND in Active-now cards
+    e.stopPropagation();
+    window.SFX.play('tick');
     const row = sub.closest('.row');
-    if (row) { e.stopPropagation(); window.SFX.play('tick'); window.api.toggleSubtask(row.dataset.file, row.dataset.id, sub.dataset.sub); return; }
+    const file = row ? row.dataset.file : sub.dataset.file;
+    const parent = row ? row.dataset.id : sub.dataset.parent;
+    window.api.toggleSubtask(file, parent, sub.dataset.sub);
+    return;
   }
   const done = e.target.closest('[data-done]');
   if (done) { window.SFX.play('complete'); window.api.complete(done.dataset.done, done.dataset.file); return; }
