@@ -690,6 +690,9 @@ else {
             const v3 = island && island.isVisible();
             LOG(`UTEST toggle-cycle: show=${v1} dismissed=${!v2} reshow=${v3}`);
           }
+          await iStep('island-share', `(async()=>{ const b=document.getElementById('btn-share'); if(!b) return 'no-btn'; b.click(); await new Promise(r=>setTimeout(r,800)); return 'clicked'; })()`);
+          LOG('UTEST island-share(main): shareOpen=' + !!(shareWin && !shareWin.isDestroyed()) + ' islandVisible=' + (island ? island.isVisible() : 'n/a'));
+          if (shareWin && !shareWin.isDestroyed()) shareWin.close();
           await iStep('island-check+undo', `(async()=>{ const c=document.querySelector('#body .row [data-chk]'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,1200)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           await step('glass+mica', `(async()=>{ const t=document.getElementById('undo-toast'); const bf=getComputedStyle(t).backdropFilter; return 'micaClass='+document.documentElement.classList.contains('mica')+' bodyBg='+getComputedStyle(document.body).backgroundColor+' toastBackdrop='+bf; })()`);

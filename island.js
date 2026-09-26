@@ -69,8 +69,18 @@ function scheduleResize(delay = 0) {
   resizeT = setTimeout(() => window.api.resize($('wrap').offsetHeight, 0), delay);
 }
 
+// cold start: the pill can appear before the first snapshot lands — Facebook-style shimmer rows,
+// never an empty "stock" island. Skeleton swaps for real content the moment a snapshot arrives.
+function renderSkeleton() {
+  $('head-title').textContent = T('app.name');
+  $('head-count').textContent = '';
+  const row = i => `<div class="sk-row" style="--i:${i}"><span class="sk sk-bang"></span><span class="sk sk-title" style="--w:${58 + (i * 13) % 30}%"></span><span class="sk sk-due"></span></div>`;
+  $('body').innerHTML = row(0) + row(1) + row(2);
+  document.body.classList.remove('expanded');
+  requestAnimationFrame(() => window.api.resize($('wrap').offsetHeight));
+}
 function render() {
-  if (!snap) return;
+  if (!snap) { renderSkeleton(); return; }
   const hoverRowId = hoverRow ? hoverRow.dataset.id : null;
   const focusedId = kbdActive && document.activeElement && document.activeElement.dataset ? (document.activeElement.dataset.id || document.activeElement.dataset.card) : null;
   clearTimeout(hoverT); hoverRow = null;
@@ -137,7 +147,7 @@ function render() {
   const hiddenCount = flat.filter(t => !t.active).length -
     sections.reduce((n, sec) => n + Math.min(3, sec.items.filter(t => !t.active).length), 0);
   if (expanded) {
-    html += `<div class="expand-row" id="expand-toggle"><svg class="ic" viewBox="0 0 24 24"><path d="M18 15l-6-6-6-6"/></svg>${T('isl.expand.less')}</div>`;
+    html += `<div class="expand-row" id="expand-toggle"><svg class="ic" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>${T('isl.expand.less')}</div>`;
   } else if (hiddenCount > 0) {
     html += `<div class="expand-row" id="expand-toggle">${T('isl.expand.all', { n: flat.length })}<svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>`;
   }
@@ -354,7 +364,7 @@ window.api.onShown(() => {
   window.Motion.play(pill, [{ transform: 'translateY(-115%)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 340, easing: 'cubic-bezier(.22,.9,.36,1)', fill: 'none' });
 });
 
-$('btn-expand').addEventListener('click', () => { window.SFX.play('tick'); expanded = !expanded; render(); });
+$('btn-share').addEventListener('click', () => { window.SFX.play('tick'); window.api.openShare(); retract(); }); // pill steps aside, share window takes over
 $('btn-gear').addEventListener('click', () => { window.api.openWindow(); retract(); });
 $('btn-close').addEventListener('click', () => retract());
 // ---- keyboard (only reachable when summoned by the shortcut — the window is focusable just then) ----
@@ -392,11 +402,15 @@ document.addEventListener('keydown', e => {
 // soft blip when the island shows — synthesized in sfx.js, gated by the soundOn setting
 window.api.onPlaySound(() => window.SFX.play('show'));
 
-window.api.onSnapshot(s => {
+function handleSnap(s) {
   if (s && s.lang && s.lang !== LANG) { LANG = s.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
   if (s && s.settings) window.SFX.enabled = !!s.settings.soundOn;
   if (!snap) expanded = false;
   if (animating) { pendingSnap = s; return; }
   snap = s;
   render();
-});
+}
+window.api.onSnapshot(handleSnap);
+// main's first sendSnap can beat this renderer's listeners — fetch once so the skeleton never sticks
+(async () => { try { const s = await window.api.getSnapshot(); if (s && !snap) handleSnap(s); } catch (e) {} })();
+render(); // skeleton until the first snapshot lands

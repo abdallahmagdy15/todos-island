@@ -49,9 +49,6 @@ body.pinned #progress { display: none; }
 }
 .pill-top button:hover { background: var(--hover); color: var(--ink); }
 .pill-top button.pinned { color: var(--accent); background: var(--accent-soft); }
-#btn-expand .chev-up { display: none; }
-body.expanded #btn-expand .chev-down { display: none; }
-body.expanded #btn-expand .chev-up { display: block; }
 
 #body { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 4px; }
 #body::-webkit-scrollbar { width: 6px; }
@@ -130,6 +127,26 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .redit .ic { width: 13px; height: 13px; }
 .row:hover .redit, .row:focus-within .redit, .redit:focus-visible { opacity: 1; }
 .redit:hover { color: var(--accent); background: var(--accent-soft); }
+
+/* cold-start skeleton — Facebook-style shimmer. Transform-only sweep on a pseudo-element (off the
+   main thread), 1.4s linear (constant motion = loading), 180ms stagger per row. Reduced motion:
+   no sweep, a gentle opacity pulse instead. */
+.sk-row { display: flex; align-items: center; gap: 10px; padding: 10px 2px; }
+.sk { position: relative; overflow: hidden; height: 12px; border-radius: var(--r-1); background: var(--chip-bg); }
+.sk::after {
+  content: ''; position: absolute; inset: 0; transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, var(--row-hover), transparent);
+  animation: sk-sweep 1.4s linear infinite; animation-delay: calc(var(--i, 0) * 0.18s);
+}
+.sk-bang { flex: none; width: 18px; }
+.sk-title { flex: 1; width: var(--w, 60%); }
+.sk-due { flex: none; width: 44px; }
+@keyframes sk-sweep { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .sk::after { animation: none; }
+  .sk { animation: sk-pulse 1.6s ease-in-out infinite alternate; }
+}
+@keyframes sk-pulse { to { opacity: 0.55; } }
 
 /* M1 ink strike + M2 highlighter: inline backgrounds, so they sweep line by line across wrapped titles */
 .tt.striking {
