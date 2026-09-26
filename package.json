@@ -1,6 +1,6 @@
 {
   "name": "todos-island",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "description": "Dynamic-Island-style todo reminder tray app — reads your plain-markdown todo notes, shows them as a top-of-screen island",
   "main": "main.js",
@@ -10,7 +10,8 @@
     "contrast": "node scripts/contrast.js",
     "icon": "node scripts/make-icon.js",
     "dist": "electron-builder --win",
-    "csscheck": "node scripts/css-coverage.js"
+    "csscheck": "node scripts/css-coverage.js",
+    "verify-dist": "node scripts/verify-dist.js"
   },
   "author": "abdallahmagdy15",
   "license": "MIT",
@@ -30,24 +31,7 @@
       "buildResources": "build"
     },
     "files": [
-      "main.js",
-      "lib/**",
-      "scripts/**",
-      "*.html",
-      "*.css",
-      "island-preload.js",
-      "window-preload.js",
-      "island.js",
-      "window.js",
-      "editor.js",
-      "share.js",
-      "share.html",
-      "share.css",
-      "sfx.js",
-      "motion.js",
-      "ui-shared.js",
-      "package.json",
-      "LICENSE"
+      "**/*"
     ],
     "win": {
       "target": [
