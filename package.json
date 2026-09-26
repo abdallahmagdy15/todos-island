@@ -6,10 +6,11 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "node lib/parse.test.js && node lib/schedule.test.js && node lib/compose.test.js && node lib/i18n.test.js && node lib/setup.test.js",
+    "test": "node lib/parse.test.js && node lib/schedule.test.js && node lib/compose.test.js && node lib/i18n.test.js && node lib/setup.test.js && node scripts/css-coverage.js",
     "contrast": "node scripts/contrast.js",
     "icon": "node scripts/make-icon.js",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "csscheck": "node scripts/css-coverage.js"
   },
   "author": "abdallahmagdy15",
   "license": "MIT",

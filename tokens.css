@@ -71,3 +71,14 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 ::-webkit-scrollbar-thumb { background: var(--chip); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--rule); }
 ::-webkit-scrollbar-track { background: transparent; }
+
+/* segmented control (Language, WhatsApp/Markdown) — shared, tokens only */
+.seg { display: flex; background: var(--chip); border-radius: var(--r-2); padding: 3px; }
+.seg-btn {
+  border: 0; background: transparent; color: var(--muted); font-family: inherit;
+  font-size: var(--fs-2); font-weight: 650; padding: 6px 13px; border-radius: var(--r-1); cursor: pointer;
+  transition: background var(--d-1) ease, color var(--d-1) ease, box-shadow var(--d-1) ease;
+}
+.seg-btn:hover { color: var(--ink); }
+.seg-btn.sel { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); }
+.seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }

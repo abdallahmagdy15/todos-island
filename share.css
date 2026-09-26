@@ -34,9 +34,3 @@ footer {
   flex-wrap: wrap;
 }
 footer .left, footer .right { display: flex; align-items: center; gap: var(--s-2); }
-.seg { display: flex; background: var(--chip); border-radius: var(--r-2); padding: 3px; }
-.seg-btn {
-  border: 0; background: transparent; color: var(--muted); font-family: inherit;
-  font-size: var(--fs-2); font-weight: 650; padding: 6px 13px; border-radius: var(--r-1); cursor: pointer;
-}
-.seg-btn.sel { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); }
