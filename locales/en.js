@@ -140,7 +140,7 @@ const STRINGS_EN = {
   'isl.btn.editAria': 'Edit: {t}',
   'isl.expand.all': 'Show all {n} tasks',
   'isl.expand.less': 'Show less',
-  'isl.hint.star': 'Click a task to set it as Now · [ ] completes · ✎ edits',
+  'isl.hint.star': 'Click a task to set it as Now · ✎ edits',
   'isl.hint.emptyWork': 'No open work tasks — the workday list is clear.',
   'isl.hint.emptyPersonal': 'No open personal tasks — enjoy the off hours.',
   'isl.hint.empty': 'Nothing open right now — add tasks in the tasks window.',

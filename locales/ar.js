@@ -140,7 +140,7 @@ const STRINGS_AR = {
   'isl.btn.editAria': 'تعديل: {t}',
   'isl.expand.all': 'عرض الكل ({n})',
   'isl.expand.less': 'عرض أقل',
-  'isl.hint.star': 'انقر مهمة لتجعلها «الآن» · [ ] للإنجاز · ✎ للتعديل',
+  'isl.hint.star': 'انقر مهمة لتجعلها «الآن» · ✎ للتعديل',
   'isl.hint.emptyWork': 'لا مهام عمل مفتوحة — قائمة الدوام خالية.',
   'isl.hint.emptyPersonal': 'لا مهام شخصية مفتوحة — استمتع بوقتك.',
   'isl.hint.empty': 'لا شيء مفتوح الآن — أضف مهام من نافذة المهام.',

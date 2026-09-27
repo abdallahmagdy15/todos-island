@@ -119,7 +119,11 @@ body.pinned .gl-arc { transform: none !important; transition: none !important; }
 .row.dragging { opacity: 0.45; }
 .row.drop-above { box-shadow: inset 0 2px 0 var(--accent); } /* inset on a row, not the pill — safe */
 
-.bang { flex: none; width: 28px; padding-top: 2px; font-family: var(--font-mono); font-weight: 750; font-size: var(--fs-2); letter-spacing: -1px; }
+/* right-hand meta: priority · date · (★) · edit, centered on the title's FIRST line (titles can wrap) */
+.meta { flex: none; display: inline-flex; align-items: center; gap: 8px; height: calc(var(--fs-task) * 1.45 + 1px); }
+.active-card .meta { height: calc(var(--fs-task-lg) * 1.4); }
+.bang { flex: none; font-family: var(--font-mono); font-weight: 750; font-size: var(--fs-task); line-height: 1; letter-spacing: -1px; }
+.active-card .bang { font-size: var(--fs-task-lg); }
 .bang.p3 { color: var(--p3); } .bang.p2 { color: var(--p2); } .bang.p1 { color: var(--p1); }
 .bang.p0::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-inline-start: 10px; border-radius: 50%; background: var(--faint); opacity: 0.5; vertical-align: middle; }
 
@@ -192,16 +196,10 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 }
 @keyframes sk-pulse { to { opacity: 0.55; } }
 
-/* M1 ink strike + M2 highlighter: inline backgrounds, so they sweep line by line across wrapped titles */
+/* M1 ink strike: an inline background, so it sweeps line by line across wrapped titles */
 .tt.striking {
   background-image: linear-gradient(currentColor, currentColor);
   background-repeat: no-repeat; background-position: 0 58%; background-size: 100% 1.5px;
-}
-.hl {
-  background-image: linear-gradient(var(--accent-soft), var(--accent-soft));
-  background-repeat: no-repeat; background-position: 0 70%; background-size: 100% 72%;
-  border-radius: 3px; padding: 0 2px; margin: 0 -2px;
-  -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
 .kbd { font-family: var(--font-mono); font-size: var(--fs-1); }
 
@@ -226,25 +224,24 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 }
 .err-banner button:hover { background: color-mix(in srgb, var(--p3) 12%, transparent); }
 
-/* Now card: the task you're on, with the highlighter behind its title */
+/* Now card: the task you're on */
 .active-card {
   margin: 4px 10px 12px; padding: 13px 15px;
   background: var(--accent-soft); border: 1px solid var(--accent-border); border-radius: var(--r-inner);
 }
 .active-card .ac-head { display: flex; align-items: center; gap: 10px; }
 .active-card .ac-head { align-items: flex-start; }
-.active-card .ac-head > .rchk, .active-card .ac-head > .star { margin-top: 1px; }
+.active-card .ac-head > .rchk { height: calc(var(--fs-task-lg) * 1.4); min-height: 0; margin-block: 0; font-size: var(--fs-task); font-weight: 700; }
 /* the ★ is the Not-now button (owner pick "C"): hover shows it will empty to ☆; the title itself does the same */
 .star {
-  flex: none; width: 22px; height: 22px; margin: -1px -4px -1px -6px; padding: 0; border: 0; border-radius: var(--r-1);
-  background: transparent; color: var(--accent); font-size: var(--fs-4); line-height: 1; cursor: pointer;
+  flex: none; width: 26px; height: 26px; margin: -3px -4px; padding: 0; border: 0; border-radius: var(--r-1);
+  background: transparent; color: var(--accent); font-size: calc(var(--fs-task-lg) * 1.3); line-height: 1; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center; transition: background var(--d-1) ease, color var(--d-1) ease;
 }
 .star:hover { background: var(--accent-soft); }
-.star:hover::before { content: '\2606'; } .star:hover { font-size: 0; } .star:hover::before { font-size: var(--fs-4); }
+.star:hover::before { content: '\2606'; } .star:hover { font-size: 0; } .star:hover::before { font-size: calc(var(--fs-task-lg) * 1.3); }
 .active-card .ac-title { flex: 1; min-width: 0; font-weight: 650; font-size: var(--fs-task-lg); line-height: 1.4; cursor: pointer; }
-.active-card .due { margin-top: 2px; }
-.ac-subs { margin: 8px 0 0 32px; }
+.ac-subs { margin: 8px 0 0 34px; }
 
 /* subtasks (Now card + hover-unfolded rows): the note's own [ ] / [x] brackets at task-text size */
 .sub { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-task); line-height: 1.45; color: var(--muted); cursor: pointer; border-radius: var(--r-1); padding: 1px 4px; margin: 0 -4px; }

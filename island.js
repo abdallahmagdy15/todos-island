@@ -4,7 +4,6 @@ let dismissT = null;
 let islandHovered = false; // pointer anywhere on the island window → the timer sits FULL, whatever you click
 let counting = false; // a dismiss countdown is running (re-renders never restart or pause it)
 let animating = 0, pendingSnap = null; // a snapshot arriving mid-animation waits — re-rendering would kill the moving row
-let prevActive = null; // ids that were Now last render — newly-Now titles get the highlighter swipe
 
 const { esc, bangCls } = window.UI;
 const $ = id => document.getElementById(id);
@@ -30,16 +29,15 @@ function subsHtml(subs, attrs = '') {
   const fold = done.length ? `<div class="subs-done"><div class="sd-sum">${esc(T('isl.sub.doneN', { n: done.length }))}</div><div class="sd-wrap"><div class="sd-in">${done.map(one).join('')}</div></div></div>` : '';
   return open.map(one).join('') + fold;
 }
+// priority sits on the right with the date; no priority → nothing (no placeholder dot)
+const bangHtml = t => t.priority ? `<span class="bang ${bangCls(t.priority)}">${esc(t.priority)}</span>` : '';
 function rowHtml(t) {
   const subsBadge = t.subs.length ? `<span class="row-sub">${T('isl.sub.badge', { a: t.subs.filter(s => !s.done).length, b: t.subs.length })}</span>` : '';
   const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${esc(n)}</div>`).join('');
   const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs)}</div></div>` : '';
   return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(t.title)}" draggable="true">
-    <button class="rchk" data-chk type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: t.title }))}">[ ]</button>
-    <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
     <div class="row-main"><span class="rtitle"><span class="tt">${esc(t.title)}</span></span>${detail}</div>
-    ${subsBadge}${dueHtml(t)}
-    <button class="redit" data-edit type="button" title="${esc(T('isl.btn.editTitle'))}" aria-label="${esc(T('isl.btn.editAria', { t: t.title }))}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button>
+    <span class="meta">${subsBadge}${bangHtml(t)}${dueHtml(t)}<button class="redit" data-edit type="button" title="${esc(T('isl.btn.editTitle'))}" aria-label="${esc(T('isl.btn.editAria', { t: t.title }))}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button></span>
   </div></div></div>`;
 }
 
@@ -135,11 +133,8 @@ function render() {
       html += `<div class="fold"><div class="fold-in"><div class="active-card rim" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
-          <button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button>
-          <span class="bang ${bangCls(a.priority)}">${a.priority ? esc(a.priority) : ''}</span>
-          <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="hl"><span class="tt">${esc(a.title)}</span></span></span>
-          ${dueHtml(a)}
-          <button class="redit" data-edit type="button" title="${esc(T('isl.btn.editTitle'))}" aria-label="${esc(T('isl.btn.editAria', { t: a.title }))}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button>
+          <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${esc(a.title)}</span></span>
+          <span class="meta">${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button><button class="redit" data-edit type="button" title="${esc(T('isl.btn.editTitle'))}" aria-label="${esc(T('isl.btn.editAria', { t: a.title }))}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button></span>
         </div>
         ${subs}
       </div></div></div>`;
@@ -171,16 +166,6 @@ function render() {
     const again = $('body').querySelector(`.row[data-id="${CSS.escape(hoverRowId)}"]`);
     if (again) { again.classList.add('hovered'); hoverRow = again; }
   }
-  // M2 — a task that just became Now gets the highlighter swipe behind its title
-  const nowIds = new Set(actives.map(a => a.id));
-  if (prevActive) {
-    for (const id of nowIds) {
-      if (prevActive.has(id)) continue;
-      const hl = $('body').querySelector(`[data-card="${CSS.escape(id)}"] .hl`);
-      window.Motion.play(hl, [{ backgroundSize: '0% 72%' }, { backgroundSize: '100% 72%' }], { duration: 260, fill: 'none' });
-    }
-  }
-  prevActive = nowIds;
   if (kbdActive) { // keyboard mode survives re-renders: focus returns to the same task (or the first one)
     const navs = [...$('body').querySelectorAll('[data-nav]')];
     const again = navs.find(n => (n.dataset.id || n.dataset.card) === focusedId) || navs[0];
@@ -310,12 +295,6 @@ document.addEventListener('click', e => {
     const file = row ? row.dataset.file : sub.dataset.file;
     const parent = row ? row.dataset.id : sub.dataset.parent;
     window.api.toggleSubtask(file, parent, sub.dataset.sub);
-    return;
-  }
-  const chk = e.target.closest('[data-chk]');
-  if (chk) {
-    const row = chk.closest('.row');
-    completeWithInk(row.dataset.id, row.dataset.file, row.closest('.fold'), row.querySelector('.tt'), chk);
     return;
   }
   const edit = e.target.closest('[data-edit]');
@@ -555,7 +534,7 @@ document.addEventListener('keydown', e => {
   const isCard = el.classList.contains('active-card');
   const id = isCard ? el.dataset.card : el.dataset.id, file = el.dataset.file;
   if (k === 'Enter') { e.preventDefault(); editFromIsland(file, id); return; }
-  if (k === ' ' || k === 'x') { e.preventDefault(); (isCard ? el.querySelector('[data-done]') : el.querySelector('[data-chk]')).click(); return; }
+  if (k === ' ' || k === 'x') { e.preventDefault(); if (isCard) el.querySelector('[data-done]').click(); else completeWithInk(id, file, el.closest('.fold'), el.querySelector('.tt'), null); return; }
   if (k === '*' || k === 's') {
     e.preventDefault();
     if (isCard) el.querySelector('[data-unstar]').click();
