@@ -138,13 +138,14 @@
     btn.title = tip; btn.setAttribute('aria-label', tip);
   }
   // theme color + text sizes from settings (every window calls this with each snapshot's settings)
-  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], SIZE_K = [0.92, 1, 1.1, 1.2];
+  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'wallpaper'], SIZE_K = [0.92, 1, 1.1, 1.2];
   function applyTheme(s) {
     if (!s) return;
     const r = document.documentElement, a = ACCENTS.includes(s.accent) ? s.accent : 'blue';
     if (a === 'blue') delete r.dataset.accent; else r.dataset.accent = a;
+    r.dataset.bg = BG_THEMES.includes(s.islandTheme) ? s.islandTheme : 'mist'; // island theme → the tasks window's color field too
     r.style.setProperty('--ui-k', SIZE_K[s.labelSize] ?? 1);
     r.style.setProperty('--task-k', SIZE_K[s.taskSize] ?? 1);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo, renderUpdate, applyTheme, ACCENTS };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo, renderUpdate, applyTheme, ACCENTS, BG_THEMES };
 })();

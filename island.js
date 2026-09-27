@@ -351,7 +351,7 @@ let retracting = false;
 function retract() {
   if (retracting) return;
   retracting = true;
-  islandHovered = false; pointerIn = false; held = null; counting = false; // a hidden window never gets its mouseleave
+  islandHovered = false; counting = false; // a hidden window never gets its mouseleave
   clearTimeout(dismissT);
   const anim = window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
   // backstop: the window must really hide even if the animation stalls, or the next shortcut press only "dismisses"
@@ -368,117 +368,83 @@ window.api.onShown(info => {
   retracting = false;
   // hover is only trusted if the island was already up; a fresh pop starts un-hovered and counts down at once
   islandHovered = info.fresh && document.documentElement.matches(':hover');
-  if (!islandHovered) { pointerIn = false; held = null; }
   counting = false; armDismiss(); // every show: a fresh full countdown (or held full, if the pointer is already on it)
-  // a new pop: the old screen copy is stale — start frosted (tint at full) and let the fresh copy fade in
-  if (!info.fresh && glassLevel > 0) { haveFrame = false; applyGlass(true); tick(); } // a warm stream paints at once // heal a retract whose animation promise died silently — the pill is visible again
   const pill = $('pill');
   pill.getAnimations().forEach(a => a.cancel());
   gelDrop(pill);
 });
 
-// ---- liquid glass ----
-// Glass level (Settings): 0 = solid thick glass · 1–4 = 20/35/50/65 % of the screen shows through.
-// While the island is up it streams the screen (main hands over the media-source id; the island itself is excluded
-// from capture) and paints the strip under the pill into the #gl-bd canvas ~5×/s. The lens filter (#isl-lens)
-// bends it, CSS blurs + tints it. The tint is exactly the chosen level — nothing is measured at runtime (owner: keep it light).
-const GLASS_ALPHA = [1, 0.8, 0.65, 0.5, 0.35];
-// Tint (Settings): 0 = off · 1–4 = the glass takes on more and more of the accent hue, like tinted glass
-const TINT_ALPHA = [0, 0.08, 0.15, 0.22, 0.3];
-let tintLevel = 0;
+// ---- glass over a drawn theme ----
+// The island no longer films the screen (owner, 2026-09-27: the live copy lagged behind scrolling and filmed the
+// mouse pointer as a blurry ghost). Instead it paints its chosen theme into the #gl-bd canvas — a soft mesh
+// gradient, or a frosted still of the desktop wallpaper — and every glass layer stays on top: the lens bends it at
+// the edges, the frost (--g-alpha) covers it at the chosen level, the rim, arc and inner shading give it thickness.
+// Painted only when something changes (size, theme, light/dark, wallpaper); nothing runs per frame.
+const GLASS_ALPHA = [1, 0.8, 0.65, 0.5, 0.35]; // Frost (Settings → Glass): 0 = solid · 1–4 = 20/35/50/65 % of the theme shows
 const GL_PAD = 16; // the backdrop canvas overhangs the pill so the blur never pulls in transparent edges
-const FRAME_MS = 200, STREAM_LINGER_MS = 60e3; // keep the stream warm a minute after hiding: quick re-pops are instant
-let glassLevel = 3, winPos = { x: window.screenX, y: window.screenY }, haveFrame = false;
-let source = null, stream = null, video = null, starting = null, frameT = null, lingerT = null, frames = 0, photo = null;
-// The desktop stream films the real mouse pointer too (measured: ~54 px of arrow in the frame). Under the lens it
-// came out bent and blurred, a ghost cursor following the mouse. So while the pointer is on the island the glass
-// HOLDS a copy taken before it arrived: a short ring of clean strips (tall, so a hover-unfold still has backdrop).
-const HOLD_H = 1000, HOLD_N = 3;
-let pointerIn = false, held = null;
-const clean = [];
-function keepClean(k, r) {
-  const c = $('gl-bd'), b = clean.length >= HOLD_N ? clean.shift() : document.createElement('canvas');
-  b.width = c.width; b.height = HOLD_H;
-  b.getContext('2d').drawImage(video, (r.x - source.display.x) * k, (r.y - source.display.y) * k, b.width * k, HOLD_H * k, 0, 0, b.width, HOLD_H);
-  clean.push(b);
-}
-document.documentElement.addEventListener('mouseenter', () => { pointerIn = islandHovered = true; held = clean[0] || null; armDismiss(); }); // oldest clean strip ≈ 0.4–0.6 s before
-document.documentElement.addEventListener('mouseleave', () => { pointerIn = islandHovered = false; held = null; clean.length = 0; armDismiss(); }); // leave → fresh full countdown
-function applyGlass(pending = false) {
-  const lens = glassLevel > 0 && (haveFrame || pending);
+// mesh gradients: four soft color points over a base, as fractions of the pill box ([color, x, y, rx, ry]).
+// Colors are tokens (--bg-<theme>-0..4, light + dark in tokens.css, gated by contrast.js).
+const MESH = {
+  mist: [[4, 0.3, 0.9, 0.35, 0.6], [3, 0.7, 0.95, 0.4, 0.7], [2, 0.88, 0.1, 0.45, 0.8], [1, 0.12, 0.2, 0.4, 0.7]],
+  dusk: [[2, 0.3, 1, 0.4, 0.7], [3, 0.92, 0.55, 0.45, 0.8], [4, 0.55, 0.05, 0.4, 0.7], [1, 0.08, 0.15, 0.45, 0.75]],
+  lagoon: [[4, 0.9, 0.95, 0.35, 0.6], [2, 0.5, 0.1, 0.4, 0.7], [3, 0.85, 0.2, 0.4, 0.7], [1, 0.15, 0.85, 0.45, 0.8]],
+  bloom: [[4, 0.25, 0.95, 0.35, 0.6], [2, 0.6, 1, 0.4, 0.7], [3, 0.1, 0.3, 0.4, 0.7], [1, 0.9, 0.15, 0.45, 0.8]],
+  dune: [[3, 0.95, 0.95, 0.35, 0.6], [2, 0.35, 1, 0.4, 0.7], [1, 0.8, 0.25, 0.4, 0.7], [4, 0.1, 0.1, 0.45, 0.8]]
+};
+let glassLevel = 3, bgTheme = 'mist', winPos = { x: window.screenX, y: window.screenY }, haveFrame = false, wall = null;
+document.documentElement.addEventListener('mouseenter', () => { islandHovered = true; armDismiss(); });
+document.documentElement.addEventListener('mouseleave', () => { islandHovered = false; armDismiss(); }); // leave → fresh full countdown
+function applyGlass() {
+  const lens = glassLevel > 0;
   document.body.dataset.glass = lens ? 'lens' : 'solid';
+  document.body.dataset.bg = bgTheme === 'wallpaper' && wall ? 'wallpaper' : 'mesh';
   document.body.classList.toggle('gl-ready', haveFrame);
-  $('pill').style.setProperty('--g-alpha', haveFrame && glassLevel > 0 ? GLASS_ALPHA[glassLevel].toFixed(2) : '1');
-  $('pill').style.setProperty('--g-hue-a', TINT_ALPHA[tintLevel] || 0);
-  if (lens) { sizeCanvas(); scheduleLensMap(); }
+  $('pill').style.setProperty('--g-alpha', lens ? GLASS_ALPHA[glassLevel].toFixed(2) : '1');
+  if (lens) { sizeCanvas(); paint(); scheduleLensMap(); }
 }
 function sizeCanvas() {
   const pill = $('pill'), c = $('gl-bd'), w = pill.clientWidth + 2 * GL_PAD, h = pill.clientHeight + 2 * GL_PAD;
   if (w > 2 * GL_PAD && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; paint(); } // resizing clears — repaint now
 }
-// the strip under the pill, in screen DIP: window position + the pill's layout box (transforms ignored on purpose)
-function stripRect() {
-  const pill = $('pill');
-  return { x: winPos.x + pill.offsetLeft + pill.clientLeft - GL_PAD, y: winPos.y + pill.offsetTop + pill.clientTop - GL_PAD };
+function paintMesh(ctx, w, h) {
+  const cs = getComputedStyle(document.documentElement), t = MESH[bgTheme] ? bgTheme : 'mist';
+  const col = i => cs.getPropertyValue(`--bg-${t}-${i}`).trim() || '#888';
+  const pw = w - 2 * GL_PAD, ph = h - 2 * GL_PAD;
+  ctx.fillStyle = col(0); ctx.fillRect(0, 0, w, h);
+  for (const [i, x, y, rx, ry] of MESH[t]) { // an ellipse = a unit circle gradient under a scaled transform
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, 1);
+    const c = col(i); // fade to the same color at 0 alpha — canvas gradients to 'transparent' pass through grey
+    g.addColorStop(0, c); g.addColorStop(0.7, c.length === 7 ? c + '00' : 'transparent');
+    ctx.save(); ctx.translate(GL_PAD + x * pw, GL_PAD + y * ph); ctx.scale(rx * pw, ry * ph);
+    ctx.fillStyle = g; ctx.fillRect(-10, -10, 20, 20); ctx.restore();
+  }
+}
+// the wallpaper still is laid out like Windows lays it on the screen (fill / fit / stretch), then the strip under the pill is cut from it
+function paintWall(ctx, w, h) {
+  const { img, display: d, style } = wall, pill = $('pill');
+  const x0 = winPos.x + pill.offsetLeft + pill.clientLeft - GL_PAD - d.x, y0 = winPos.y + pill.offsetTop + pill.clientTop - GL_PAD - d.y;
+  let sx = d.width / img.naturalWidth, sy = d.height / img.naturalHeight;
+  if (style === 'fill') sx = sy = Math.max(sx, sy); else if (style === 'fit') sx = sy = Math.min(sx, sy);
+  const dw = img.naturalWidth * sx, dh = img.naturalHeight * sy;
+  ctx.fillStyle = wall.bgColor || '#000'; ctx.fillRect(0, 0, w, h);
+  ctx.drawImage(img, (d.width - dw) / 2 - x0, (d.height - dh) / 2 - y0, dw, dh);
 }
 function paint() {
-  const c = $('gl-bd'), ctx = c.getContext('2d'), r = stripRect();
-  if (video && video.videoWidth && source) {
-    if (pointerIn && held) { ctx.clearRect(0, 0, c.width, c.height); ctx.drawImage(held, 0, 0, Math.min(c.width, held.width), c.height, 0, 0, Math.min(c.width, held.width), c.height); return true; }
-    const k = video.videoWidth / source.display.width; // video px per DIP
-    ctx.drawImage(video, (r.x - source.display.x) * k, (r.y - source.display.y) * k, c.width * k, c.height * k, 0, 0, c.width, c.height);
-    if (!pointerIn) keepClean(k, r);
-    return true;
-  }
-  if (photo && photo.img.complete) { ctx.drawImage(photo.img, r.x - photo.x, r.y - photo.y, c.width, c.height, 0, 0, c.width, c.height); return true; }
-  return false;
+  const c = $('gl-bd');
+  if (!c.width) return;
+  const ctx = c.getContext('2d');
+  if (bgTheme === 'wallpaper' && wall) paintWall(ctx, c.width, c.height); else paintMesh(ctx, c.width, c.height);
+  haveFrame = true; document.body.classList.add('gl-ready');
 }
-function tick() {
-  clearTimeout(frameT);
-  if (document.visibilityState !== 'visible') return;
-  if (paint()) {
-    frames++;
-    if (!haveFrame) { haveFrame = true; applyGlass(); } // first frame: the glass fades in
-  }
-  frameT = setTimeout(tick, FRAME_MS);
-}
-async function startStream() {
-  clearTimeout(lingerT);
-  if (stream && stream.active) return tick();
-  if (starting || !source) return starting;
-  starting = (async () => {
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { mandatory: {
-        chromeMediaSource: 'desktop', chromeMediaSourceId: source.id,
-        maxWidth: source.display.width, maxHeight: source.display.height, maxFrameRate: 10 } } });
-      video = video || Object.assign(document.createElement('video'), { muted: true });
-      video.srcObject = stream;
-      await video.play();
-      tick();
-    } catch (e) { stream = null; console.log('GLASS-STREAM-FAIL ' + e.message); } // stays frosted — never an error for the user
-    finally { starting = null; }
-  })();
-  return starting;
-}
-function stopStream() {
-  clearTimeout(frameT);
-  if (stream) stream.getTracks().forEach(t => t.stop());
-  stream = null;
-  if (video) video.srcObject = null;
-}
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState === 'visible') return;
-  clearTimeout(frameT); clearTimeout(lingerT);
-  lingerT = setTimeout(stopStream, STREAM_LINGER_MS);
-});
-window.api.onGlass(src => { source = src; photo = null; if (glassLevel > 0) startStream(); });
-window.api.onPhoto(bd => { // showcase screenshots: a still photo instead of the stream
-  if (!bd) return;
+const repaint = () => { if (glassLevel > 0) { sizeCanvas(); paint(); } };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaint); // Light/Dark switched: new token colors
+window.api.onWallpaper(wp => { // main sends the desktop picture (or null: a plain-color desktop → Mist)
+  if (!wp) { wall = null; applyGlass(); return; }
   const img = new Image();
-  img.onload = () => { photo = { img, x: bd.x, y: bd.y }; haveFrame = false; tick(); };
-  img.src = bd.url;
+  img.onload = () => { wall = { ...wp, img }; applyGlass(); };
+  img.src = wp.url;
 });
-window.api.onBounds(b => { if (b) { winPos = b; paint(); } });
+window.api.onBounds(b => { if (b) { winPos = b; if (bgTheme === 'wallpaper') repaint(); } });
 // displacement map for a rounded rect: pixels near the edge sample from further in, like light through a thick lens
 function lensMap(w, h, r, bezel) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
@@ -595,9 +561,8 @@ function handleSnap(s) {
     window.SFX.enabled = !!s.settings.soundOn;
     window.UI.applyTheme(s.settings);
     const g = Number.isInteger(s.settings.glassLevel) ? s.settings.glassLevel : 3;
-    if (g !== glassLevel) { glassLevel = g; if (!g) stopStream(); else if (source) startStream(); applyGlass(); }
-    const tl = Number.isInteger(s.settings.tintLevel) ? Math.max(0, Math.min(4, s.settings.tintLevel)) : 0;
-    if (tl !== tintLevel) { tintLevel = tl; applyGlass(); }
+    const t = window.UI.BG_THEMES.includes(s.settings.islandTheme) ? s.settings.islandTheme : 'mist';
+    if (g !== glassLevel || t !== bgTheme) { glassLevel = g; bgTheme = t; applyGlass(); }
   }
   if (!snap) expanded = false;
   if (animating) { pendingSnap = s; return; }

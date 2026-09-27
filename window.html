@@ -96,6 +96,29 @@
         <p class="note" data-i18n="set.note.night">Nothing fires after midnight until the workday starts.</p>
         <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.look">Look</span></h2>
         <div class="srow">
+          <div class="slabel"><label id="appear-lbl" data-i18n="set.appear">Appearance</label><span class="shint" data-i18n="set.appear.hint">light or dark for every window, or follow Windows</span></div>
+          <div class="sctl">
+            <div class="seg" id="appear-seg" role="radiogroup" aria-labelledby="appear-lbl">
+              <button class="seg-btn" data-appear="system" type="button" role="radio" data-i18n="set.appear.system">System</button>
+              <button class="seg-btn" data-appear="light" type="button" role="radio" data-i18n="set.appear.light">Light</button>
+              <button class="seg-btn" data-appear="dark" type="button" role="radio" data-i18n="set.appear.dark">Dark</button>
+            </div>
+          </div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label id="bg-lbl" data-i18n="set.bg">Theme</label><span class="shint" data-i18n="set.bg.hint">the picture under the island's glass; this window's color field follows it</span></div>
+          <div class="sctl">
+            <div class="bgsws" id="bg-sw" role="radiogroup" aria-labelledby="bg-lbl">
+              <button class="bgsw" type="button" role="radio" data-bg="mist" data-i18n-title="set.bg.mist" data-i18n-aria="set.bg.mist"></button>
+              <button class="bgsw" type="button" role="radio" data-bg="dusk" data-i18n-title="set.bg.dusk" data-i18n-aria="set.bg.dusk"></button>
+              <button class="bgsw" type="button" role="radio" data-bg="lagoon" data-i18n-title="set.bg.lagoon" data-i18n-aria="set.bg.lagoon"></button>
+              <button class="bgsw" type="button" role="radio" data-bg="bloom" data-i18n-title="set.bg.bloom" data-i18n-aria="set.bg.bloom"></button>
+              <button class="bgsw" type="button" role="radio" data-bg="dune" data-i18n-title="set.bg.dune" data-i18n-aria="set.bg.dune"></button>
+              <button class="bgsw" type="button" role="radio" data-bg="wallpaper" data-i18n-title="set.bg.wallpaper" data-i18n-aria="set.bg.wallpaper"></button>
+            </div>
+          </div>
+        </div>
+        <div class="srow">
           <div class="slabel"><label id="glass-lbl" data-i18n="set.glass">Glass</label><span class="shint" data-i18n="set.glass.hint">how much of your screen shows through the island</span></div>
           <div class="sctl">
             <div class="steps" id="glass-steps" role="radiogroup" aria-labelledby="glass-lbl">
@@ -108,7 +131,7 @@
           </div>
         </div>
         <div class="srow">
-          <div class="slabel"><label id="accent-lbl" data-i18n="set.accent">Theme color</label><span class="shint" data-i18n="set.accent.hint">buttons, Now and the glass tint follow it</span></div>
+          <div class="slabel"><label id="accent-lbl" data-i18n="set.accent">Theme color</label><span class="shint" data-i18n="set.accent.hint">buttons, Now and focus rings follow it</span></div>
           <div class="sctl">
             <div class="swatches" id="accent-sw" role="radiogroup" aria-labelledby="accent-lbl">
               <button class="swatch" type="button" role="radio" data-accent="blue" data-i18n-title="set.accent.blue" data-i18n-aria="set.accent.blue"></button>
@@ -211,18 +234,6 @@
         <div class="srow">
           <div class="slabel"><label for="set-focus" data-i18n="set.focus">Focus by time</label><span class="shint" data-i18n="set.focus.hint">work tasks in work hours, personal tasks outside</span></div>
           <div class="sctl"><input id="set-focus" type="checkbox" role="switch" class="switch"></div>
-        </div>
-        <div class="srow">
-          <div class="slabel"><label id="tint-lbl" data-i18n="set.tint">Tint</label><span class="shint" data-i18n="set.tint.hint">how strongly the island glass takes on the accent color</span></div>
-          <div class="sctl">
-            <div class="steps" id="tint-steps" role="radiogroup" aria-labelledby="tint-lbl">
-              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.tint.off">Off</button>
-              <button class="step" type="button" role="radio" data-glass="1">1</button>
-              <button class="step" type="button" role="radio" data-glass="2">2</button>
-              <button class="step" type="button" role="radio" data-glass="3">3</button>
-              <button class="step" type="button" role="radio" data-glass="4">4</button>
-            </div>
-          </div>
         </div>
         <div class="srow">
           <div class="slabel"><label for="set-sound" data-i18n="set.sound">Sounds</label><span class="shint" data-i18n="set.sound.hint">soft chimes when the island shows and on actions</span></div>

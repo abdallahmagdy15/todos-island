@@ -6,7 +6,7 @@
 
 ![release](https://img.shields.io/github/v/release/abdallahmagdy15/todos-island) ![platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey) ![license](https://img.shields.io/badge/license-MIT-green)
 
-![The island in light and dark: liquid glass over a real desktop](docs/island-hero.png)
+![The island in light and dark](docs/island-hero.png)
 
 ## Why another todo app?
 
@@ -49,11 +49,12 @@ The tokens can go in any order, and all of them are optional. The app's own edit
   - Tick `[ ]` to complete it.
   - Pin the island to keep it on screen.
   - Press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> to show or hide it.
-- **Liquid glass.** The island bends, blurs and tints the screen behind it, live, like real glass.
-  - Choose how see-through it is in *Settings → Island → Glass*: **Solid**, 20%, 35%, 50% or 65%.
-  - A soft glow behind the text keeps it readable over busy backgrounds. Nothing is measured while it runs, so it stays light.
+- **Glass themes.** The island is frosted glass over a soft picture you choose in *Settings → Look → Theme*: **Mist**, **Dusk**, **Lagoon**, **Bloom**, **Dune**, or **Wallpaper** (a frosted still of your own desktop picture).
+  - Every theme has a light and a dark version. Pick **Light**, **Dark** or **System** in *Settings → Look → Appearance*; every window follows it.
+  - Choose how much of the theme shows through in *Settings → Look → Glass*: **Solid**, 20%, 35%, 50% or 65%.
+  - The picture is drawn once, not recorded from your screen, so nothing lags or runs in the background.
   - Pick a **theme color** (blue, violet, teal, pink or graphite) and separate **label** and **task text sizes** in *Settings*.
-  - The tasks window has a soft color field behind a glass header and composer.
+  - The tasks window's soft color field follows your theme, behind a glass header and composer.
 - **Undo for everything.** Complete, delete, un-mark Now, reorder or clear done: every change you make gets a short countdown with an Undo button.
 - **Share your day.** Pick tasks, then copy them as WhatsApp-ready text or Markdown, or export a `.md` file. This is useful for daily updates to a lead, a team or an AI assistant.
 - **Keyboard first.** In the task list: <kbd>↑</kbd>/<kbd>↓</kbd> to move, <kbd>Enter</kbd> to edit, <kbd>Space</kbd> to complete, <kbd>\*</kbd> for Now, <kbd>0</kbd>–<kbd>3</kbd> for priority, <kbd>/</kbd> to search, <kbd>?</kbd> for all shortcuts.
@@ -79,8 +80,8 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 
 - Your tasks and notes stay on your PC. The app collects no analytics and needs no account.
 - The one network request: at startup (then once a day) it asks GitHub for the latest release number. Nothing about you or your tasks is sent. If a newer version exists, a small green **Update** pill appears in the top bar; nothing downloads on its own. You can turn this off in *Settings → App → Check for updates*.
-- To draw the glass, the island streams the part of the screen directly behind it. The frames stay in the island's own renderer and are never saved or sent anywhere.
-- While glass is on, Windows keeps the island **out of screenshots and screen shares**, so your tasks don't leak into a meeting. If you want the island to show up in screenshots, set Glass to **Solid**.
+- The island never records your screen. The **Wallpaper** theme reads the copy of your desktop picture that Windows already keeps on your PC; it stays in the island and is never saved or sent anywhere.
+- The island is a normal window: it shows up in screenshots and screen shares like any other app.
 
 ## Develop
 

@@ -41,7 +41,7 @@ Confirmed with the owner (interview, 2026-09-26). This is what makes it differen
 
 A "no" on any of these → propose it to the owner, don't build it.
 
-**Defaults:** `DEFAULT_SETTINGS` in main.js are the owner's own tuned setup: 60/60 min cadence, 10 s dismiss, 5 s undo, 1 s hover, weekend-aware, autostart and sound on, Glass 50 % (`glassLevel: 3`). Every new install starts from them. Change a default only on the owner's word.
+**Defaults:** `DEFAULT_SETTINGS` in main.js are the owner's own tuned setup: 60/60 min cadence, 10 s dismiss, 5 s undo, 1 s hover, weekend-aware, autostart and sound on, Glass 50 % (`glassLevel: 3`), theme Mist, appearance System. Every new install starts from them. Change a default only on the owner's word.
 
 ## Architecture map
 
@@ -61,7 +61,7 @@ A "no" on any of these → propose it to the owner, don't build it.
 | lib/i18n.js + locales/en.js, ar.js | interface strings (English/Arabic), dual-mode loader | any user-visible text |
 | lib/icon.js | app + tray icon PNGs in pure Node (zlib + CRC32): the [★] mark (owner pick, 2026-09-27) as signed-distance shapes with 4×4 supersampling. Tile = paper square, ink brackets, blue star; tray = no tile, brackets in the taskbar's ink (light/dark, follows nativeTheme), one bitmap per display scale | icon changes |
 | scripts/make-icon.js | regenerates `build/icon.ico` (7 sizes) — run `npm run icon` | icon changes |
-| island.html/css/js | the drop-down pill UI (top of screen) + its liquid glass (live screen stream → lens canvas) | island behavior/looks |
+| island.html/css/js | the drop-down pill UI (top of screen) + its glass over a drawn theme (mesh gradient / wallpaper still → lens canvas) | island behavior/looks |
 | window.html/css/js | main tasks window: tabs, list, search, settings | main window |
 | editor.html/css/js | quick-edit popup for one task | editor |
 | share.html/css/js | share window: pick tasks → copy as WhatsApp/Markdown text or export .md | share/export |
@@ -134,34 +134,27 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
 - **Keyboard:** task lists are ONE roving tab stop (↑/↓, Enter edit, Space/x complete, `*`/s Now, 0–3 priority, Del delete, `/` search, `n` new, `?` key list). The island takes focus ONLY when summoned by the global shortcut and drops focusability on hide — timed pops never steal focus. The shortcut is a **toggle**: the same key dismisses a visible island through the animated retract (`retract-island` channel → `onRetract`).
 - **Shared components (ui-shared.js):** `UI.mountUndo` is THE undo bubble (window toast + island bar); `UI.countdown` drains bars with `transform: scaleX` and pauses from elapsed time; `UI.prioChips` / `UI.dueControl` are the only priority/due inputs. Don't fork them per window.
 - **Editor:** shows a "will write" line (via `compose-task`); Save writes what that line says. Rare actions (move/delete) live in the ⋯ menu.
-- **Liquid glass (v1.5, owner-approved variant "4 · hybrid", 2026-09-27).** Setting `glassLevel` sets how see-through the island is: 0 = Solid (drawn thick glass), 1–4 = 20/35/50/65 % (default 3). Settings → Island → Glass shows it as five clickable steps (`.steps`).
-  - **Island.**
-    - The transparent window has nothing to blur, so the island renderer **streams the screen under itself**: getUserMedia with `chromeMediaSource: 'desktop'`.
-    - It paints the strip under the pill into `<canvas id="gl-bd">` about 5×/s. `#isl-lens` (an SVG displacement lens map built in JS, plus a 3-channel color split) bends it, and CSS blurs and tints it (`.gl-tint`, animatable `--g-alpha`).
-    - A pop starts frosted and the glass fades in with the first frame, mid-drop.
-    - **No runtime measuring** (owner, 2026-09-27: keep it light). The tint is exactly the chosen level; `measureNeed` was removed. Readability comes from static CSS: the island's stronger greys (`--island-muted/-faint`, gated) and a soft `text-shadow` halo of the glass base on lens glass.
-    - Drawn layers `.gl-arc/.gl-rim/.gl-sweep` plus inset shadows give it thickness.
-    - Gel drop (`gelDrop`, independent X/Y springs via `Motion.spring`) and gel press. **No light sweep on show:** the owner found it distracting, and it was removed from the onboarding stage too.
-    - **No pointer-follow glow:** the owner rejected the mouse halo.
-    - **The stream films the real cursor.** Measured at about 54 px of arrow in the frame. Under the lens it showed as a bent, blurred ghost cursor that followed the mouse.
-      - While the pointer is over the island window, the glass HOLDS a clean strip taken before the pointer arrived: `keepClean` keeps a ring of 3 strips, 1000 px tall, so a hover-unfold still has a backdrop.
-      - The live stream resumes on mouseleave. Never paint live frames while `pointerIn`.
-    - **The dismiss timer is the glass highlight** (owner pick "D", 2026-09-27). The top arc `#gl-arc` and a faint blue core `#progress-fill` along the top edge shrink toward the center as time runs out. Both are driven by `UI.countdown` (scaleX from the center). Pinned = the full highlight, with no clock. Never go back to a bar across the top: it covered the specular edge.
-    - **Tint** (`tintLevel` 0–4, default 0 = off): a `.gl-hue` layer of `--g-hue` (the accent) at `TINT_ALPHA`, drawn in both modes.
-  - **Main process.** It only resolves the screen's media-source id (`resolveGlassSource`): once at startup, and again on display changes.
-    - **`desktopCapturer.getSources` BLOCKS the main process for 0.5–1.7 s**, so it must never run on the pop path. This was measured, and the block made the E2E composer step flaky.
-    - The island is excluded from capture (`setContentProtection` → WDA_EXCLUDEFROMCAPTURE) while glass is on, so it never films itself.
-    - **Documented side effect:** with glass on, the island is absent from screenshots and screen shares. Solid makes it visible again.
-    - The stream stops 60 s after the island hides.
+- **Glass over a drawn theme (v1.8, owner, 2026-09-27; replaced the v1.5 live screen glass).** Setting `glassLevel` is the **frost**: 0 = Solid (drawn thick glass, no picture), 1–4 = 20/35/50/65 % of the theme shows through (default 3). Settings → Look → Glass shows five steps (`.steps`).
+  - **Why the live glass died:** the island used to film the screen under itself (getUserMedia desktop capture, painted ~5×/s, capture capped at 10 fps). Anything scrolling behind it lagged 0.1–0.3 s and moved in jumps, and the capture films the real mouse pointer, which the lens bent into a blurry ghost (a clean-strip hold only half-fixed it). The owner chose to drop transparency entirely. **Do not bring screen capture back** without the owner: it can never be lag-free, and it needs content protection that hides the island from screenshots.
+  - **Island.** `<canvas id="gl-bd">` gets the chosen theme picture, painted ONLY when something changes (pill size, theme, light/dark, wallpaper, window bounds for Wallpaper) — nothing runs per frame. Every glass layer stays on top: `#isl-lens` (SVG displacement lens map built in JS, 3-channel split) bends it at the edges, `.gl-tint` is the frost (`rgba(--g-base, --g-alpha)`), `.gl-arc/.gl-rim` + inset shadows give thickness.
+    - **Themes** (`islandTheme`, default `mist`): `mist · dusk · lagoon · bloom · dune` are mesh gradients = a base + four soft color points (`MESH` in island.js: [token index, x, y, rx, ry] as fractions of the pill box; colors are tokens `--bg-<theme>-0..4` in tokens.css, light + dark). **Canvas gradients must fade to the same color at 0 alpha**, never `'transparent'` (that interpolates through black → grey mud; the first build looked grey because of it).
+    - **Wallpaper** theme: main reads `%APPDATA%\Microsoft\Windows\Themes\TranscodedWallpaper` (Windows' copy of the desktop picture) + `HKCU\Control Panel\Desktop` (`WallPaper` empty = plain-color desktop → null → Mist; `WallpaperStyle` 2 stretch · 6 fit · else fill). `sendWallpaper()` runs in the background on each pop and re-sends only when the file's mtime changed (resized to 960 px JPEG). The island lays it out like Windows does and cuts the strip under the pill; CSS frosts it hard (`blur(18px)`). Local only: the picture never leaves the island renderer. The tasks window uses Mist's colors for Wallpaper (it never reads the picture).
+    - **Contrast:** contrast.js generates checks for every island text color over `frost at 50 %` (the default) over each color point, and the tasks window's list/chrome over each field color at 0.42. The light colors are pastel for that reason (the priority reds/ochres bind). Clearer frost steps (65 %) are not gated; the soft glow halo is the safety net there, as it was for the live glass.
+    - **Text:** the owner kept the soft glow (`text-shadow: 0 0 8px rgba(--g-base,.6)` on lens glass) over letterpress/carved/raised/etched alternatives (demo: `design-demos/text-depth.html`, private).
+    - Gel drop (`gelDrop`, independent X/Y springs via `Motion.spring`) and gel press. **No light sweep on show** and **no pointer-follow glow** (owner rejected both).
+    - **The dismiss timer is the glass highlight** (owner pick "D", 2026-09-27). The top arc `#gl-arc` and a faint accent core `#progress-fill` along the top edge shrink toward the center as time runs out, driven by `UI.countdown` (scaleX from the center). Pinned = the full highlight, no clock. Never go back to a bar across the top: it covered the specular edge.
+    - **Tint is gone** (v1.8, owner): the `tintLevel` setting, `.gl-hue` and `--g-hue` were removed; `migrateSettings` and `save-settings` drop the key.
+  - **The island is an ordinary window again:** no `setContentProtection`, no `desktopCapturer`. It shows in screenshots and screen shares (owner: "always visible", no setting).
+  - **Appearance** (`appearance`: system | light | dark, default system) → `nativeTheme.themeSource` in main (`applyAppearance`), so every window's `prefers-color-scheme`, the title-bar overlay colors and new windows' background follow it. Showcase `TODO_ISLAND_THEME` overrides it.
   - **Tasks window.**
     - Mica was removed (owner: not noticeable).
-    - `.glass-on` (level > 0) turns on the `.ambient` color field: `--amb-1..3` (blue = Now, ochre/coral = priority), drifting slowly.
+    - `.glass-on` (level > 0) turns on the `.ambient` color field: three blurred blobs painted with the island theme's points 1–3 (`--tb-1..3`, set by `html[data-bg]` from `UI.applyTheme`) at opacity 0.42, drifting slowly.
     - The list sits on a paper `--sheet`. The header, the floating composer and the status line are `backdrop-filter` glass at `--g-chrome` (never clearer than 0.56 = `--chrome-min`, which the contrast gate checks).
     - The tab cursor is a small glass lens on `--ease-spring`.
     - Floating layers (toast, notice, `?`, ⋯) keep `--glass`.
   - **Gotcha:** an ANCESTOR holding a filled opacity/transform animation cuts `backdrop-filter` off from its backdrop. Release or cancel finished animations on the parents of glass.
   - **`prefers-reduced-transparency`** → solid everywhere.
-  - **Showcase mode** (README screenshots only): `TODO_ISLAND_SHOWCASE=1` (island stays capturable and gets one still photo per pop), `TODO_ISLAND_THEME=light|dark`, `TODO_ISLAND_SHOT=<png>` (captures the tasks window).
+  - **Showcase mode** (README screenshots only): `TODO_ISLAND_SHOWCASE=1`, `TODO_ISLAND_THEME=light|dark`, `TODO_ISLAND_SHOT=<png>` (captures the tasks window).
 - **Update pill (v1.6):**
   - At startup (+8 s) and then daily, main does ONE `net.fetch` to GitHub's latest-release API. `pickUpdate` decides; the result rides in the snapshot as `update`.
   - A newer release shows a green **Update** pill (`.upd`, tokens.css; `UI.renderUpdate`) in the island top bar and the tasks-window header. A click opens the release page (`open-update`). No popup, no auto-download.
@@ -169,7 +162,7 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
   - Setting `updateCheck` (default on) lives in Settings → App.
   - It never runs in sandbox runs; `TODO_ISLAND_UPDATE_TEST=v9.9.9` fakes a release for E2E/screenshots.
   - The README privacy section names this request. Keep it accurate if the check changes.
-- **Look settings (v1.6.1):** theme color `accent` (blue · violet · teal · pink · graphite; red/amber/green never, they already mean !!!/!!/Update) = `html[data-accent]` blocks in tokens.css that move only the accent family (accent, soft, border, ink, `--g-hue`, `--amb-1`). Text sizes `labelSize`/`taskSize` (0–3) → `--ui-k` / `--task-k` (0.92/1/1.1/1.2); task titles use `--fs-task`/`--fs-task-lg`. Every renderer calls `UI.applyTheme(settings)` with each snapshot; onboarding reads `accent` from its defaults. contrast.js runs every check once per accent per scheme.
+- **Look settings (v1.6.1):** theme color `accent` (blue · violet · teal · pink · graphite; red/amber/green never, they already mean !!!/!!/Update) = `html[data-accent]` blocks in tokens.css that move only the accent family (accent, soft, border, ink, and `--amb-1` for the onboarding stage). The island theme (`islandTheme`) and Appearance live next to it in Settings → Look. Text sizes `labelSize`/`taskSize` (0–3) → `--ui-k` / `--task-k` (0.92/1/1.1/1.2); task titles use `--fs-task`/`--fs-task-lg`. Every renderer calls `UI.applyTheme(settings)` with each snapshot; onboarding reads `accent` from its defaults. contrast.js runs every check once per accent per scheme.
 - **Settings layout:** Basic (reminders, hours, Look, source files, language, startup) always shown; Advanced (`#set-advanced`, collapsed, open state in localStorage) holds the rest. Row ids never change when rows move, since E2E and load/save use them.
 - **Island geometry:** inner shapes sit 10px inside the pill and use `--r-inner` (pill radius − 10px) for concentric corners.
 - **Island top bar:** it always reads "Todo Island" plus the `[★]` mark and the count. The Now task is NOT echoed into the title, because the owner found that a distraction; it lives in its card below.

@@ -37,12 +37,19 @@
      bounce light at the bottom edge, inner shade (thickness), translucent edge. Drawn INSIDE surfaces only. */
   --glass: rgba(255, 255, 255, 0.72); --rim-hi: rgba(255, 255, 255, 0.95); --rim-lo: rgba(255, 255, 255, 0);
   --sheen: rgba(255, 255, 255, 0.55);
-  --g-base: 251, 250, 247; --g-hue: 45, 79, 196; /* Tint setting: the accent, as a triplet */
+  --g-base: 251, 250, 247;
   --spec: rgba(255, 255, 255, 0.95); --spec-bounce: rgba(255, 255, 255, 0.5); --spec-glow: rgba(255, 255, 255, 0.75);
   --inner-shade: rgba(28, 27, 25, 0.16); --g-edge: rgba(255, 255, 255, 0.55);
   --fringe-a: rgba(255, 60, 120, 0.16); --fringe-b: rgba(40, 150, 255, 0.16);
   /* tasks window: the color field behind the glass (blue = Now, ochre + coral = priority), peak alpha as painted */
   --amb-1: rgba(127, 156, 255, 0.42); --amb-2: rgba(255, 199, 102, 0.42); --amb-3: rgba(255, 143, 126, 0.38);
+  /* island themes (Settings → Theme): a base + four soft color points each — the island paints them as a mesh
+     gradient under its frost; the tasks window's color field uses points 1–3. Gated by contrast.js at the clearest frost. */
+  --bg-mist-0: #e9edf8; --bg-mist-1: #d5deff; --bg-mist-2: #b2e9ec; --bg-mist-3: #e4d9ff; --bg-mist-4: #d3deff;
+  --bg-dusk-0: #f6ece6; --bg-dusk-1: #ffd7bc; --bg-dusk-2: #fbd6df; --bg-dusk-3: #e2d9ff; --bg-dusk-4: #ffe0b8;
+  --bg-lagoon-0: #e6f3f1; --bg-lagoon-1: #b7e8e4; --bg-lagoon-2: #b8ecc4; --bg-lagoon-3: #c9e2fa; --bg-lagoon-4: #d2f4ee;
+  --bg-bloom-0: #f8eaf0; --bg-bloom-1: #ffd4e3; --bg-bloom-2: #ffd6c4; --bg-bloom-3: #eed6ff; --bg-bloom-4: #ffd6e4;
+  --bg-dune-0: #f3eee4; --bg-dune-1: #f0dcbd; --bg-dune-2: #efdace; --bg-dune-3: #dbe1cb; --bg-dune-4: #f5e2c4;
   --sheet: rgba(247, 246, 242, 0.74);        /* the list's paper over the field */
   --chrome-min: rgba(251, 250, 247, 0.56);   /* glass header/composer at the clearest level — the contrast gate's worst case */
 }
@@ -61,29 +68,42 @@
     --pill-bg: #171716; --pill-border: rgba(236, 235, 230, 0.10);
     --glass: rgba(30, 30, 28, 0.66); --rim-hi: rgba(255, 255, 255, 0.16); --rim-lo: rgba(255, 255, 255, 0);
     --sheen: rgba(255, 255, 255, 0.045);
-    --g-base: 23, 23, 22; --g-hue: 139, 166, 255;
+    --g-base: 23, 23, 22;
     --spec: rgba(255, 255, 255, 0.42); --spec-bounce: rgba(255, 255, 255, 0.14); --spec-glow: rgba(255, 255, 255, 0.12);
     --inner-shade: rgba(0, 0, 0, 0.55); --g-edge: rgba(255, 255, 255, 0.12);
     --fringe-a: rgba(255, 80, 140, 0.14); --fringe-b: rgba(60, 170, 255, 0.16);
     --amb-1: rgba(53, 82, 201, 0.42); --amb-2: rgba(138, 90, 7, 0.42); --amb-3: rgba(143, 47, 37, 0.38);
+    --bg-mist-0: #10131d; --bg-mist-1: #354fc7; --bg-mist-2: #1e6370; --bg-mist-3: #5f4ab1; --bg-mist-4: #3854b8;
+    --bg-dusk-0: #17111a; --bg-dusk-1: #924629; --bg-dusk-2: #a1355d; --bg-dusk-3: #5d47b9; --bg-dusk-4: #7c5027;
+    --bg-lagoon-0: #0d1716; --bg-lagoon-1: #166661; --bg-lagoon-2: #23673e; --bg-lagoon-3: #295c9c; --bg-lagoon-4: #18665e;
+    --bg-bloom-0: #1a0f15; --bg-bloom-1: #a6306d; --bg-bloom-2: #904432; --bg-bloom-3: #793db2; --bg-bloom-4: #9d376c;
+    --bg-dune-0: #16130e; --bg-dune-1: #73542c; --bg-dune-2: #824c37; --bg-dune-3: #505e40; --bg-dune-4: #6e5632;
     --sheet: rgba(18, 18, 17, 0.74);
     --chrome-min: rgba(23, 23, 22, 0.56);
   }
 }
 
-/* theme color (Settings → Theme color): only the accent family moves — Now, buttons, focus rings, the tint hue,
-   the blue ambient field. Red / amber / green are never offered: they already mean !!! / !! / the Update pill.
+/* theme color (Settings → Theme color): only the accent family moves — Now, buttons, focus rings, and the onboarding
+   stage's blue field. Red / amber / green are never offered: they already mean !!! / !! / the Update pill.
    Each block is gated per scheme by scripts/contrast.js (it runs every check once per accent). */
-:root[data-accent="violet"] { --accent: #6a3fc2; --accent-ink: #ffffff; --accent-soft: rgba(106, 63, 194, 0.1); --accent-border: rgba(106, 63, 194, 0.30); --g-hue: 106, 63, 194; --amb-1: rgba(176, 140, 255, 0.42); }
-:root[data-accent="teal"] { --accent: #0d6f6b; --accent-ink: #ffffff; --accent-soft: rgba(13, 111, 107, 0.1); --accent-border: rgba(13, 111, 107, 0.30); --g-hue: 13, 111, 107; --amb-1: rgba(110, 206, 196, 0.42); }
-:root[data-accent="pink"] { --accent: #b3245f; --accent-ink: #ffffff; --accent-soft: rgba(179, 36, 95, 0.1); --accent-border: rgba(179, 36, 95, 0.30); --g-hue: 179, 36, 95; --amb-1: rgba(255, 140, 188, 0.42); }
-:root[data-accent="graphite"] { --accent: #3c4049; --accent-ink: #ffffff; --accent-soft: rgba(60, 64, 73, 0.1); --accent-border: rgba(60, 64, 73, 0.30); --g-hue: 60, 64, 73; --amb-1: rgba(168, 176, 192, 0.42); }
+:root[data-accent="violet"] { --accent: #6a3fc2; --accent-ink: #ffffff; --accent-soft: rgba(106, 63, 194, 0.1); --accent-border: rgba(106, 63, 194, 0.30); --amb-1: rgba(176, 140, 255, 0.42); }
+:root[data-accent="teal"] { --accent: #0d6f6b; --accent-ink: #ffffff; --accent-soft: rgba(13, 111, 107, 0.1); --accent-border: rgba(13, 111, 107, 0.30); --amb-1: rgba(110, 206, 196, 0.42); }
+:root[data-accent="pink"] { --accent: #b3245f; --accent-ink: #ffffff; --accent-soft: rgba(179, 36, 95, 0.1); --accent-border: rgba(179, 36, 95, 0.30); --amb-1: rgba(255, 140, 188, 0.42); }
+:root[data-accent="graphite"] { --accent: #3c4049; --accent-ink: #ffffff; --accent-soft: rgba(60, 64, 73, 0.1); --accent-border: rgba(60, 64, 73, 0.30); --amb-1: rgba(168, 176, 192, 0.42); }
 @media (prefers-color-scheme: dark) {
-  :root[data-accent="violet"] { --accent: #b49cff; --accent-ink: #121211; --accent-soft: rgba(180, 156, 255, 0.14); --accent-border: rgba(180, 156, 255, 0.30); --g-hue: 180, 156, 255; --amb-1: rgba(104, 66, 196, 0.42); }
-  :root[data-accent="teal"] { --accent: #5ccfc5; --accent-ink: #121211; --accent-soft: rgba(92, 207, 197, 0.14); --accent-border: rgba(92, 207, 197, 0.30); --g-hue: 92, 207, 197; --amb-1: rgba(18, 116, 110, 0.42); }
-  :root[data-accent="pink"] { --accent: #ff8dbd; --accent-ink: #121211; --accent-soft: rgba(255, 141, 189, 0.14); --accent-border: rgba(255, 141, 189, 0.30); --g-hue: 255, 141, 189; --amb-1: rgba(166, 40, 98, 0.42); }
-  :root[data-accent="graphite"] { --accent: #c8ccd4; --accent-ink: #121211; --accent-soft: rgba(200, 204, 212, 0.14); --accent-border: rgba(200, 204, 212, 0.30); --g-hue: 200, 204, 212; --amb-1: rgba(72, 78, 92, 0.42); }
+  :root[data-accent="violet"] { --accent: #b49cff; --accent-ink: #121211; --accent-soft: rgba(180, 156, 255, 0.14); --accent-border: rgba(180, 156, 255, 0.30); --amb-1: rgba(104, 66, 196, 0.42); }
+  :root[data-accent="teal"] { --accent: #5ccfc5; --accent-ink: #121211; --accent-soft: rgba(92, 207, 197, 0.14); --accent-border: rgba(92, 207, 197, 0.30); --amb-1: rgba(18, 116, 110, 0.42); }
+  :root[data-accent="pink"] { --accent: #ff8dbd; --accent-ink: #121211; --accent-soft: rgba(255, 141, 189, 0.14); --accent-border: rgba(255, 141, 189, 0.30); --amb-1: rgba(166, 40, 98, 0.42); }
+  :root[data-accent="graphite"] { --accent: #c8ccd4; --accent-ink: #121211; --accent-soft: rgba(200, 204, 212, 0.14); --accent-border: rgba(200, 204, 212, 0.30); --amb-1: rgba(72, 78, 92, 0.42); }
 }
+
+/* the tasks window's color field follows the island theme (Wallpaper → Mist: the window never reads the desktop picture) */
+:root { --tb-1: var(--bg-mist-1); --tb-2: var(--bg-mist-2); --tb-3: var(--bg-mist-3); }
+:root[data-bg="mist"] { --tb-1: var(--bg-mist-1); --tb-2: var(--bg-mist-2); --tb-3: var(--bg-mist-3); }
+:root[data-bg="dusk"] { --tb-1: var(--bg-dusk-1); --tb-2: var(--bg-dusk-2); --tb-3: var(--bg-dusk-3); }
+:root[data-bg="lagoon"] { --tb-1: var(--bg-lagoon-1); --tb-2: var(--bg-lagoon-2); --tb-3: var(--bg-lagoon-3); }
+:root[data-bg="bloom"] { --tb-1: var(--bg-bloom-1); --tb-2: var(--bg-bloom-2); --tb-3: var(--bg-bloom-3); }
+:root[data-bg="dune"] { --tb-1: var(--bg-dune-1); --tb-2: var(--bg-dune-2); --tb-3: var(--bg-dune-3); }
 
 [hidden] { display: none !important; } /* kills ghost elements whose display rule overrides the attribute */
 @media (prefers-reduced-motion: reduce) {

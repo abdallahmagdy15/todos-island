@@ -456,7 +456,7 @@ for (const b of document.querySelectorAll('#lang-seg .seg-btn')) b.addEventListe
   });
   setDirty(true);
 });
-// Glass + Tint: five clickable stages that fill like a bar. Arrows move them (RTL-aware).
+// Glass (frost) + text sizes: clickable stages that fill like a bar. Arrows move them (RTL-aware).
 function stepper(id) {
   const steps = [...document.querySelectorAll('#' + id + ' .step')];
   const api = { value: 0, set(v) {
@@ -478,7 +478,7 @@ function stepper(id) {
   });
   return api;
 }
-const glassStep = stepper('glass-steps'), tintStep = stepper('tint-steps');
+const glassStep = stepper('glass-steps');
 const labelStep = stepper('label-size-steps'), taskStep = stepper('task-size-steps');
 // Theme color: one swatch per accent — a radiogroup (one tab stop, arrows move it, RTL-aware)
 const swatches = [...document.querySelectorAll('#accent-sw .swatch')];
@@ -496,6 +496,29 @@ $('accent-sw').addEventListener('keydown', e => {
   const i = swatches.findIndex(b => b.dataset.accent === accentSel), n = (i + (rtl ? -d : d) + swatches.length) % swatches.length;
   setAccent(swatches[n].dataset.accent); swatches[n].focus(); setDirty(true);
 });
+// Theme: one tile per island theme, a radiogroup like the swatches
+const bgTiles = [...document.querySelectorAll('#bg-sw .bgsw')];
+let bgSel = 'mist';
+function setBg(t) {
+  bgSel = t;
+  bgTiles.forEach(b => { const on = b.dataset.bg === t; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
+}
+bgTiles.forEach(b => b.addEventListener('click', () => { setBg(b.dataset.bg); setDirty(true); }));
+$('bg-sw').addEventListener('keydown', e => {
+  const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!d) return;
+  e.preventDefault();
+  const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
+  const i = bgTiles.findIndex(b => b.dataset.bg === bgSel), n = (i + (rtl ? -d : d) + bgTiles.length) % bgTiles.length;
+  setBg(bgTiles[n].dataset.bg); bgTiles[n].focus(); setDirty(true);
+});
+// Appearance: System / Light / Dark for every window (main sets nativeTheme.themeSource on save)
+let appearSel = 'system';
+function setAppear(v) {
+  appearSel = v;
+  document.querySelectorAll('#appear-seg .seg-btn').forEach(b => { const on = b.dataset.appear === v; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
+}
+document.querySelectorAll('#appear-seg .seg-btn').forEach(b => b.addEventListener('click', () => { setAppear(b.dataset.appear); setDirty(true); }));
 // Advanced settings: collapsed by default; the open/closed choice is remembered per viewer (a convenience only)
 function setAdvanced(open) {
   $('set-advanced').hidden = !open; $('adv-toggle').setAttribute('aria-expanded', String(open));
@@ -523,7 +546,8 @@ async function loadSettings() {
   glassStep.set(Number.isInteger(s.glassLevel) ? s.glassLevel : 3);
   labelStep.set(Number.isInteger(s.labelSize) ? s.labelSize : 1); taskStep.set(Number.isInteger(s.taskSize) ? s.taskSize : 1);
   setAccent(window.UI.ACCENTS.includes(s.accent) ? s.accent : 'blue');
-  tintStep.set(Number.isInteger(s.tintLevel) ? s.tintLevel : 0);
+  setBg(window.UI.BG_THEMES.includes(s.islandTheme) ? s.islandTheme : 'mist');
+  setAppear(s.appearance || 'system');
   $('set-work-rem').checked = s.workRemindersOn !== false; $('set-work-interval').value = s.workIntervalMin;
   $('set-off-rem').checked = s.offRemindersOn !== false; $('set-off-interval').value = s.offIntervalMin;
   $('set-work-interval').disabled = !$('set-work-rem').checked; $('set-off-interval').disabled = !$('set-off-rem').checked;
@@ -618,7 +642,7 @@ async function saveSettings() {
     focusByTime: $('set-focus').checked,
     mode: $('set-mode').value,
     uiLang: langSel,
-    glassLevel: glassStep.value, tintLevel: tintStep.value, accent: accentSel, labelSize: labelStep.value, taskSize: taskStep.value,
+    glassLevel: glassStep.value, accent: accentSel, islandTheme: bgSel, appearance: appearSel, labelSize: labelStep.value, taskSize: taskStep.value,
     workPath: $('set-work').value.trim() || undefined,
     personalPath: $('set-personal').value.trim() || undefined
   });

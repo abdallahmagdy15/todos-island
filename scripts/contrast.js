@@ -79,12 +79,28 @@ function color(vars, expr) { // "a over b over c" composites right-to-left onto 
   return c;
 }
 
+// island themes (generated): text over the clearest frost (65 % = base at 0.35) over each mesh color point, and the
+// tasks window's list/chrome over each field color at its painted strength (0.42). Only failures are printed.
+const BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune'];
+const withAlpha = (c, a) => `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
+function themeVars(vars) {
+  const v = { ...vars, 'frost-min': `rgba(${resolve(vars, 'g-base')}, 0.5)` };
+  for (const t of BG_THEMES) for (let i = 0; i <= 4; i++) v[`amb-${t}-${i}`] = withAlpha(parseColor(resolve(vars, `bg-${t}-${i}`)), 0.42);
+  return v;
+}
+const THEME_CHECKS = [];
+for (const t of BG_THEMES) {
+  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'p2', 'p3']) THEME_CHECKS.push([fg, `frost-min over bg-${t}-${i}`, 4.5, true]);
+  for (let i = 1; i <= 3; i++) for (const fg of ['ink', 'muted', 'faint', 'accent']) for (const sfc of ['sheet', 'chrome-min']) THEME_CHECKS.push([fg, `${sfc} over amb-${t}-${i} over paper`, 4.5, true]);
+}
+
 let fails = 0, total = 0;
 for (const [file, pairs] of Object.entries(CHECKS)) {
   const css = fs.readFileSync(path.join(__dirname, '..', file), 'utf8');
   const schemes = blocks(css);
-  for (const [scheme, vars] of Object.entries(schemes)) {
-    for (const [fg, bg, min] of pairs) {
+  for (const [scheme, base] of Object.entries(schemes)) {
+    const vars = themeVars(base);
+    for (const [fg, bg, min, quiet] of [...pairs, ...THEME_CHECKS]) {
       total++;
       let r;
       try {
@@ -94,6 +110,7 @@ for (const [file, pairs] of Object.entries(CHECKS)) {
       } catch (e) { fails++; console.error(`  ✗ ${file} ${scheme}: ${fg} on ${bg} — ${e.message}`); continue; }
       const okp = r >= min;
       if (!okp) fails++;
+      if (okp && quiet) continue;
       console[okp ? 'log' : 'error'](`  ${okp ? '✓' : '✗'} ${scheme.padEnd(14)} ${fg} on ${bg}: ${r.toFixed(2)} (min ${min})`);
     }
   }

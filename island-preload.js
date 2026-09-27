@@ -12,8 +12,7 @@ contextBridge.exposeInMainWorld('api', {
   onShown: cb => ipcRenderer.on('island-shown', (_e, info) => cb(info || {})),
   onFocusRequest: cb => ipcRenderer.on('island-focus', () => cb()),
   onRetract: cb => ipcRenderer.on('retract-island', () => cb()),
-  onGlass: cb => ipcRenderer.on('island-glass', (_e, src) => cb(src)), // liquid glass: the screen's media-source id + display bounds
-  onPhoto: cb => ipcRenderer.on('island-photo', (_e, bd) => cb(bd)), // showcase screenshots only: one still of the strip under the island
+  onWallpaper: cb => ipcRenderer.on('island-wallpaper', (_e, wp) => cb(wp)), // Wallpaper theme: the desktop picture (or null)
   onBounds: cb => ipcRenderer.on('island-bounds', (_e, b) => cb(b)),
   openShare: () => ipcRenderer.invoke('open-share'),
   openUpdate: () => ipcRenderer.invoke('open-update'),

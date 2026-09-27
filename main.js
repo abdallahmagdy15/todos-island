@@ -1,7 +1,7 @@
 'use strict';
 // Todo Island — tray reminder over the two Obsidian notes.
 // Sources are only written on the owner's own clicks in the app (owner's hands), never in bulk by the AI.
-const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, desktopCapturer, net } = require('electron');
+const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { NoteFile, resolveDue, MONTHS } = require('./lib/parse.js');
@@ -28,14 +28,16 @@ const DEFAULT_SETTINGS = {
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
   accent: 'blue', // theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
   labelSize: 1, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
-  tintLevel: 0, // 0 = off · 1–4 = the island glass takes on more of the accent hue
-  glassLevel: 3, // 0 = solid · 1–4 = 20/35/50/65 % of the screen shows through the island (liquid glass)
+  appearance: 'system', // system | light | dark → nativeTheme.themeSource (every window follows)
+  islandTheme: 'mist', // the picture under the island's glass: mist | dusk | lagoon | bloom | dune | wallpaper
+  glassLevel: 3, // frost: 0 = solid · 1–4 = 20/35/50/65 % of the theme shows through the island's glass
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
   personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
 };
 const migrateSettings = s => {
   if (s.intervalMin !== undefined && s.workIntervalMin === undefined) s.workIntervalMin = s.intervalMin; // v1.2 single interval → work interval
   delete s.intervalMin;
+  delete s.tintLevel; // v1.7 Tint setting — removed with the live screen glass (v1.8)
   return s;
 };
 const saveState = () => fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
@@ -191,55 +193,49 @@ function setUpdate(u) {
 }
 ipcMain.handle('open-update', () => { if (update) shell.openExternal(update.url); });
 
-// ---- liquid glass: the island window is transparent, but Windows gives it nothing to blur.
-// The island renderer streams the screen under itself (getUserMedia, chromeMediaSource 'desktop') while it is up,
-// and bends, blurs and tints those frames (lens filter in island.html) — live glass, not a stale photo.
-// The island is excluded from capture (WDA_EXCLUDEFROMCAPTURE), so it never sees itself. Local only: frames stay
-// in the island's renderer. Side effect (documented): with glass on, the island is absent from screenshots/shares.
-// Main only resolves the screen's media-source id — desktopCapturer.getSources BLOCKS the main process for
-// ~0.5–1.7 s, so it runs once in the background (startup, display changes), never on the pop path.
-const glassOn = () => (state.settings.glassLevel | 0) > 0;
-const SHOWCASE = !!process.env.TODO_ISLAND_SHOWCASE; // README screenshots: island stays capturable, one photo per pop
-if (SHOWCASE && /^(light|dark)$/.test(process.env.TODO_ISLAND_THEME || '')) nativeTheme.themeSource = process.env.TODO_ISLAND_THEME;
-const applyCaptureExclusion = () => { if (island) island.setContentProtection(glassOn() && !SHOWCASE); };
-let glassSource = null, resolvingSource = null;
-function resolveGlassSource() {
-  if (resolvingSource) return resolvingSource;
-  const d = screen.getPrimaryDisplay(), t0 = Date.now();
-  resolvingSource = desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false })
-    .then(srcs => {
-      const src = srcs.find(x => String(x.display_id) === String(d.id)) || srcs[0];
-      glassSource = src ? { id: src.id, display: d.bounds } : null;
-      LOG('GLASS-SOURCE ' + (src ? src.id : 'none') + ' ' + (Date.now() - t0) + 'ms');
-    })
-    .catch(e => { glassSource = null; LOG('GLASS-SOURCE-FAIL ' + e.message); })
-    .finally(() => { resolvingSource = null; });
-  return resolvingSource;
+// ---- island themes: the island paints its own picture under its glass (island.js). It no longer films the screen
+// (owner, 2026-09-27: the live copy lagged behind scrolling and filmed the mouse pointer as a blurry ghost), so the
+// island is an ordinary window again: it shows in screenshots and screen shares.
+// The Wallpaper theme reads the copy of the desktop picture Windows keeps (TranscodedWallpaper) plus how it is laid
+// out (fill / fit / stretch). A plain-color desktop has no picture → null, and the island falls back to Mist.
+const SHOWCASE = !!process.env.TODO_ISLAND_SHOWCASE; // README screenshots: TODO_ISLAND_THEME forces light/dark
+const applyAppearance = () => {
+  const forced = SHOWCASE && /^(light|dark)$/.test(process.env.TODO_ISLAND_THEME || '') ? process.env.TODO_ISLAND_THEME : null;
+  nativeTheme.themeSource = forced || (['light', 'dark'].includes(state.settings.appearance) ? state.settings.appearance : 'system');
+};
+applyAppearance();
+const WALL_FILE = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Themes', 'TranscodedWallpaper');
+let wallSent = null; // mtime of the picture the island has — re-read only when Windows changes it
+function readDesktopKey() {
+  return new Promise(res => require('child_process').execFile('reg', ['query', 'HKCU\\Control Panel\\Desktop'], { windowsHide: true, timeout: 4000 }, (err, out) => {
+    if (err) return res(null);
+    const val = k => { const m = new RegExp('^\\s*' + k + '\\s+REG_SZ\\s*(.*)$', 'mi').exec(out); return m ? m[1].trim() : ''; };
+    res({ path: val('WallPaper'), style: val('WallpaperStyle'), tile: val('TileWallpaper') });
+  }));
 }
-let displayT = null;
-const onDisplayChange = () => { clearTimeout(displayT); displayT = setTimeout(() => { glassSource = null; if (glassOn() && !SHOWCASE) resolveGlassSource(); }, 1500); };
-async function captureUnderIsland() { // SHOWCASE only: one still photo before the pop (the stream would film the island itself)
-  const d = screen.getPrimaryDisplay(), wa = d.workArea, b = island.getBounds();
-  const srcs = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: d.size, fetchWindowIcons: false });
-  const src = srcs.find(x => String(x.display_id) === String(d.id)) || srcs[0];
-  if (!src || src.thumbnail.isEmpty()) return null;
-  const k = src.thumbnail.getSize().width / d.bounds.width;
-  const rect = { x: b.x - d.bounds.x, y: wa.y - d.bounds.y, width: b.width, height: Math.min(980, wa.height) };
-  const img = src.thumbnail.crop({ x: Math.round(rect.x * k), y: Math.round(rect.y * k), width: Math.round(rect.width * k), height: Math.round(rect.height * k) });
-  return { url: 'data:image/jpeg;base64,' + img.toJPEG(90).toString('base64'), x: b.x, y: wa.y, w: rect.width, h: rect.height };
+async function sendWallpaper(force = false) {
+  if (!island || state.settings.islandTheme !== 'wallpaper' || (state.settings.glassLevel | 0) === 0) return;
+  try {
+    const key = await readDesktopKey();
+    if (key && !key.path) { if (wallSent !== 'none') { wallSent = 'none'; island.webContents.send('island-wallpaper', null); } return; }
+    const st = await fs.promises.stat(WALL_FILE);
+    if (!force && wallSent === st.mtimeMs) return;
+    const img = nativeImage.createFromBuffer(await fs.promises.readFile(WALL_FILE));
+    if (img.isEmpty()) throw new Error('unreadable picture');
+    const d = screen.getPrimaryDisplay().bounds, sz = img.getSize();
+    const small = sz.width > 960 ? img.resize({ width: 960, quality: 'good' }) : img; // frosted hard — 960 px is plenty
+    const style = key && key.style === '2' ? 'stretch' : key && key.style === '6' ? 'fit' : 'fill'; // 10 fill · 22 span · 0 center → fill
+    island.webContents.send('island-wallpaper', { url: 'data:image/jpeg;base64,' + small.toJPEG(82).toString('base64'), display: { x: d.x, y: d.y, width: d.width, height: d.height }, style });
+    wallSent = st.mtimeMs;
+    LOG('WALLPAPER ' + sz.width + 'x' + sz.height + ' ' + style);
+  } catch (e) { LOG('WALLPAPER-FAIL ' + e.message); if (wallSent !== 'none') { wallSent = 'none'; island.webContents.send('island-wallpaper', null); } }
 }
 const sendBounds = () => { if (island) { const b = island.getBounds(); island.webContents.send('island-bounds', { x: b.x, y: b.y }); } };
 async function showIsland(opts = {}) {
   if (!state.onboarded) { openOnboarding(); return; } // nothing to show until first-run setup picks the notes
   if (!island) return;
   const wasHidden = !island.isVisible();
-  if (wasHidden && glassOn()) {
-    if (SHOWCASE) { try { island.webContents.send('island-photo', await captureUnderIsland()); } catch (e) { LOG('GLASS-CAPTURE-FAIL ' + e.message); } }
-    else {
-      if (!glassSource) await (resolvingSource || resolveGlassSource()); // first pop after launch/display change only
-      if (glassSource) island.webContents.send('island-glass', glassSource); // the renderer (re)starts its stream
-    }
-  }
+  if (wasHidden) sendWallpaper(); // background: a changed desktop picture repaints the island, never delays the pop
   sendBounds();
   sendSnap(); island.showInactive();
   island.webContents.send('island-shown', { fresh: !wasHidden }); // always: resets renderer state (cancels stuck animations, replays drop-in)
@@ -261,9 +257,7 @@ function createIsland() {
     webPreferences: { preload: path.join(__dirname, 'island-preload.js'), backgroundThrottling: false }
   });
   island.setAlwaysOnTop(true, 'screen-saver');
-  applyCaptureExclusion();
   lockZoom(island.webContents);
-  island.webContents.on('console-message', (_e, _l, msg) => { if (/^GLASS/.test(msg)) LOG('ISLAND ' + msg); });
   island.loadFile('island.html');
 }
 
@@ -634,7 +628,9 @@ ipcMain.handle('save-settings', (_e, s) => {
   if (clean.updateCheck !== undefined) clean.updateCheck = !!clean.updateCheck;
   if (clean.accent !== undefined && !['blue', 'violet', 'teal', 'pink', 'graphite'].includes(clean.accent)) delete clean.accent;
   for (const k of ['labelSize', 'taskSize']) if (clean[k] !== undefined) { const v = Math.round(+clean[k]); if (v >= 0 && v <= 3) clean[k] = v; else delete clean[k]; }
-  if (clean.tintLevel !== undefined) { const t = Math.round(+clean.tintLevel); if (t >= 0 && t <= 4) clean.tintLevel = t; else delete clean.tintLevel; }
+  delete clean.tintLevel; // removed in v1.8
+  if (clean.appearance !== undefined && !['system', 'light', 'dark'].includes(clean.appearance)) delete clean.appearance;
+  if (clean.islandTheme !== undefined && !['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'wallpaper'].includes(clean.islandTheme)) delete clean.islandTheme;
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };
@@ -648,8 +644,7 @@ ipcMain.handle('save-settings', (_e, s) => {
   }
   saveState();
   if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
-  applyCaptureExclusion(); // glass level may have changed
-  if (glassOn() && !glassSource && !SHOWCASE) resolveGlassSource();
+  applyAppearance(); sendWallpaper(true); // Light/Dark and the island theme may have changed
   if (clean.uiLang !== undefined && clean.uiLang !== state.settings.uiLang) {
     // language switch: tray re-labels, every live window re-applies its chrome, island re-renders via snapshot
     rebuildTrayMenu();
@@ -665,8 +660,7 @@ function applySettingsSideEffects(prev) {
   if (state.settings.shortcut !== prev.shortcut && !registerShortcut()) LOG('RESET-SHORTCUT-FAIL');
   if (state.settings.autoStart !== prev.autoStart) applyAutoStart(state.settings.autoStart);
   if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
-  applyCaptureExclusion();
-  if (glassOn() && !glassSource && !SHOWCASE) resolveGlassSource();
+  applyAppearance(); sendWallpaper(true);
   if (uiLang() !== resolveLang(prev.uiLang, app.getLocale())) {
     rebuildTrayMenu();
     for (const w of [mainWin, shareWin, editorWin]) if (w && !w.isDestroyed()) w.webContents.send('lang-changed', uiLang());
@@ -801,8 +795,7 @@ else {
     }
     createIsland();
     createTray();
-    screen.on('display-metrics-changed', onDisplayChange); screen.on('display-added', onDisplayChange); screen.on('display-removed', onDisplayChange);
-    if (glassOn() && !SHOWCASE) setTimeout(resolveGlassSource, 1000); // off the pop path: this call blocks main ~0.5 s
+    screen.on('display-metrics-changed', () => sendWallpaper(true)); // a new resolution lays the picture out anew
     registerShortcut();
     setTimeout(checkForUpdate, 8000); setInterval(checkForUpdate, 24 * 3600e3); // after boot settles; a tray app runs for days
     if (state.onboarded && state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
