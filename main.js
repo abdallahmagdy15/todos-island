@@ -495,9 +495,16 @@ function rebuildTrayMenu() {
     { label: tt(L, 'tray.quit'), click: () => app.quit() }
   ]));
 }
+// tray glyph [★]: brackets in the taskbar's own ink (light or dark taskbar), one sharp bitmap per display scale
+function trayImage() {
+  const dark = nativeTheme.shouldUseDarkColorsForSystemIntegratedUI ?? nativeTheme.shouldUseDarkColors;
+  const img = nativeImage.createEmpty();
+  for (const [scaleFactor, px] of [[1, 16], [1.25, 20], [1.5, 24], [2, 32]]) img.addRepresentation({ scaleFactor, buffer: makePngBuffer(px, { tray: true, dark }) });
+  return img;
+}
 function createTray() {
-  const img = nativeImage.createFromBuffer(makePngBuffer(32));
-  tray = new Tray(img);
+  tray = new Tray(trayImage());
+  nativeTheme.on('updated', () => { if (tray && !tray.isDestroyed()) tray.setImage(trayImage()); }); // taskbar theme switched
   rebuildTrayMenu();
   tray.on('click', () => showIsland());
   const tick = () => {

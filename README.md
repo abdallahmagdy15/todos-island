@@ -1,3 +1,5 @@
+<img src="build/icon.png" width="72" height="72" alt="Todos Island icon: the [★] mark">
+
 # Todos Island
 
 **Your todo list, dropping in from the top of your screen.** A Dynamic-Island-style reminder for Windows that reads the plain markdown notes you already keep. No account, no database, no cloud.
@@ -71,7 +73,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 
 1. Download `TodosIsland-Setup-x.y.z.exe` from [Releases](https://github.com/abdallahmagdy15/todos-island/releases) and run it. Windows SmartScreen may warn that the app is unsigned: choose *More info → Run anyway*.
 2. The first-run setup asks which tasks you want to track (work, personal or both). It also asks where your notes live: pick existing files, or let the app create them in `Documents\todos-island`. Then set your work hours and how often the island drops in.
-3. That's it. The island drops in right away. Right-click the tray icon to open your tasks or quit.
+3. That's it. The island drops in right away. Right-click the **[★]** icon in the tray to open your tasks or quit.
 
 ## Privacy
 

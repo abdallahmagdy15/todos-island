@@ -59,7 +59,7 @@ A "no" on any of these → propose it to the owner, don't build it.
 | lib/update.js + update.test.js | pure update check: GitHub latest-release JSON + running version → `{ version, url }` or null (plain x.y.z only; only this repo's release URLs are ever opened) | update-pill work |
 | lib/setup.test.js | setup planner self-check (skip, folder/file picks, adopt-existing, reminder mapping) | after touching setup.js |
 | lib/i18n.js + locales/en.js, ar.js | interface strings (English/Arabic), dual-mode loader | any user-visible text |
-| lib/icon.js | tray icon PNG generated in pure Node (zlib + CRC32) | icon changes |
+| lib/icon.js | app + tray icon PNGs in pure Node (zlib + CRC32): the [★] mark (owner pick, 2026-09-27) as signed-distance shapes with 4×4 supersampling. Tile = paper square, ink brackets, blue star; tray = no tile, brackets in the taskbar's ink (light/dark, follows nativeTheme), one bitmap per display scale | icon changes |
 | scripts/make-icon.js | regenerates `build/icon.ico` (7 sizes) — run `npm run icon` | icon changes |
 | island.html/css/js | the drop-down pill UI (top of screen) + its liquid glass (live screen stream → lens canvas) | island behavior/looks |
 | window.html/css/js | main tasks window: tabs, list, search, settings | main window |
