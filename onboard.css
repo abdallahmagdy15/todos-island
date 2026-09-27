@@ -44,11 +44,6 @@ header { position: relative; z-index: 3; }
 }
 .st-pill.up { transform: translateY(-160%) scale(0.7, 0.5); opacity: 0; transition: transform 280ms var(--ease-in), opacity 220ms ease; }
 .g-arc { position: absolute; z-index: -1; inset: 0 7% auto 7%; height: 26px; border-radius: 0 0 50% 50% / 0 0 100% 100%; background: linear-gradient(180deg, var(--spec-glow), transparent); opacity: 0.7; pointer-events: none; }
-.g-sweep { /* one light sweep as it lands; resting = off the glass */
-  position: absolute; inset: 0; z-index: -1; mix-blend-mode: screen; pointer-events: none;
-  background: linear-gradient(105deg, transparent 38%, var(--spec-glow) 50%, transparent 62%) no-repeat;
-  background-size: 260% 100%; background-position: 130% 0;
-}
 .sp-mark { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 600; color: var(--accent); letter-spacing: -0.5px; }
 .sp-mark.open { color: var(--muted); }
 .sp-title { flex: 1; min-width: 0; font-weight: 650; overflow: hidden; text-overflow: ellipsis; }

@@ -140,8 +140,13 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
     - A pop starts frosted and the glass fades in with the first frame, mid-drop.
     - `measureNeed` thickens the tint so text keeps 4.5:1 (ink) and 3:1 (muted) on 85% of the strip.
     - Drawn layers `.gl-arc/.gl-rim/.gl-sweep` plus inset shadows give it thickness.
-    - Gel drop (`gelDrop`, independent X/Y springs via `Motion.spring`) and gel press.
+    - Gel drop (`gelDrop`, independent X/Y springs via `Motion.spring`) and gel press. **No light sweep on show:** the owner found it distracting, and it was removed from the onboarding stage too.
     - **No pointer-follow glow:** the owner rejected the mouse halo.
+    - **The stream films the real cursor.** Measured at about 54 px of arrow in the frame. Under the lens it showed as a bent, blurred ghost cursor that followed the mouse.
+      - While the pointer is over the island window, the glass HOLDS a clean strip taken before the pointer arrived: `keepClean` keeps a ring of 3 strips, 1000 px tall, so a hover-unfold still has a backdrop.
+      - The live stream resumes on mouseleave. Never paint live frames while `pointerIn`.
+    - **The dismiss timer is the glass highlight** (owner pick "D", 2026-09-27). The top arc `#gl-arc` and a faint blue core `#progress-fill` along the top edge shrink toward the center as time runs out. Both are driven by `UI.countdown` (scaleX from the center). Pinned = the full highlight, with no clock. Never go back to a bar across the top: it covered the specular edge.
+    - **Tint** (`tintLevel` 0–4, default 0 = off): a `.gl-hue` layer of `--g-hue` (the accent) at `TINT_ALPHA`, drawn in both modes. `measureNeed` counts it, so text stays readable.
   - **Main process.** It only resolves the screen's media-source id (`resolveGlassSource`): once at startup, and again on display changes.
     - **`desktopCapturer.getSources` BLOCKS the main process for 0.5–1.7 s**, so it must never run on the pop path. This was measured, and the block made the E2E composer step flaky.
     - The island is excluded from capture (`setContentProtection` → WDA_EXCLUDEFROMCAPTURE) while glass is on, so it never films itself.
@@ -194,7 +199,8 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
 10. **Autostart:** `applyAutoStart()` must pass `app.getAppPath()` (dev) + `--hidden` in login-item args — a bare electron.exe Run entry boots the default Electron welcome page. `--hidden` launches also skip the 1.5 s launch pop; startup re-applies the registration as self-heal.
 11. **State lives in `app.getPath('userData')/state.json`** (writable when packaged — asar is read-only). Never write next to `__dirname`.
 12. **Island geometry:** top-anchored at `wa.y + 10`, grows DOWN via the `island-size` IPC (height + optional space borrowed above, clamped to the work area). Don't bottom-anchor it.
-13. **Shortcut reliability:** the island window runs with `backgroundThrottling: false`. A throttled hidden renderer froze the retract animation, so the window stayed "visible" and the next shortcut press only dismissed it (the owner saw "press twice"). `retract()` has a 320 ms hard backstop that never hides a pill that has been re-shown in the meantime.
+13. **Dismiss countdown and hover:** a click that hides the island while the pointer is on it (×, gear, edit, share) never gets its mouseleave. So `retract()` resets `islandHovered`, and every fresh pop starts un-hovered and calls `scheduleDismiss` at once. Before this, the next pop's bar stayed frozen until you hovered in and out.
+13b. **Shortcut reliability:** the island window runs with `backgroundThrottling: false`. A throttled hidden renderer froze the retract animation, so the window stayed "visible" and the next shortcut press only dismissed it (the owner saw "press twice"). `retract()` has a 320 ms hard backstop that never hides a pill that has been re-shown in the meantime.
 14. **i18n at load:** every renderer calls `I18N.applyDoc(LANG)` once at startup. Placeholders, titles and aria labels have no inline fallback, so English windows used to show empty placeholders.
 15. **Settings migration:** `migrateSettings()` upgrades old keys (`intervalMin` → `workIntervalMin`). When adding settings keys, give them a DEFAULT_SETTINGS entry so old state.json files merge cleanly.
 

@@ -5,7 +5,8 @@ html, body { background: transparent; overflow: hidden; }
 body { font-family: var(--font-sans); color: var(--ink); user-select: none; font-size: var(--fs-3); }
 .ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
-@property --g-alpha { syntax: '<number>'; inherits: true; initial-value: 1; } /* animatable tint */
+@property --g-alpha { syntax: '<number>'; inherits: true; initial-value: 1; } /* animatable see-through */
+@property --g-hue-a { syntax: '<number>'; inherits: true; initial-value: 0; } /* animatable tint strength */
 /* NO outer box-shadow on the pill: the transparent window is snug, a shadow would clip into a visible square.
    Inset shadows are drawn inside the pill, so they are safe — they give the glass its thickness. */
 #wrap { padding: 8px; position: relative; }
@@ -30,6 +31,7 @@ body { font-family: var(--font-sans); color: var(--ink); user-select: none; font
   display: none; z-index: -3; inset: -16px; width: calc(100% + 32px); height: calc(100% + 32px); border-radius: 0;
   filter: blur(5px) url(#isl-lens) saturate(1.9) brightness(1.03);
 }
+.gl-hue { z-index: -2; background: rgba(var(--g-hue), var(--g-hue-a, 0)); transition: --g-hue-a 480ms var(--ease-out); } /* Tint setting: over the glass in both modes */
 .gl-tint { display: none; z-index: -2; background: rgba(var(--g-base), var(--g-alpha, 1)); transition: --g-alpha 480ms var(--ease-out); }
 /* the screen copy fades in as the glass "forms" (a fresh copy lands ~0.5 s after the pop, mid-drop) */
 .gl-bd { opacity: 0; transition: opacity 480ms var(--ease-out); }
@@ -45,11 +47,6 @@ body[data-glass="lens"] .gl-bd, body[data-glass="lens"] .gl-tint { display: bloc
   background: linear-gradient(180deg, var(--spec) 0%, transparent 34%, transparent 72%, var(--spec-bounce) 100%);
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
 }
-.gl-sweep { /* one light sweep across the glass as it lands — resting state is off-glass */
-  z-index: -1; mix-blend-mode: screen;
-  background: linear-gradient(105deg, transparent 38%, var(--spec-glow) 50%, transparent 62%) no-repeat;
-  background-size: 260% 100%; background-position: 130% 0;
-}
 @media (prefers-reduced-transparency: reduce) {
   body[data-glass="lens"] #pill { background: var(--pill-bg); border-color: var(--pill-border); }
   body[data-glass="lens"] .gl-bd, body[data-glass="lens"] .gl-tint { display: none; }
@@ -60,9 +57,15 @@ body[data-glass="lens"] .gl-bd, body[data-glass="lens"] .gl-tint { display: bloc
 body[data-glass="lens"] .btn-keep { background: color-mix(in srgb, var(--card) 70%, transparent); }
 
 /* dismiss countdown (M7): hairline drains with transform scaleX, never width */
-#progress { height: 2px; background: var(--prog-bg); }
-#progress-fill { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; }
+/* dismiss countdown = the glass's bright top edge (owner pick 'D', 2026-09-27): the top arc (.gl-arc) and a faint
+   blue core along the edge shrink toward the center as time runs out. Both driven by UI.countdown (scaleX, center origin).
+   It never covers the specular edge any more — the old 2px bar across the top cut the highlight into a blue line. */
+#progress { position: absolute; z-index: 2; top: 0; left: 10%; right: 10%; height: 1.5px; pointer-events: none; }
+#progress-fill { display: block; height: 100%; width: 100%; border-radius: 1px; transform-origin: 50% 0; opacity: 0.9;
+  background: linear-gradient(90deg, transparent, var(--accent) 20%, var(--accent) 80%, transparent); }
+.gl-arc { transform-origin: 50% 0; }
 body.pinned #progress { display: none; }
+body.pinned .gl-arc { transform: none !important; transition: none !important; } /* pinned = no clock: the full highlight */
 
 .pill-top { display: flex; align-items: center; gap: 10px; padding: 12px 18px 9px; }
 /* live status mark (replaces the decorative dot): [ ] idle · [★] something is Now · [!] a note can't be read */

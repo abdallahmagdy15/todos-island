@@ -299,6 +299,11 @@ const STRINGS_EN = {
   'upd.title': "Version {v} is out. Open the download page",
   'set.update': "Check for updates",
   'set.update.hint': "one quiet check with GitHub at startup; a green Update pill shows when a new version is out",
+
+  // tint setting
+  'set.tint': "Tint",
+  'set.tint.hint': "how strongly the island glass takes on the accent color · text stays readable",
+  'set.tint.off': "Off",
 };
 if (typeof window !== 'undefined') (window.LOCALES = window.LOCALES || {}).en = STRINGS_EN;
 if (typeof module !== 'undefined') module.exports = STRINGS_EN;

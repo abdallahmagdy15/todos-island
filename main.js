@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS = {
   dismissSec: 10, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
   weekendAware: true, autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
+  tintLevel: 0, // 0 = off · 1–4 = the island glass takes on more of the accent hue
   glassLevel: 3, // 0 = solid · 1–4 = 20/35/50/65 % of the screen shows through the island (liquid glass)
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
   personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
@@ -615,6 +616,7 @@ ipcMain.handle('save-settings', (_e, s) => {
   }
   if (clean.mode !== undefined && !['both', 'work', 'personal'].includes(clean.mode)) delete clean.mode;
   if (clean.updateCheck !== undefined) clean.updateCheck = !!clean.updateCheck;
+  if (clean.tintLevel !== undefined) { const t = Math.round(+clean.tintLevel); if (t >= 0 && t <= 4) clean.tintLevel = t; else delete clean.tintLevel; }
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };

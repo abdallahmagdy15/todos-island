@@ -299,6 +299,11 @@ const STRINGS_AR = {
   'upd.title': "الإصدار {v} متاح. افتح صفحة التنزيل",
   'set.update': "التحقق من التحديثات",
   'set.update.hint': "فحص هادئ واحد مع GitHub عند التشغيل؛ يظهر زر «تحديث» أخضر عند صدور إصدار جديد",
+
+  // tint setting
+  'set.tint': "الصبغة",
+  'set.tint.hint': "مدى اصطباغ زجاج الجزيرة باللون المميّز · يبقى النص مقروءًا",
+  'set.tint.off': "بلا",
 };
 if (typeof window !== 'undefined') (window.LOCALES = window.LOCALES || {}).ar = STRINGS_AR;
 if (typeof module !== 'undefined') module.exports = STRINGS_AR;

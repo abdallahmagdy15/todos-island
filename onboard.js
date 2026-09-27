@@ -74,7 +74,6 @@ function pillDown() {
     frames.push({ translate: `0 ${lerp(-H, 0, fy(t)).toFixed(2)}px`, scale: `${lerp(0.55, 1, fx(t)).toFixed(4)} ${lerp(0.4, 1, fs(t)).toFixed(4)}`, opacity: Math.min(1, t / 0.12) });
   }
   frames[N] = { translate: '0 0', scale: '1 1', opacity: 1 };
-  $('st-sweep').animate([{ backgroundPosition: '130% 0' }, { backgroundPosition: '-30% 0' }], { duration: 1100, delay: 420, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'none' });
   return pill.animate(frames, { duration: D, easing: 'linear', fill: 'none' }).finished.catch(() => {}); // fill none: never hold a filled animation on glass
 }
 const pillUp = () => pill.classList.add('up');

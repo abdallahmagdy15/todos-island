@@ -26,12 +26,12 @@
   --p3: #c0392b; --p2: #8f5f00; --p1: #56607a;
   --ok: #2b7a3a; --danger: var(--p3);
   --shadow: 0 10px 30px rgba(28, 27, 25, 0.16);
-  --pill-bg: #fbfaf7; --pill-border: rgba(28, 27, 25, 0.12); --prog-bg: rgba(28, 27, 25, 0.06);
+  --pill-bg: #fbfaf7; --pill-border: rgba(28, 27, 25, 0.12);
   /* liquid glass — the material: tint base (rgb triplet, alpha set per Glass level), specular top arc,
      bounce light at the bottom edge, inner shade (thickness), translucent edge. Drawn INSIDE surfaces only. */
   --glass: rgba(255, 255, 255, 0.72); --rim-hi: rgba(255, 255, 255, 0.95); --rim-lo: rgba(255, 255, 255, 0);
   --sheen: rgba(255, 255, 255, 0.55);
-  --g-base: 251, 250, 247;
+  --g-base: 251, 250, 247; --g-hue: 45, 79, 196; /* Tint setting: the accent, as a triplet */
   --spec: rgba(255, 255, 255, 0.95); --spec-bounce: rgba(255, 255, 255, 0.5); --spec-glow: rgba(255, 255, 255, 0.75);
   --inner-shade: rgba(28, 27, 25, 0.16); --g-edge: rgba(255, 255, 255, 0.55);
   --fringe-a: rgba(255, 60, 120, 0.16); --fringe-b: rgba(40, 150, 255, 0.16);
@@ -50,10 +50,10 @@
     --p3: #ff7b6b; --p2: #f0b547; --p1: #a3abc0;
     --ok: #7fd18b;
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
-    --pill-bg: #171716; --pill-border: rgba(236, 235, 230, 0.10); --prog-bg: rgba(236, 235, 230, 0.06);
+    --pill-bg: #171716; --pill-border: rgba(236, 235, 230, 0.10);
     --glass: rgba(30, 30, 28, 0.66); --rim-hi: rgba(255, 255, 255, 0.16); --rim-lo: rgba(255, 255, 255, 0);
     --sheen: rgba(255, 255, 255, 0.045);
-    --g-base: 23, 23, 22;
+    --g-base: 23, 23, 22; --g-hue: 139, 166, 255;
     --spec: rgba(255, 255, 255, 0.42); --spec-bounce: rgba(255, 255, 255, 0.14); --spec-glow: rgba(255, 255, 255, 0.12);
     --inner-shade: rgba(0, 0, 0, 0.55); --g-edge: rgba(255, 255, 255, 0.12);
     --fringe-a: rgba(255, 80, 140, 0.14); --fringe-b: rgba(60, 170, 255, 0.16);

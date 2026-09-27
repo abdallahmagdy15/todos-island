@@ -450,26 +450,29 @@ for (const b of document.querySelectorAll('#lang-seg .seg-btn')) b.addEventListe
   });
   setDirty(true);
 });
-// Glass: five clickable stages that fill like a bar — Solid, then more and more see-through. Arrows move it.
-let glassSel = 3;
-const glassSteps = [...document.querySelectorAll('#glass-steps .step')];
-function setGlassStep(v) {
-  glassSel = v;
-  glassSteps.forEach(b => {
-    const n = +b.dataset.glass, on = n === v;
-    b.classList.toggle('sel', on); b.classList.toggle('fill', n <= v);
-    b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1;
+// Glass + Tint: five clickable stages that fill like a bar. Arrows move them (RTL-aware).
+function stepper(id) {
+  const steps = [...document.querySelectorAll('#' + id + ' .step')];
+  const api = { value: 0, set(v) {
+    api.value = v;
+    steps.forEach(b => {
+      const n = +b.dataset.glass, on = n === v;
+      b.classList.toggle('sel', on); b.classList.toggle('fill', n <= v);
+      b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1;
+    });
+  } };
+  steps.forEach(b => b.addEventListener('click', () => { api.set(+b.dataset.glass); setDirty(true); }));
+  $(id).addEventListener('keydown', e => {
+    const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+    if (!d) return;
+    e.preventDefault();
+    const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
+    const v = Math.max(0, Math.min(steps.length - 1, api.value + (rtl ? -d : d)));
+    api.set(v); steps[v].focus(); setDirty(true);
   });
+  return api;
 }
-glassSteps.forEach(b => b.addEventListener('click', () => { setGlassStep(+b.dataset.glass); setDirty(true); }));
-$('glass-steps').addEventListener('keydown', e => {
-  const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
-  if (!d) return;
-  e.preventDefault();
-  const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
-  const v = Math.max(0, Math.min(4, glassSel + (rtl ? -d : d)));
-  setGlassStep(v); glassSteps[v].focus(); setDirty(true);
-});
+const glassStep = stepper('glass-steps'), tintStep = stepper('tint-steps');
 window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); refresh(); });
 function setDirty(on) {
   settingsDirty = on;
@@ -487,7 +490,8 @@ function fstat(id, msg, kind) {
 const baseName = p => String(p || '').split(/[\\/]/).pop();
 async function loadSettings() {
   const s = (await window.api.getSnapshot()).settings;
-  setGlassStep(Number.isInteger(s.glassLevel) ? s.glassLevel : 3);
+  glassStep.set(Number.isInteger(s.glassLevel) ? s.glassLevel : 3);
+  tintStep.set(Number.isInteger(s.tintLevel) ? s.tintLevel : 0);
   $('set-work-rem').checked = s.workRemindersOn !== false; $('set-work-interval').value = s.workIntervalMin;
   $('set-off-rem').checked = s.offRemindersOn !== false; $('set-off-interval').value = s.offIntervalMin;
   $('set-work-interval').disabled = !$('set-work-rem').checked; $('set-off-interval').disabled = !$('set-off-rem').checked;
@@ -582,7 +586,7 @@ async function saveSettings() {
     focusByTime: $('set-focus').checked,
     mode: $('set-mode').value,
     uiLang: langSel,
-    glassLevel: glassSel,
+    glassLevel: glassStep.value, tintLevel: tintStep.value,
     workPath: $('set-work').value.trim() || undefined,
     personalPath: $('set-personal').value.trim() || undefined
   });
