@@ -22,13 +22,18 @@ function dueHtml(t) {
   }
   return `<span class="${cls}">${esc(label)}</span>`;
 }
+// subtasks: the note's own [ ] / [x] brackets (like the parent task). Open ones always show; done ones fold behind
+// one quiet "[x] N done" line and unfold while the pointer rests on it (owner, 2026-09-27).
+function subsHtml(subs, attrs = '') {
+  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span><span class="st">${esc(s.t)}</span></div>`;
+  const open = subs.filter(x => !x.done), done = subs.filter(x => x.done);
+  const fold = done.length ? `<div class="subs-done"><div class="sd-sum">${esc(T('isl.sub.doneN', { n: done.length }))}</div><div class="sd-wrap"><div class="sd-in">${done.map(one).join('')}</div></div></div>` : '';
+  return open.map(one).join('') + fold;
+}
 function rowHtml(t) {
   const subsBadge = t.subs.length ? `<span class="row-sub">${T('isl.sub.badge', { a: t.subs.filter(s => !s.done).length, b: t.subs.length })}</span>` : '';
-  const lines = [
-    ...(t.notes || []).map(n => `<div class="rd-note">${esc(n)}</div>`),
-    ...t.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`)
-  ].map((l, i) => l.replace('<div ', `<div style="--i:${Math.min(i, 6)}" `));
-  const detail = lines.length ? `<div class="rd-wrap"><div class="rd-inner">${lines.join('')}</div></div>` : '';
+  const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${esc(n)}</div>`).join('');
+  const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs)}</div></div>` : '';
   return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(t.title)}" draggable="true">
     <button class="rchk" data-chk type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: t.title }))}">[ ]</button>
     <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
@@ -126,20 +131,17 @@ function render() {
   if (actives.length) {
     html += `<div class="sec"><span class="hash">##</span> ${esc(T('isl.sec.now'))}</div>`;
     for (const a of actives) {
-      const subs = a.subs.length
-        ? `<div class="ac-subs">${a.subs.map(s => `<div class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-parent="${esc(a.id)}" data-file="${a.file}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}</div>` : '';
+      const subs = a.subs.length ? `<div class="ac-subs">${subsHtml(a.subs, ` data-parent="${esc(a.id)}" data-file="${a.file}"`)}</div>` : '';
       html += `<div class="fold"><div class="fold-in"><div class="active-card rim" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
-          <span class="star">&#9733;</span>
+          <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
+          <button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button>
           <span class="bang ${bangCls(a.priority)}">${a.priority ? esc(a.priority) : ''}</span>
-          <span class="ac-title"><span class="hl"><span class="tt">${esc(a.title)}</span></span></span>
+          <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="hl"><span class="tt">${esc(a.title)}</span></span></span>
           ${dueHtml(a)}
+          <button class="redit" data-edit type="button" title="${esc(T('isl.btn.editTitle'))}" aria-label="${esc(T('isl.btn.editAria', { t: a.title }))}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button>
         </div>
         ${subs}
-        <div class="ac-actions">
-          <button class="btn-done rim" data-done="${esc(a.id)}" data-file="${a.file}"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg>${T('isl.btn.done')}</button>
-          <button class="btn-keep" data-unstar="${esc(a.id)}" data-file="${a.file}">${T('isl.btn.notNow')}</button>
-        </div>
       </div></div></div>`;
     }
   } else if (!total && !errs) {
@@ -252,6 +254,8 @@ $('body').addEventListener('mouseover', e => {
     scheduleResize(300);
   }, sec * 1000);
 });
+$('body').addEventListener('mouseover', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
+$('body').addEventListener('mouseout', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
 $('body').addEventListener('mouseout', e => {
   const row = e.target.closest('.row');
   if (row && hoverRow === row && !row.contains(e.relatedTarget)) clearHover();
@@ -316,14 +320,14 @@ document.addEventListener('click', e => {
   }
   const edit = e.target.closest('[data-edit]');
   if (edit) {
-    const row = edit.closest('.row');
-    editFromIsland(row.dataset.file, row.dataset.id);
+    const row = edit.closest('.row, .active-card');
+    editFromIsland(row.dataset.file, row.dataset.id || row.dataset.card);
     return;
   }
   const done = e.target.closest('[data-done]');
   if (done) {
     const card = done.closest('.active-card');
-    completeWithInk(done.dataset.done, done.dataset.file, card.closest('.fold'), card.querySelector('.tt'), null);
+    completeWithInk(done.dataset.done, done.dataset.file, card.closest('.fold'), card.querySelector('.tt'), done);
     return;
   }
   const unstar = e.target.closest('[data-unstar]');
@@ -333,6 +337,13 @@ document.addEventListener('click', e => {
 });
 
 
+$('btn-add').addEventListener('click', () => {
+  const mode = (snap && snap.settings.mode) || 'both';
+  const tag = mode !== 'both' ? mode : snap && snap.workday ? 'work' : 'personal';
+  retract();
+  window.SFX.play('tick');
+  window.api.openWindow('new-' + tag);
+});
 $('btn-pin').addEventListener('click', () => {
   pinned = !pinned;
   window.SFX.play('pin');

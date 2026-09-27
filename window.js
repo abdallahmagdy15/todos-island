@@ -441,9 +441,20 @@ for (const tab of ['work', 'personal', 'done']) {
   const asked = new URLSearchParams(location.search).get('tab');
   const saved = localStorage.getItem('ti-tab');
   if (asked === 'settings') setTimeout(() => $('tab-settings').click(), 0);
+  else if (/^new-(work|personal)$/.test(asked || '')) setTimeout(() => openNew(asked.slice(4)), 0);
   else if (saved === 'personal' || saved === 'done') showTab(saved);
 }
-window.api.onShowTab(tab => { if (tab === 'settings') $('tab-settings').click(); else if (['work', 'personal', 'done'].includes(tab)) $('tab-' + tab).click(); });
+// "new-work" / "new-personal" (island +): open that tab and put the cursor in the composer
+function openNew(tag) {
+  const b = $('tab-' + tag);
+  if (b && !b.hidden) b.click();
+  setTimeout(() => { if (!$('composer').hidden) $('new-title').focus(); }, 60);
+}
+window.api.onShowTab(tab => {
+  if (tab === 'settings') $('tab-settings').click();
+  else if (/^new-(work|personal)$/.test(tab)) openNew(tab.slice(4));
+  else if (['work', 'personal', 'done'].includes(tab)) $('tab-' + tab).click();
+});
 
 // ---- settings: manual Save, visible dirty state, every error and clamp shown at its own field ----
 let settingsDirty = false, langSel = 'system';
@@ -557,7 +568,7 @@ async function loadSettings() {
   $('set-work').value = s.workPath; $('set-personal').value = s.personalPath;
   $('work-name').textContent = baseName(s.workPath); $('work-name').title = s.workPath;
   $('personal-name').textContent = baseName(s.personalPath); $('personal-name').title = s.personalPath;
-  $('set-weekend').checked = !!s.weekendAware; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn; $('set-update').checked = s.updateCheck !== false;
+  $('set-weekend').checked = !!s.weekendAware; $('set-weekend-days').value = s.weekendDays || 'auto'; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn; $('set-update').checked = s.updateCheck !== false;
   $('set-focus').checked = !!s.focusByTime;
   $('set-mode').value = s.mode || 'both';
   langSel = s.uiLang || 'system';
@@ -638,7 +649,7 @@ async function saveSettings() {
     undoSec: readNumber('set-undo', 5, 120, 5),
     hoverSec: readNumber('set-hover', 0.5, 10, 1),
     shortcut: shortcutValue || 'Control+Alt+T',
-    weekendAware: $('set-weekend').checked, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked, updateCheck: $('set-update').checked,
+    weekendAware: $('set-weekend').checked, weekendDays: $('set-weekend-days').value, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked, updateCheck: $('set-update').checked,
     focusByTime: $('set-focus').checked,
     mode: $('set-mode').value,
     uiLang: langSel,

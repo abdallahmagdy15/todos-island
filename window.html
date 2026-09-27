@@ -222,6 +222,14 @@
           <div class="slabel"><label for="set-weekend" data-i18n="set.weekend">Weekend aware</label><span class="shint" data-i18n="set.weekend.hint">Sat/Sun follow the off-hours schedule (personal time)</span></div>
           <div class="sctl"><input id="set-weekend" type="checkbox" role="switch" class="switch"></div>
         </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-weekend-days" data-i18n="set.weekendDays">Weekend days</label><span class="shint" data-i18n="set.weekendDays.hint">Auto follows your Windows region</span></div>
+          <div class="sctl"><select id="set-weekend-days">
+            <option value="auto" data-i18n="set.weekendDays.auto">Auto</option>
+            <option value="fri-sat" data-i18n="set.weekendDays.friSat">Friday + Saturday</option>
+            <option value="sat-sun" data-i18n="set.weekendDays.satSun">Saturday + Sunday</option>
+          </select></div>
+        </div>
         <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.island">Island</span></h2>
         <div class="srow">
           <div class="slabel"><label for="set-dismiss" data-i18n="set.dismiss">Auto-dismiss after</label><span class="shint" data-i18n="set.dismiss.hint">seconds · 5–600</span></div>

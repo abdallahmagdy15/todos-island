@@ -24,7 +24,8 @@ const DEFAULT_SETTINGS = {
   workIntervalMin: 60, offIntervalMin: 60, workRemindersOn: true, offRemindersOn: true,
   dayStart: '09:00', dayEnd: '17:00',
   dismissSec: 10, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
-  weekendAware: true, autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
+  weekendAware: true, weekendDays: 'auto', // weekendDays: auto (the Windows region's) | sat-sun | fri-sat
+  autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
   accent: 'blue', // theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
   labelSize: 1, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
@@ -105,7 +106,7 @@ function fileFor(tag) {
 
 function inWorkday() {
   const now = new Date();
-  if (state.settings.weekendAware && (now.getDay() === 0 || now.getDay() === 6)) return false; // Sat/Sun = off
+  if (state.settings.weekendAware && isWeekend(schedSettings(), now)) return false; // the weekend = off time
   const [sh, sm] = state.settings.dayStart.split(':').map(Number);
   const [eh, em] = state.settings.dayEnd.split(':').map(Number);
   const s = new Date(now); s.setHours(sh, sm, 0, 0);
@@ -113,8 +114,12 @@ function inWorkday() {
   return now >= s && now <= e;
 }
 
-const { nextFireAt: scheduleNext } = require('./lib/schedule.js');
-const nextFireAt = () => scheduleNext(state.settings, state.lastShown, Date.now());
+const { nextFireAt: scheduleNext, isWeekend } = require('./lib/schedule.js');
+// 'auto' weekend = the Windows region's: Friday + Saturday across most of the Arab world and a few others, else Sat + Sun
+const FRI_SAT = new Set(['EG', 'SA', 'KW', 'QA', 'BH', 'OM', 'JO', 'IQ', 'DZ', 'LY', 'SD', 'SY', 'YE', 'PS', 'IL', 'BD', 'MV']);
+const weekendDays = () => { const w = state.settings.weekendDays; if (w === 'sat-sun' || w === 'fri-sat') return w; let cc = ''; try { cc = app.getLocaleCountryCode(); } catch (e) {} return FRI_SAT.has(cc) ? 'fri-sat' : 'sat-sun'; };
+const schedSettings = () => ({ ...state.settings, weekendDays: weekendDays() });
+const nextFireAt = () => scheduleNext(schedSettings(), state.lastShown, Date.now());
 
 const RANK = { '!!!': 3, '!!': 2, '!': 1 };
 function snapshot() {
@@ -237,7 +242,10 @@ async function showIsland(opts = {}) {
   const wasHidden = !island.isVisible();
   if (wasHidden) sendWallpaper(); // background: a changed desktop picture repaints the island, never delays the pop
   sendBounds();
-  sendSnap(); island.showInactive();
+  // focusable while shown: a non-focusable (WS_EX_NOACTIVATE) window that was hidden and shown again drops every real mouse
+  // click on Windows — the island looked alive but ignored clicks after a timed pop (owner report, 2026-09-27; reproduced
+  // with real OS clicks, CDP clicks never showed it). showInactive still never takes focus: only the user's own click does.
+  sendSnap(); island.setFocusable(true); island.showInactive();
   island.webContents.send('island-shown', { fresh: !wasHidden }); // always: resets renderer state (cancels stuck animations, replays drop-in)
   if (state.settings.soundOn) island.webContents.send('play-sound');
   // keyboard summon only: the island takes focus so arrows/Enter/Space work. Timed pops NEVER steal focus.
@@ -629,6 +637,7 @@ ipcMain.handle('save-settings', (_e, s) => {
   if (clean.accent !== undefined && !['blue', 'violet', 'teal', 'pink', 'graphite'].includes(clean.accent)) delete clean.accent;
   for (const k of ['labelSize', 'taskSize']) if (clean[k] !== undefined) { const v = Math.round(+clean[k]); if (v >= 0 && v <= 3) clean[k] = v; else delete clean[k]; }
   delete clean.tintLevel; // removed in v1.8
+  if (clean.weekendDays !== undefined && !['auto', 'sat-sun', 'fri-sat'].includes(clean.weekendDays)) delete clean.weekendDays;
   if (clean.appearance !== undefined && !['system', 'light', 'dark'].includes(clean.appearance)) delete clean.appearance;
   if (clean.islandTheme !== undefined && !['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'wallpaper'].includes(clean.islandTheme)) delete clean.islandTheme;
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }

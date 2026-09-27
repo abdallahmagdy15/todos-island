@@ -134,9 +134,6 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .rd-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 280ms var(--ease-out); }
 .rd-inner { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-2); color: var(--muted); }
 .rd-inner .rd-note { font-style: italic; }
-.rd-inner .done { color: var(--faint); text-decoration: line-through; }
-.rd-inner div[data-sub] { cursor: pointer; }
-.rd-inner div[data-sub]:hover { color: var(--ink); }
 .rd-inner > :first-child { margin-top: 6px; }
 .row.hovered { background: var(--accent-soft); border-color: var(--accent-border); }
 .row.hovered .rtitle { -webkit-line-clamp: unset; overflow: visible; }
@@ -162,14 +159,17 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 }
 .rchk:hover, .rchk.checked { color: var(--accent); }
 .rchk:hover { background: var(--accent-soft); }
+/* the pencil takes no room at rest; on hover it opens its own width, so the date glides left to make space */
 .redit {
-  flex: none; width: 24px; height: 24px; margin: -3px -4px -3px 0; border: 0; border-radius: var(--r-1);
+  flex: none; width: 0; height: 24px; margin: -3px 0; border: 0; border-radius: var(--r-1); overflow: hidden;
   background: transparent; color: var(--faint); cursor: pointer; line-height: 1;
   display: inline-flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity var(--d-1) ease, color var(--d-1) ease, background var(--d-1) ease;
+  opacity: 0; transition: width 220ms var(--ease-out), margin 220ms var(--ease-out), opacity 160ms ease, color var(--d-1) ease, background var(--d-1) ease;
 }
-.redit .ic { width: 13px; height: 13px; }
-.row:hover .redit, .row:focus-within .redit, .redit:focus-visible { opacity: 1; }
+.redit .ic { flex: none; width: 13px; height: 13px; }
+.row:hover .redit, .row:focus-within .redit, .active-card:hover .redit, .active-card:focus-within .redit, .redit:focus-visible {
+  width: 24px; margin-inline: -2px -4px; opacity: 1;
+}
 .redit:hover { color: var(--accent); background: var(--accent-soft); }
 
 /* cold-start skeleton — Facebook-style shimmer. Transform-only sweep on a pseudo-element (off the
@@ -232,24 +232,34 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
   background: var(--accent-soft); border: 1px solid var(--accent-border); border-radius: var(--r-inner);
 }
 .active-card .ac-head { display: flex; align-items: center; gap: 10px; }
-.star { flex: none; color: var(--accent); font-size: var(--fs-4); line-height: 1; }
-.active-card .ac-title { flex: 1; min-width: 0; font-weight: 650; font-size: var(--fs-task-lg); line-height: 1.4; }
-.ac-subs { margin-top: 8px; font-size: var(--fs-2); color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
-.ac-subs div[data-sub] { cursor: pointer; border-radius: var(--r-1); padding: 2px 4px; margin: 0 -4px; }
-.ac-subs div[data-sub]:hover { color: var(--ink); background: var(--hover); }
-.ac-subs .done { color: var(--faint); text-decoration: line-through; }
-.ac-actions { display: flex; gap: 8px; margin-top: 12px; }
-.ac-actions button {
-  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
-  padding: 8px 0; border-radius: var(--r-2); cursor: pointer;
-  font-size: var(--fs-2); font-weight: 650; font-family: inherit;
-  transition: filter var(--d-1) ease, border-color var(--d-1) ease;
+.active-card .ac-head { align-items: flex-start; }
+.active-card .ac-head > .rchk, .active-card .ac-head > .star { margin-top: 1px; }
+/* the ★ is the Not-now button (owner pick "C"): hover shows it will empty to ☆; the title itself does the same */
+.star {
+  flex: none; width: 22px; height: 22px; margin: -1px -4px -1px -6px; padding: 0; border: 0; border-radius: var(--r-1);
+  background: transparent; color: var(--accent); font-size: var(--fs-4); line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; transition: background var(--d-1) ease, color var(--d-1) ease;
 }
-.ac-actions .ic { width: 13px; height: 13px; stroke-width: 2.2; }
-.btn-done { background: var(--accent); color: var(--accent-ink); border: 1px solid var(--accent); }
-.btn-done:hover { filter: brightness(1.08); }
-.btn-keep { background: var(--pill-bg); color: var(--ink); border: 1px solid var(--rule); }
-.btn-keep:hover { border-color: var(--faint); }
+.star:hover { background: var(--accent-soft); }
+.star:hover::before { content: '\2606'; } .star:hover { font-size: 0; } .star:hover::before { font-size: var(--fs-4); }
+.active-card .ac-title { flex: 1; min-width: 0; font-weight: 650; font-size: var(--fs-task-lg); line-height: 1.4; cursor: pointer; }
+.active-card .due { margin-top: 2px; }
+.ac-subs { margin: 8px 0 0 32px; }
+
+/* subtasks (Now card + hover-unfolded rows): the note's own [ ] / [x] brackets at task-text size */
+.sub { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-task); line-height: 1.45; color: var(--muted); cursor: pointer; border-radius: var(--r-1); padding: 1px 4px; margin: 0 -4px; }
+.sub:hover { color: var(--ink); background: var(--hover); }
+.sub .sb { flex: none; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--faint); letter-spacing: -0.5px; }
+.sub:hover .sb { color: var(--accent); }
+.sub.done .st { color: var(--faint); text-decoration: line-through; }
+.ac-subs, .rd-inner { display: flex; flex-direction: column; gap: 2px; }
+/* done subtasks fold behind one quiet line and open while the pointer rests on it */
+.subs-done { display: flex; flex-direction: column; }
+.sd-sum { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); padding: 2px 0; transition: opacity 160ms ease; }
+.sd-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 260ms var(--ease-out), opacity 200ms ease; }
+.sd-in { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
+.subs-done:hover .sd-wrap, .subs-done:focus-within .sd-wrap { grid-template-rows: 1fr; opacity: 1; }
+.subs-done:hover .sd-sum { opacity: 0.55; }
 
 .hint { padding: 5px 20px 11px; color: var(--faint); font-size: var(--fs-2); }
 
