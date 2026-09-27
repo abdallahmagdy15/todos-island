@@ -4,7 +4,7 @@
 const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { NoteFile, resolveDue, MONTHS } = require('./lib/parse.js');
+const { NoteFile, resolveDue, MONTHS, stampMs } = require('./lib/parse.js');
 const { composeTask } = require('./lib/compose.js');
 const { planSetup, NOTE_NAME } = require('./lib/setup.js');
 const { makePngBuffer } = require('./lib/icon.js');
@@ -129,11 +129,13 @@ function snapshot() {
     dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
       dueTs: t.due ? resolveDue(t.due) : null,
       notes: f.notesOf(t).map(n => n.replace(/\*\*/g, '')),
-      subs: f.subtasksOf(t).map(s => ({ t: s.title.replace(/\*\*/g, ''), done: s.checked }))
+      subs: f.subtasksOf(t).map(s => ({ t: s.title.replace(/\*\*/g, ''), done: s.checked })),
+      created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
     id: f.id(t), file: group, title: t.title.replace(/\*\*/g, ''),
-    dueText: t.due ? `${t.due.d} ${t.due.m}` : null
+    dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
+    created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
   }));
   const safe = (group, path) => {
     try {
@@ -151,9 +153,12 @@ function snapshot() {
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   const dec = t => !t.dueTs ? 'none' : t.dueTs < today0.getTime() ? 'overdue' : t.dueTs < today0.getTime() + 864e5 ? 'today' : 'future';
   const sort = arr => arr.sort((a, b) =>
+    // order (owner, 2026-09-27): Now first, then due date (soonest; none last), then priority, then last edit (newest).
+    // Ties (e.g. no stamps) keep the note's own order: Array.sort is stable.
     ((b.active ? 1 : 0) - (a.active ? 1 : 0)) ||
+    ((a.dueTs || Infinity) - (b.dueTs || Infinity)) ||
     ((RANK[b.priority] || 0) - (RANK[a.priority] || 0)) ||
-    ((a.dueTs || Infinity) - (b.dueTs || Infinity)));
+    (b.updatedTs - a.updatedTs));
   sort(work.items).forEach(t => t.dueState = dec(t));
   sort(personal.items).forEach(t => t.dueState = dec(t));
   const sections = (inWorkday()
@@ -165,7 +170,10 @@ function snapshot() {
     : null;
   const sources = {};
   for (const tag of ['work', 'personal']) if (on(tag)) sources[tag] = path.basename(state.settings[tag + 'Path'] || '');
-  return { sections, errors, sources, lastWrite, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update };
+  // Done: newest done first (the u stamp = done date); unstamped done tasks keep note order after them.
+  // Work notes already file each newly done task at the top of ## Done, so the note reads in the same order.
+  const done = [...work.done, ...personal.done].sort((a, b) => b.updatedTs - a.updatedTs);
+  return { sections, errors, sources, lastWrite, done, workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update };
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
@@ -536,10 +544,10 @@ ipcMain.handle('toggle-active', (_e, id, file) => {
   const f = fileFor(file);
   const t = f.findById(id);
   if (!t) return;
-  const prev = t.active;
+  const prev = t.active, prevU = t.updated;
   const label = t.title.replace(/\*\*/g, '');
   f.toggleActive(id); f.save();
-  const token = pushUndo({ kind: 'toggle', file, id, prev, label, expires: Date.now() + state.settings.undoSec * 1000 });
+  const token = pushUndo({ kind: 'toggle', file, id, prev, prevU, label, expires: Date.now() + state.settings.undoSec * 1000 });
   sendSnap(); pushUndoToWindow(token);
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
@@ -601,7 +609,7 @@ ipcMain.handle('undo-action', (_e, token) => {
   const f = fileFor(e.file);
   if (e.kind === 'toggle') {
     const t = f.findById(e.id);
-    if (t) { t.active = e.prev; t.dirty = true; f.save(); }
+    if (t) { t.active = e.prev; if (e.prevU !== undefined) t.updated = e.prevU; t.dirty = true; f.save(); } // exact rollback, stamp included
   } else {
     f.restoreBlock(e.cap); f.save(); // complete / delete / reorder all roll back via the captured block
   }
