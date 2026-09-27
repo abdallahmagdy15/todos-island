@@ -1,7 +1,8 @@
 'use strict';
 let snap = null, expanded = false, pinned = false;
-let dismissT = null, remainMs = 0, dismissEnd = 0;
-let islandHovered = false; // cursor anywhere on the pill → countdown frozen, whatever re-renders happen
+let dismissT = null;
+let islandHovered = false; // pointer anywhere on the island window → the timer sits FULL, whatever you click
+let counting = false; // a dismiss countdown is running (re-renders never restart or pause it)
 let animating = 0, pendingSnap = null; // a snapshot arriving mid-animation waits — re-rendering would kill the moving row
 let prevActive = null; // ids that were Now last render — newly-Now titles get the highlighter swipe
 
@@ -37,21 +38,29 @@ function rowHtml(t) {
   </div></div></div>`;
 }
 
+// Dismiss timer. ONE rule, applied by armDismiss() after anything that could matter (render, hover, pin, keys):
+//   pinned / broken note → no timer · pointer on the island or keyboard mode → timer held FULL
+//   otherwise → a full countdown, started once; re-renders from clicks never restart or pause it.
 let dismissBar = null;
+const bar = () => { // the glass's own top highlight is the clock (owner pick 'D'): the arc and its blue core shrink to the center
+  if (!dismissBar) {
+    const core = window.UI.countdown($('progress-fill')), arc = window.UI.countdown($('gl-arc'));
+    dismissBar = { start: t => { core.start(t); arc.start(t); } };
+  }
+  return dismissBar;
+};
+const dismissMs = () => ((snap && snap.settings.dismissSec) || 10) * 1000;
 function scheduleDismiss(ms) {
   clearTimeout(dismissT);
-  if (!dismissBar) { // the glass's own top highlight is the clock (owner pick 'D'): the arc and its blue core shrink to the center
-    const core = window.UI.countdown($('progress-fill')), arc = window.UI.countdown($('gl-arc'));
-    dismissBar = { start: t => { core.start(t); arc.start(t); }, pause: () => { core.pause(); arc.pause(); } };
-  }
-  dismissBar.start(ms);
-  dismissEnd = Date.now() + ms;
-  dismissT = setTimeout(() => { if (!pinned && !hasErrors()) retract(); }, ms);
+  bar().start(ms);
+  counting = true;
+  dismissT = setTimeout(() => { counting = false; if (!pinned && !hasErrors()) retract(); }, ms);
 }
-function pauseDismiss() {
-  clearTimeout(dismissT);
-  remainMs = Math.max(0, dismissEnd - Date.now());
-  if (dismissBar) dismissBar.pause();
+function holdFull() { clearTimeout(dismissT); counting = false; bar().start(0); } // start(0) = painted full, no motion
+function armDismiss() {
+  if (pinned || hasErrors()) { holdFull(); return; }
+  if (islandHovered || kbdActive) { holdFull(); return; }
+  if (!counting) scheduleDismiss(dismissMs());
 }
 const hasErrors = () => !!(snap && snap.errors && snap.errors.length);
 
@@ -178,9 +187,7 @@ function render() {
   renderUndo();
 
   requestAnimationFrame(() => window.api.resize($('wrap').offsetHeight));
-  if (errs) { clearTimeout(dismissT); return; }
-  if (!pinned && !islandHovered && !kbdActive) scheduleDismiss((snap.settings.dismissSec || 10) * 1000);
-  else if (!pinned) pauseDismiss(); // hovered / keyboard-driven: freeze the countdown even after action-triggered re-renders
+  armDismiss();
 }
 
 function flush() {
@@ -325,24 +332,18 @@ document.addEventListener('click', e => {
   if (row) { window.SFX.play('starOn'); window.api.toggleActive(row.dataset.id, row.dataset.file); return; } // row click = stage as Now
 });
 
-$('pill').addEventListener('mouseenter', () => { islandHovered = true; if (!pinned) pauseDismiss(); });
-$('pill').addEventListener('mouseleave', () => {
-  islandHovered = false;
-  if (!pinned && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 10) * 1000); // fresh countdown once you leave
-});
 
 $('btn-pin').addEventListener('click', () => {
   pinned = !pinned;
   window.SFX.play('pin');
   if (pinned) {
-    clearTimeout(dismissT);
     document.body.classList.add('pinned');
     $('btn-pin').classList.add('pinned');
   } else {
     document.body.classList.toggle('pinned', hasErrors());
     $('btn-pin').classList.remove('pinned');
-    if (!islandHovered && !hasErrors()) scheduleDismiss((snap && snap.settings.dismissSec || 10) * 1000); // hovering the pin = still on the island
   }
+  armDismiss(); // hovering the pin = still on the island → held full
 });
 
 // M4 — the pill retracts upward instead of vanishing; the drop-in entry replays on every show
@@ -350,7 +351,7 @@ let retracting = false;
 function retract() {
   if (retracting) return;
   retracting = true;
-  islandHovered = false; pointerIn = false; held = null; // a hidden window never gets its mouseleave
+  islandHovered = false; pointerIn = false; held = null; counting = false; // a hidden window never gets its mouseleave
   clearTimeout(dismissT);
   const anim = window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
   // backstop: the window must really hide even if the animation stalls, or the next shortcut press only "dismisses"
@@ -366,11 +367,11 @@ function editFromIsland(file, id) {
 window.api.onShown(info => {
   retracting = false;
   // hover is only trusted if the island was already up; a fresh pop starts un-hovered and counts down at once
-  islandHovered = info.fresh && $('pill').matches(':hover');
+  islandHovered = info.fresh && document.documentElement.matches(':hover');
   if (!islandHovered) { pointerIn = false; held = null; }
-  if (!pinned && !islandHovered && !kbdActive && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 10) * 1000);
+  counting = false; armDismiss(); // every show: a fresh full countdown (or held full, if the pointer is already on it)
   // a new pop: the old screen copy is stale — start frosted (tint at full) and let the fresh copy fade in
-  if (!info.fresh && glassLevel > 0) { haveFrame = false; needAlpha = 0; applyGlass(true); tick(); } // a warm stream paints at once // heal a retract whose animation promise died silently — the pill is visible again
+  if (!info.fresh && glassLevel > 0) { haveFrame = false; applyGlass(true); tick(); } // a warm stream paints at once // heal a retract whose animation promise died silently — the pill is visible again
   const pill = $('pill');
   pill.getAnimations().forEach(a => a.cancel());
   gelDrop(pill);
@@ -380,14 +381,14 @@ window.api.onShown(info => {
 // Glass level (Settings): 0 = solid thick glass · 1–4 = 20/35/50/65 % of the screen shows through.
 // While the island is up it streams the screen (main hands over the media-source id; the island itself is excluded
 // from capture) and paints the strip under the pill into the #gl-bd canvas ~5×/s. The lens filter (#isl-lens)
-// bends it, CSS blurs + tints it. The tint never gets thinner than the text needs (measureNeed).
+// bends it, CSS blurs + tints it. The tint is exactly the chosen level — nothing is measured at runtime (owner: keep it light).
 const GLASS_ALPHA = [1, 0.8, 0.65, 0.5, 0.35];
 // Tint (Settings): 0 = off · 1–4 = the glass takes on more and more of the accent hue, like tinted glass
 const TINT_ALPHA = [0, 0.08, 0.15, 0.22, 0.3];
 let tintLevel = 0;
 const GL_PAD = 16; // the backdrop canvas overhangs the pill so the blur never pulls in transparent edges
 const FRAME_MS = 200, STREAM_LINGER_MS = 60e3; // keep the stream warm a minute after hiding: quick re-pops are instant
-let glassLevel = 3, winPos = { x: window.screenX, y: window.screenY }, needAlpha = 0, haveFrame = false;
+let glassLevel = 3, winPos = { x: window.screenX, y: window.screenY }, haveFrame = false;
 let source = null, stream = null, video = null, starting = null, frameT = null, lingerT = null, frames = 0, photo = null;
 // The desktop stream films the real mouse pointer too (measured: ~54 px of arrow in the frame). Under the lens it
 // came out bent and blurred, a ghost cursor following the mouse. So while the pointer is on the island the glass
@@ -401,13 +402,13 @@ function keepClean(k, r) {
   b.getContext('2d').drawImage(video, (r.x - source.display.x) * k, (r.y - source.display.y) * k, b.width * k, HOLD_H * k, 0, 0, b.width, HOLD_H);
   clean.push(b);
 }
-document.documentElement.addEventListener('mouseenter', () => { pointerIn = true; held = clean[0] || null; }); // oldest ≈ 0.4–0.6 s before
-document.documentElement.addEventListener('mouseleave', () => { pointerIn = false; held = null; clean.length = 0; });
+document.documentElement.addEventListener('mouseenter', () => { pointerIn = islandHovered = true; held = clean[0] || null; armDismiss(); }); // oldest clean strip ≈ 0.4–0.6 s before
+document.documentElement.addEventListener('mouseleave', () => { pointerIn = islandHovered = false; held = null; clean.length = 0; armDismiss(); }); // leave → fresh full countdown
 function applyGlass(pending = false) {
   const lens = glassLevel > 0 && (haveFrame || pending);
   document.body.dataset.glass = lens ? 'lens' : 'solid';
   document.body.classList.toggle('gl-ready', haveFrame);
-  $('pill').style.setProperty('--g-alpha', haveFrame && glassLevel > 0 ? Math.max(GLASS_ALPHA[glassLevel], needAlpha).toFixed(2) : '1');
+  $('pill').style.setProperty('--g-alpha', haveFrame && glassLevel > 0 ? GLASS_ALPHA[glassLevel].toFixed(2) : '1');
   $('pill').style.setProperty('--g-hue-a', TINT_ALPHA[tintLevel] || 0);
   if (lens) { sizeCanvas(); scheduleLensMap(); }
 }
@@ -437,11 +438,7 @@ function tick() {
   if (document.visibilityState !== 'visible') return;
   if (paint()) {
     frames++;
-    if (!haveFrame || frames % 10 === 0) { // first frame, then every ~2 s: keep the text-safety tint honest
-      needAlpha = measureNeed($('gl-bd'));
-      const first = !haveFrame; haveFrame = true;
-      if (first || document.body.dataset.glass !== 'lens') applyGlass(); else $('pill').style.setProperty('--g-alpha', Math.max(GLASS_ALPHA[glassLevel], needAlpha).toFixed(2));
-    }
+    if (!haveFrame) { haveFrame = true; applyGlass(); } // first frame: the glass fades in
   }
   frameT = setTimeout(tick, FRAME_MS);
 }
@@ -512,36 +509,6 @@ function buildLensMap() {
   f.setAttribute('width', w); f.setAttribute('height', h);
 }
 new ResizeObserver(() => { if (document.body.dataset.glass === 'lens') { sizeCanvas(); scheduleLensMap(); } }).observe($('pill'));
-// readability floor: over a busy or dark (light theme) / bright (dark theme) desktop the glass thickens itself,
-// so body text keeps 4.5:1 and secondary text 3:1 on ~85% of the strip, whatever level is picked
-const hexRgb = v => { const m = String(v).trim().match(/^#([0-9a-f]{6})$/i); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null; };
-const lumOf = ([r, g, b]) => { const ch = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b); };
-const ratio = (a, b) => { const x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
-const probe = document.createElement('canvas');
-function measureNeed(src) {
-  const cs = getComputedStyle(document.documentElement);
-  const ink = hexRgb(cs.getPropertyValue('--ink')), muted = hexRgb(cs.getPropertyValue('--muted'));
-  const base = cs.getPropertyValue('--g-base').split(',').map(Number);
-  const hue = cs.getPropertyValue('--g-hue').split(',').map(Number), h = TINT_ALPHA[tintLevel] || 0;
-  if (!ink || !muted || base.length !== 3 || hue.length !== 3 || !src.width) return 0;
-  const W = 64, H = Math.max(4, Math.round(W * src.height / src.width));
-  probe.width = W; probe.height = H;
-  const ctx = probe.getContext('2d', { willReadFrequently: true });
-  ctx.filter = 'blur(2px)'; ctx.drawImage(src, 0, 0, W, H);
-  const px = ctx.getImageData(0, 0, W, H).data, needs = [];
-  for (let i = 0; i < px.length; i += 4) {
-    const P = [px[i], px[i + 1], px[i + 2]];
-    let a = 0;
-    for (; a < 1; a += 0.05) {
-      const mix = base.map((v, k) => hue[k] * h + (v * a + P[k] * (1 - a)) * (1 - h));
-      if (ratio(ink, mix) >= 4.5 && ratio(muted, mix) >= 3) break;
-    }
-    needs.push(Math.min(1, a));
-  }
-  needs.sort((x, y) => x - y);
-  return needs[Math.floor(needs.length * 0.85)] || 0;
-}
-
 // gel drop-in: the pill falls from the screen edge on a spring, X and Y settling on their own springs,
 // so it lands like a drop of liquid. No light sweep (owner: distracting). Reduced motion: no motion.
 function gelDrop(pill) {
@@ -592,14 +559,14 @@ let kbdActive = false;
 window.api.onRetract(() => retract()); // shortcut toggle: dismiss side
 window.api.onFocusRequest(() => {
   kbdActive = true;
-  pauseDismiss();
+  armDismiss();
   const first = $('body').querySelector('[data-nav]');
   if (first) first.focus(); else $('btn-close').focus();
 });
 window.addEventListener('blur', () => {
   if (!kbdActive) return;
   kbdActive = false;
-  if (!pinned && !islandHovered && !hasErrors()) scheduleDismiss(((snap && snap.settings.dismissSec) || 10) * 1000);
+  armDismiss();
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') { retract(); return; }
@@ -626,10 +593,11 @@ function handleSnap(s) {
   if (s && s.lang && s.lang !== LANG) { LANG = s.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
   if (s && s.settings) {
     window.SFX.enabled = !!s.settings.soundOn;
+    window.UI.applyTheme(s.settings);
     const g = Number.isInteger(s.settings.glassLevel) ? s.settings.glassLevel : 3;
     if (g !== glassLevel) { glassLevel = g; if (!g) stopStream(); else if (source) startStream(); applyGlass(); }
     const tl = Number.isInteger(s.settings.tintLevel) ? Math.max(0, Math.min(4, s.settings.tintLevel)) : 0;
-    if (tl !== tintLevel) { tintLevel = tl; needAlpha = 0; applyGlass(); }
+    if (tl !== tintLevel) { tintLevel = tl; applyGlass(); }
   }
   if (!snap) expanded = false;
   if (animating) { pendingSnap = s; return; }

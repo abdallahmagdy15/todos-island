@@ -104,7 +104,7 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .bang.p0::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-inline-start: 9px; border-radius: 50%; background: var(--faint); opacity: 0.5; vertical-align: middle; }
 .wstar { flex: none; color: var(--accent); font-size: var(--fs-3); }
 .wtitle {
-  min-width: 0; line-height: 1.45;
+  min-width: 0; line-height: 1.45; font-size: var(--fs-task);
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 .wrow.open .wtitle { -webkit-line-clamp: unset; overflow: visible; }
@@ -267,6 +267,8 @@ input.invalid, textarea.invalid {
 }
 .btn-text.danger { color: var(--danger); }
 .btn-text.danger:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.btn-soft.danger { color: var(--danger-deep); }
+.btn-soft.danger:hover { color: var(--danger-deep); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
 button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
 
 /* ---- markdown-literal headings: faint mono "##" + sentence-case title ---- */
@@ -498,3 +500,29 @@ kbd {
 .step.sel { background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 .step:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 header .upd { margin-inline-start: var(--s-3); }
+
+/* Settings → Theme color: one round swatch per accent; the chosen one wears a ring in its own color */
+.swatches { display: flex; gap: 8px; }
+.swatch {
+  width: 26px; height: 26px; border-radius: 50%; border: 0; cursor: pointer; padding: 0;
+  background: var(--sw); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -3px 5px rgba(0, 0, 0, 0.18);
+  transition: box-shadow var(--d-1) ease, transform var(--d-1) ease;
+}
+.swatch[data-accent="blue"] { --sw: var(--sw-blue); } .swatch[data-accent="violet"] { --sw: var(--sw-violet); }
+.swatch[data-accent="teal"] { --sw: var(--sw-teal); } .swatch[data-accent="pink"] { --sw: var(--sw-pink); }
+.swatch[data-accent="graphite"] { --sw: var(--sw-graphite); }
+.swatch:hover { transform: scale(1.08); }
+.swatch.sel { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--sw); }
+.swatch:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
+
+/* Settings → Advanced: a heading that opens and closes the rarely-changed rows */
+.adv-toggle {
+  display: flex; align-items: baseline; gap: var(--s-2); width: 100%; margin-top: var(--s-6); padding: 8px 0;
+  border: 0; border-top: 1px solid var(--rule-soft); background: transparent; cursor: pointer;
+  font-family: inherit; font-size: var(--fs-4); font-weight: 650; color: var(--ink); text-align: start;
+}
+.adv-toggle .hash { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 400; color: var(--faint); }
+.adv-toggle .chev { width: 16px; height: 16px; align-self: center; margin-inline-start: auto; color: var(--muted); transition: transform var(--d-2) var(--ease-out); }
+.adv-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
+.adv-toggle:hover .chev { color: var(--ink); }
+.adv { padding-top: var(--s-2); }

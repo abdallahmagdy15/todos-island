@@ -205,7 +205,7 @@ async function refresh() {
   if (animating) { refreshPending = true; return; }
   snap = await window.api.getSnapshot();
   if (snap && snap.lang && snap.lang !== LANG) { LANG = snap.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
-  if (snap && snap.settings) { window.SFX.enabled = !!snap.settings.soundOn; applyGlass(snap.settings.glassLevel); }
+  if (snap && snap.settings) { window.SFX.enabled = !!snap.settings.soundOn; applyGlass(snap.settings.glassLevel); window.UI.applyTheme(snap.settings); }
   applyMode();
   updateTabCounts();
   renderChrome();
@@ -287,6 +287,12 @@ async function onListAction(e) {
 
 $('btn-share').addEventListener('click', () => window.api.openShare());
 $('btn-update').addEventListener('click', () => window.api.openUpdate());
+$('btn-rerun-setup').addEventListener('click', () => { window.SFX.play('tick'); window.api.openOnboard(); }); // the wizard merges over current settings — cancel changes nothing
+$('btn-reset-settings').addEventListener('click', async () => { // settings only: note files are never created, deleted, or modified
+  window.SFX.play('delete');
+  await window.api.resetSettings();
+  await loadSettings(); setDirty(false); // the form shows the defaults immediately; the undo bubble is the safety net
+});
 $('err-strip').addEventListener('click', e => {
   if (e.target.closest('[data-retry]')) refresh();
   if (e.target.closest('[data-open-settings]')) $('tab-settings').click();
@@ -473,6 +479,30 @@ function stepper(id) {
   return api;
 }
 const glassStep = stepper('glass-steps'), tintStep = stepper('tint-steps');
+const labelStep = stepper('label-size-steps'), taskStep = stepper('task-size-steps');
+// Theme color: one swatch per accent — a radiogroup (one tab stop, arrows move it, RTL-aware)
+const swatches = [...document.querySelectorAll('#accent-sw .swatch')];
+let accentSel = 'blue';
+function setAccent(a) {
+  accentSel = a;
+  swatches.forEach(b => { const on = b.dataset.accent === a; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
+}
+swatches.forEach(b => b.addEventListener('click', () => { setAccent(b.dataset.accent); setDirty(true); }));
+$('accent-sw').addEventListener('keydown', e => {
+  const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!d) return;
+  e.preventDefault();
+  const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
+  const i = swatches.findIndex(b => b.dataset.accent === accentSel), n = (i + (rtl ? -d : d) + swatches.length) % swatches.length;
+  setAccent(swatches[n].dataset.accent); swatches[n].focus(); setDirty(true);
+});
+// Advanced settings: collapsed by default; the open/closed choice is remembered per viewer (a convenience only)
+function setAdvanced(open) {
+  $('set-advanced').hidden = !open; $('adv-toggle').setAttribute('aria-expanded', String(open));
+  try { localStorage.setItem('ti-adv-open', open ? '1' : '0'); } catch (e) {}
+}
+$('adv-toggle').addEventListener('click', () => setAdvanced($('set-advanced').hidden));
+try { setAdvanced(localStorage.getItem('ti-adv-open') === '1'); } catch (e) { setAdvanced(false); }
 window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); refresh(); });
 function setDirty(on) {
   settingsDirty = on;
@@ -491,6 +521,8 @@ const baseName = p => String(p || '').split(/[\\/]/).pop();
 async function loadSettings() {
   const s = (await window.api.getSnapshot()).settings;
   glassStep.set(Number.isInteger(s.glassLevel) ? s.glassLevel : 3);
+  labelStep.set(Number.isInteger(s.labelSize) ? s.labelSize : 1); taskStep.set(Number.isInteger(s.taskSize) ? s.taskSize : 1);
+  setAccent(window.UI.ACCENTS.includes(s.accent) ? s.accent : 'blue');
   tintStep.set(Number.isInteger(s.tintLevel) ? s.tintLevel : 0);
   $('set-work-rem').checked = s.workRemindersOn !== false; $('set-work-interval').value = s.workIntervalMin;
   $('set-off-rem').checked = s.offRemindersOn !== false; $('set-off-interval').value = s.offIntervalMin;
@@ -586,7 +618,7 @@ async function saveSettings() {
     focusByTime: $('set-focus').checked,
     mode: $('set-mode').value,
     uiLang: langSel,
-    glassLevel: glassStep.value, tintLevel: tintStep.value,
+    glassLevel: glassStep.value, tintLevel: tintStep.value, accent: accentSel, labelSize: labelStep.value, taskSize: taskStep.value,
     workPath: $('set-work').value.trim() || undefined,
     personalPath: $('set-personal').value.trim() || undefined
   });
@@ -643,6 +675,7 @@ window.api.onShowUndo(d => {
         freshFrom = null;
         notice(r.reason === 'changed' ? `Can't undo — ${r.files.join(', ')} changed since.` : 'Undo expired.', 'bad');
       }
+      if (r && r.ok && d.kind === 'settings') { await loadSettings(); setDirty(false); } // a settings reset came back — re-fill the form
     }
   });
 });

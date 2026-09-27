@@ -93,25 +93,8 @@
           <div class="slabel"><label for="set-end" data-i18n="set.dayEnd">Workday end</label></div>
           <div class="sctl"><input id="set-end" type="time"></div>
         </div>
-        <div class="srow">
-          <div class="slabel"><label for="set-weekend" data-i18n="set.weekend">Weekend aware</label><span class="shint" data-i18n="set.weekend.hint">Sat/Sun follow the off-hours schedule (personal time)</span></div>
-          <div class="sctl"><input id="set-weekend" type="checkbox" role="switch" class="switch"></div>
-        </div>
         <p class="note" data-i18n="set.note.night">Nothing fires after midnight until the workday starts.</p>
-
-        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.island">Island</span></h2>
-        <div class="srow">
-          <div class="slabel"><label for="set-dismiss" data-i18n="set.dismiss">Auto-dismiss after</label><span class="shint" data-i18n="set.dismiss.hint">seconds · 5–600</span></div>
-          <div class="sctl"><input id="set-dismiss" type="number" min="5" max="600" step="5"><span class="fstat" data-for="set-dismiss" role="status"></span></div>
-        </div>
-        <div class="srow">
-          <div class="slabel"><label for="set-hover" data-i18n="set.hover">Hover-unfold delay</label><span class="shint" data-i18n="set.hover.hint">seconds resting on a task before it unfolds · 0.5–10</span></div>
-          <div class="sctl"><input id="set-hover" type="number" min="0.5" max="10" step="0.5"><span class="fstat" data-for="set-hover" role="status"></span></div>
-        </div>
-        <div class="srow">
-          <div class="slabel"><label for="set-focus" data-i18n="set.focus">Focus by time</label><span class="shint" data-i18n="set.focus.hint">work tasks in work hours, personal tasks outside</span></div>
-          <div class="sctl"><input id="set-focus" type="checkbox" role="switch" class="switch"></div>
-        </div>
+        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.look">Look</span></h2>
         <div class="srow">
           <div class="slabel"><label id="glass-lbl" data-i18n="set.glass">Glass</label><span class="shint" data-i18n="set.glass.hint">how much of your screen shows through the island</span></div>
           <div class="sctl">
@@ -125,51 +108,39 @@
           </div>
         </div>
         <div class="srow">
-          <div class="slabel"><label id="tint-lbl" data-i18n="set.tint">Tint</label><span class="shint" data-i18n="set.tint.hint">how strongly the island glass takes on the accent color</span></div>
+          <div class="slabel"><label id="accent-lbl" data-i18n="set.accent">Theme color</label><span class="shint" data-i18n="set.accent.hint">buttons, Now and the glass tint follow it</span></div>
           <div class="sctl">
-            <div class="steps" id="tint-steps" role="radiogroup" aria-labelledby="tint-lbl">
-              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.tint.off">Off</button>
-              <button class="step" type="button" role="radio" data-glass="1">1</button>
-              <button class="step" type="button" role="radio" data-glass="2">2</button>
-              <button class="step" type="button" role="radio" data-glass="3">3</button>
-              <button class="step" type="button" role="radio" data-glass="4">4</button>
+            <div class="swatches" id="accent-sw" role="radiogroup" aria-labelledby="accent-lbl">
+              <button class="swatch" type="button" role="radio" data-accent="blue" data-i18n-title="set.accent.blue" data-i18n-aria="set.accent.blue"></button>
+              <button class="swatch" type="button" role="radio" data-accent="violet" data-i18n-title="set.accent.violet" data-i18n-aria="set.accent.violet"></button>
+              <button class="swatch" type="button" role="radio" data-accent="teal" data-i18n-title="set.accent.teal" data-i18n-aria="set.accent.teal"></button>
+              <button class="swatch" type="button" role="radio" data-accent="pink" data-i18n-title="set.accent.pink" data-i18n-aria="set.accent.pink"></button>
+              <button class="swatch" type="button" role="radio" data-accent="graphite" data-i18n-title="set.accent.graphite" data-i18n-aria="set.accent.graphite"></button>
             </div>
           </div>
         </div>
         <div class="srow">
-          <div class="slabel"><label for="set-sound" data-i18n="set.sound">Sounds</label><span class="shint" data-i18n="set.sound.hint">soft chimes when the island shows and on actions</span></div>
-          <div class="sctl"><input id="set-sound" type="checkbox" role="switch" class="switch"></div>
-        </div>
-
-        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.app">App</span></h2>
-        <div class="srow">
-          <div class="slabel"><label for="set-update" data-i18n="set.update">Check for updates</label><span class="shint" data-i18n="set.update.hint">one quiet check with GitHub at startup; a green Update pill shows when a new version is out</span></div>
-          <div class="sctl"><input id="set-update" type="checkbox" role="switch" class="switch"></div>
-        </div>
-        <div class="srow">
-          <div class="slabel"><label for="set-autostart" data-i18n="set.autostart">Start with Windows</label><span class="shint" data-i18n="set.autostart.hint">quiet boot — no popup</span></div>
-          <div class="sctl"><input id="set-autostart" type="checkbox" role="switch" class="switch"></div>
-        </div>
-        <div class="srow">
-          <div class="slabel"><label for="set-undo" data-i18n="set.undo">Undo window</label><span class="shint" data-i18n="set.undo.hint">seconds · 5–120</span></div>
-          <div class="sctl"><input id="set-undo" type="number" min="5" max="120" step="5"><span class="fstat" data-for="set-undo" role="status"></span></div>
-        </div>
-        <div class="srow">
-          <div class="slabel"><label for="set-shortcut" data-i18n="set.shortcut">Show-island shortcut</label><span class="shint" data-i18n="set.shortcut.hint">click, then press the keys · Esc cancels</span></div>
-          <div class="sctl"><button id="set-shortcut" class="recorder" type="button"></button><span class="fstat" data-for="set-shortcut" role="status"></span></div>
-        </div>
-        <div class="srow">
-          <div class="slabel"><label data-i18n="set.lang">Language</label><span class="shint" data-i18n="set.lang.hint">interface only — tasks and dates stay as written</span></div>
+          <div class="slabel"><label id="label-size-lbl" data-i18n="set.labelSize">Label size</label><span class="shint" data-i18n="set.labelSize.hint">buttons, headings and hints</span></div>
           <div class="sctl">
-            <div class="seg" id="lang-seg" role="radiogroup" aria-label="Language">
-              <button class="seg-btn" data-lang="system" type="button" role="radio" data-i18n="set.lang.system">System</button>
-              <button class="seg-btn" data-lang="en" type="button" role="radio">English</button>
-              <button class="seg-btn" data-lang="ar" type="button" role="radio">العربية</button>
+            <div class="steps" id="label-size-steps" role="radiogroup" aria-labelledby="label-size-lbl">
+              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.size.0">S</button>
+              <button class="step" type="button" role="radio" data-glass="1" data-i18n="set.size.1">M</button>
+              <button class="step" type="button" role="radio" data-glass="2" data-i18n="set.size.2">L</button>
+              <button class="step" type="button" role="radio" data-glass="3" data-i18n="set.size.3">XL</button>
             </div>
-            <span class="fstat" data-for="set-lang" role="status"></span>
           </div>
         </div>
-
+        <div class="srow">
+          <div class="slabel"><label id="task-size-lbl" data-i18n="set.taskSize">Task text size</label><span class="shint" data-i18n="set.taskSize.hint">task titles in the island and here</span></div>
+          <div class="sctl">
+            <div class="steps" id="task-size-steps" role="radiogroup" aria-labelledby="task-size-lbl">
+              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.size.0">S</button>
+              <button class="step" type="button" role="radio" data-glass="1" data-i18n="set.size.1">M</button>
+              <button class="step" type="button" role="radio" data-glass="2" data-i18n="set.size.2">L</button>
+              <button class="step" type="button" role="radio" data-glass="3" data-i18n="set.size.3">XL</button>
+            </div>
+          </div>
+        </div>
         <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.files">Source files</span></h2>
         <div class="srow">
           <div class="slabel"><label for="set-mode" data-i18n="set.mode">Tasks</label><span class="shint" data-i18n="set.mode.hint">turning a note on creates it if it doesn't exist yet</span></div>
@@ -200,6 +171,84 @@
         <div class="path-edit" id="edit-personal" data-note-row="personal" hidden>
           <input id="set-personal" type="text" class="full" spellcheck="false" data-i18n-aria="set.files.personalPh">
           <span class="fstat" data-for="set-personal" role="status"></span>
+        </div>
+        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.app">App</span></h2>
+        <div class="srow">
+          <div class="slabel"><label data-i18n="set.lang">Language</label><span class="shint" data-i18n="set.lang.hint">interface only — tasks and dates stay as written</span></div>
+          <div class="sctl">
+            <div class="seg" id="lang-seg" role="radiogroup" aria-label="Language">
+              <button class="seg-btn" data-lang="system" type="button" role="radio" data-i18n="set.lang.system">System</button>
+              <button class="seg-btn" data-lang="en" type="button" role="radio">English</button>
+              <button class="seg-btn" data-lang="ar" type="button" role="radio">العربية</button>
+            </div>
+            <span class="fstat" data-for="set-lang" role="status"></span>
+          </div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-autostart" data-i18n="set.autostart">Start with Windows</label><span class="shint" data-i18n="set.autostart.hint">quiet boot — no popup</span></div>
+          <div class="sctl"><input id="set-autostart" type="checkbox" role="switch" class="switch"></div>
+        </div>
+
+        <button class="adv-toggle" id="adv-toggle" type="button" aria-expanded="false" aria-controls="set-advanced">
+          <span class="hash">##</span> <span data-i18n="set.h.advanced">Advanced</span>
+          <svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
+        <div class="adv" id="set-advanced" hidden>
+        <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.reminders">Reminders</span></h2>
+        <div class="srow">
+          <div class="slabel"><label for="set-weekend" data-i18n="set.weekend">Weekend aware</label><span class="shint" data-i18n="set.weekend.hint">Sat/Sun follow the off-hours schedule (personal time)</span></div>
+          <div class="sctl"><input id="set-weekend" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.island">Island</span></h2>
+        <div class="srow">
+          <div class="slabel"><label for="set-dismiss" data-i18n="set.dismiss">Auto-dismiss after</label><span class="shint" data-i18n="set.dismiss.hint">seconds · 5–600</span></div>
+          <div class="sctl"><input id="set-dismiss" type="number" min="5" max="600" step="5"><span class="fstat" data-for="set-dismiss" role="status"></span></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-hover" data-i18n="set.hover">Hover-unfold delay</label><span class="shint" data-i18n="set.hover.hint">seconds resting on a task before it unfolds · 0.5–10</span></div>
+          <div class="sctl"><input id="set-hover" type="number" min="0.5" max="10" step="0.5"><span class="fstat" data-for="set-hover" role="status"></span></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-focus" data-i18n="set.focus">Focus by time</label><span class="shint" data-i18n="set.focus.hint">work tasks in work hours, personal tasks outside</span></div>
+          <div class="sctl"><input id="set-focus" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label id="tint-lbl" data-i18n="set.tint">Tint</label><span class="shint" data-i18n="set.tint.hint">how strongly the island glass takes on the accent color</span></div>
+          <div class="sctl">
+            <div class="steps" id="tint-steps" role="radiogroup" aria-labelledby="tint-lbl">
+              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.tint.off">Off</button>
+              <button class="step" type="button" role="radio" data-glass="1">1</button>
+              <button class="step" type="button" role="radio" data-glass="2">2</button>
+              <button class="step" type="button" role="radio" data-glass="3">3</button>
+              <button class="step" type="button" role="radio" data-glass="4">4</button>
+            </div>
+          </div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-sound" data-i18n="set.sound">Sounds</label><span class="shint" data-i18n="set.sound.hint">soft chimes when the island shows and on actions</span></div>
+          <div class="sctl"><input id="set-sound" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.app">App</span></h2>
+        <div class="srow">
+          <div class="slabel"><label for="set-update" data-i18n="set.update">Check for updates</label><span class="shint" data-i18n="set.update.hint">one quiet check with GitHub at startup; a green Update pill shows when a new version is out</span></div>
+          <div class="sctl"><input id="set-update" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-undo" data-i18n="set.undo">Undo window</label><span class="shint" data-i18n="set.undo.hint">seconds · 5–120</span></div>
+          <div class="sctl"><input id="set-undo" type="number" min="5" max="120" step="5"><span class="fstat" data-for="set-undo" role="status"></span></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-shortcut" data-i18n="set.shortcut">Show-island shortcut</label><span class="shint" data-i18n="set.shortcut.hint">click, then press the keys · Esc cancels</span></div>
+          <div class="sctl"><button id="set-shortcut" class="recorder" type="button"></button><span class="fstat" data-for="set-shortcut" role="status"></span></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label data-i18n="set.setup">Run setup again</label><span class="shint" data-i18n="set.setup.hint">the first-run wizard — change what you want, the rest stays</span></div>
+          <div class="sctl"><button id="btn-rerun-setup" class="btn-soft sm" type="button" data-i18n="set.setup.btn">Open setup</button></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label data-i18n="set.reset">Reset settings</label><span class="shint" data-i18n="set.reset.hint">every setting back to its first-run value — your note files are never touched</span></div>
+          <div class="sctl"><button id="btn-reset-settings" class="btn-soft sm danger" type="button" data-i18n="set.reset.btn">Reset</button></div>
+        </div>
         </div>
 
         <div class="save-bar">

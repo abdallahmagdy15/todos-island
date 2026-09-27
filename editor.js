@@ -15,7 +15,7 @@ const dueCtl = window.UI.dueControl($('ed-due'), { onPick: () => { touched.due =
 
 async function load(full = false) { // full = first open / after save; subtask edits keep unsaved field changes
   const s = await window.api.getSnapshot();
-  if (s && s.settings) window.SFX.enabled = !!s.settings.soundOn;
+  if (s && s.settings) { window.SFX.enabled = !!s.settings.soundOn; window.UI.applyTheme(s.settings); }
   const t = s.sections.flatMap(x => x.items).find(x => x.id === ID) || null;
   $('ed-missing').hidden = !!t;
   $('ed-form').hidden = !t;

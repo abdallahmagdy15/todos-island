@@ -26,6 +26,8 @@ const DEFAULT_SETTINGS = {
   dismissSec: 10, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
   weekendAware: true, autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
+  accent: 'blue', // theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
+  labelSize: 1, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
   tintLevel: 0, // 0 = off · 1–4 = the island glass takes on more of the accent hue
   glassLevel: 3, // 0 = solid · 1–4 = 20/35/50/65 % of the screen shows through the island (liquid glass)
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
@@ -387,7 +389,7 @@ function finishOnboarding(answers) {
   };
 }
 ipcMain.handle('onboard-defaults', () => ({
-  lang: uiLang(), rerun: onboardOpts.rerun, repair: onboardOpts.repair, mode: state.settings.mode,
+  lang: uiLang(), accent: state.settings.accent, rerun: onboardOpts.rerun, repair: onboardOpts.repair, mode: state.settings.mode,
   missing: onboardOpts.repair ? missingNotes().map(tag => path.basename(state.settings[tag + 'Path'])) : [],
   defaultDir: DEFAULT_DIR, noteName: NOTE_NAME, shortcut: state.settings.shortcut,
   dayStart: state.settings.dayStart, dayEnd: state.settings.dayEnd,
@@ -580,6 +582,13 @@ ipcMain.handle('undo-action', (_e, token) => {
     if (mainWin) mainWin.webContents.send('tasks-changed');
     return changed.length ? { ok: false, reason: 'changed', files: changed } : { ok: true };
   }
+  if (e.kind === 'settings') { // undo a reset: the captured settings object goes back, files were never touched
+    const cur = state.settings;
+    state.settings = e.prev;
+    saveState();
+    applySettingsSideEffects(cur);
+    return { ok: true };
+  }
   const f = fileFor(e.file);
   if (e.kind === 'toggle') {
     const t = f.findById(e.id);
@@ -616,6 +625,8 @@ ipcMain.handle('save-settings', (_e, s) => {
   }
   if (clean.mode !== undefined && !['both', 'work', 'personal'].includes(clean.mode)) delete clean.mode;
   if (clean.updateCheck !== undefined) clean.updateCheck = !!clean.updateCheck;
+  if (clean.accent !== undefined && !['blue', 'violet', 'teal', 'pink', 'graphite'].includes(clean.accent)) delete clean.accent;
+  for (const k of ['labelSize', 'taskSize']) if (clean[k] !== undefined) { const v = Math.round(+clean[k]); if (v >= 0 && v <= 3) clean[k] = v; else delete clean[k]; }
   if (clean.tintLevel !== undefined) { const t = Math.round(+clean.tintLevel); if (t >= 0 && t <= 4) clean.tintLevel = t; else delete clean.tintLevel; }
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
@@ -640,6 +651,33 @@ ipcMain.handle('save-settings', (_e, s) => {
   sendSnap();
   return result;
 });
+// ---- settings reset + setup re-run ----
+// side effects shared by reset and its undo — everything EXCEPT file work. The reset itself writes
+// state.json ONLY: no note file is ever created, deleted, or modified (owner's iron rule, 2026-09-27).
+function applySettingsSideEffects(prev) {
+  if (state.settings.shortcut !== prev.shortcut && !registerShortcut()) LOG('RESET-SHORTCUT-FAIL');
+  if (state.settings.autoStart !== prev.autoStart) applyAutoStart(state.settings.autoStart);
+  if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
+  applyCaptureExclusion();
+  if (glassOn() && !glassSource && !SHOWCASE) resolveGlassSource();
+  if (uiLang() !== resolveLang(prev.uiLang, app.getLocale())) {
+    rebuildTrayMenu();
+    for (const w of [mainWin, shareWin, editorWin]) if (w && !w.isDestroyed()) w.webContents.send('lang-changed', uiLang());
+  }
+  sendSnap();
+  if (mainWin) mainWin.webContents.send('tasks-changed');
+}
+ipcMain.handle('reset-settings', () => {
+  const prev = state.settings;
+  state.settings = { ...DEFAULT_SETTINGS }; // paths revert to the default folder; the files on disk stay exactly where they were
+  saveState();
+  applySettingsSideEffects(prev);
+  const token = pushUndo({ kind: 'settings', prev, label: null, expires: Date.now() + state.settings.undoSec * 1000 });
+  pushUndoToWindow(token);
+  LOG('SETTINGS-RESET');
+  return { ok: true };
+});
+ipcMain.handle('open-onboarding', () => openOnboarding()); // Settings button = the tray's "Set up again…": merge-over, never a wipe
 ipcMain.handle('update-task', (_e, file, id, patch) => {
   const f = fileFor(file);
   let due = undefined;
@@ -818,7 +856,20 @@ else {
           await step('composer-typed-add', `(async()=>{ const ta=document.getElementById('new-title'); ta.value='!! 26 Sep E2E composed task'; ta.dispatchEvent(new Event('input',{bubbles:true})); ${wait(400)} const pv=document.getElementById('new-preview-line').textContent; const sel=[...document.querySelectorAll('#new-prio .pchip.sel')].map(c=>c.dataset.p).join(); document.getElementById('btn-add').click(); ${wait(700)} const row=[...document.querySelectorAll('.wrow')].find(r=>r.textContent.includes('E2E composed task')); return 'preview=[' + pv + '] chip=' + sel + ' row=' + (row ? row.querySelector('.bang').textContent + '|' + (row.querySelector('.wdue')||{}).textContent : 'MISSING'); })()`);
           await step('done-tab+clear+undo', `(async()=>{ document.getElementById('tab-done').click(); ${wait(400)} const n0=document.querySelectorAll('.wrow.done').length; document.getElementById('btn-clear-done').click(); ${wait(700)} const n1=document.querySelectorAll('.wrow.done').length; ${undoClick} ${wait(900)} const n2=document.querySelectorAll('.wrow.done').length; return n0+'→'+n1+'→'+n2; })()`);
           await step('settings-dirty-guard', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(500)} const d=document.getElementById('set-dismiss'); d.value='3'; d.dispatchEvent(new Event('input',{bubbles:true})); const dot=!document.getElementById('settings-dirty').hidden; document.getElementById('tab-work').click(); ${wait(200)} const guard=!document.getElementById('dirty-guard').hidden; document.getElementById('guard-save').click(); ${wait(700)} const fs=document.querySelector('.fstat[data-for=set-dismiss]').textContent; return 'dot='+dot+' guard='+guard+' clamp=['+fs+'] tab='+document.querySelector('.tab.active').id; })()`);
-          await step('lang-switch', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(600)} const ar=document.querySelector('#lang-seg [data-lang=ar]'); if(!ar) return 'no-seg'; ar.click(); ${wait(200)} document.getElementById('btn-save-settings').click(); ${wait(1200)} const dir=document.documentElement.dir, hl=document.documentElement.lang; const tabW=document.getElementById('tab-work').textContent.trim(); const lbls=[...document.querySelectorAll('[data-i18n]')].slice(0,3).map(e=>e.textContent.trim()).join('|'); const saveBtn=document.querySelector('[data-i18n="set.save.btn"]').textContent; const back=document.querySelector('#lang-seg [data-lang=system]'); back.click(); ${wait(200)} document.getElementById('btn-save-settings').click(); ${wait(1200)} return 'dir='+dir+' htmlLang='+hl+' tabWork=['+tabW+'] first3=['+lbls+'] saveBtn=['+saveBtn+'] backDir='+document.documentElement.dir; })()`);
+          { // reset + undo: settings revert to defaults, the note FILES on disk are never touched, undo restores
+            const workBefore = state.settings.workPath, personalBefore = state.settings.personalPath;
+            await step('reset-settings', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(400)} const b=document.getElementById('btn-reset-settings'); if(!b) return 'no-btn'; b.click(); await new Promise(r=>setTimeout(r,1200)); const wp=document.getElementById('set-work').value; const g=document.querySelector('#glass-steps .step.sel'); const lang=document.querySelector('#lang-seg .seg-btn.sel'); const t=document.getElementById('undo-toast'); return 'reset='+(wp!==${JSON.stringify(workBefore)})+' glass='+(g?g.dataset.glass:'none')+' lang='+(lang?lang.dataset.lang:'none')+' toast='+!t.hidden; })()`);
+            LOG('UTEST reset-files-intact(main): workExists=' + fs.existsSync(workBefore) + ' personalExists=' + fs.existsSync(personalBefore) + ' pathChanged=' + (state.settings.workPath !== workBefore));
+            await step('reset-undo', `(async()=>{ const b=document.querySelector('#undo-toast [data-undo]'); if(!b) return 'no-toast'; b.click(); await new Promise(r=>setTimeout(r,1200)); const wp=document.getElementById('set-work').value; return 'restored='+(wp===${JSON.stringify(workBefore)}); })()`);
+          }
+          { // run setup again: the wizard opens in rerun mode; cancelling changes nothing
+            await step('rerun-setup', `(async()=>{ const b=document.getElementById('btn-rerun-setup'); if(!b) return 'no-btn'; b.click(); await new Promise(r=>setTimeout(r,1200)); return 'clicked'; })()`);
+            LOG('UTEST rerun-setup(main): wizard=' + !!(onboardWin && !onboardWin.isDestroyed()) + ' rerunFlag=' + onboardOpts.rerun);
+            if (onboardWin && !onboardWin.isDestroyed()) onboardWin.close();
+            await new Promise(r => setTimeout(r, 500));
+            LOG('UTEST rerun-cancel(main): workStill=[' + state.settings.workPath + ']');
+          }
+          await step('lang-switch',`(async()=>{ document.getElementById('tab-settings').click(); ${wait(600)} const ar=document.querySelector('#lang-seg [data-lang=ar]'); if(!ar) return 'no-seg'; ar.click(); ${wait(200)} document.getElementById('btn-save-settings').click(); ${wait(1200)} const dir=document.documentElement.dir, hl=document.documentElement.lang; const tabW=document.getElementById('tab-work').textContent.trim(); const lbls=[...document.querySelectorAll('[data-i18n]')].slice(0,3).map(e=>e.textContent.trim()).join('|'); const saveBtn=document.querySelector('[data-i18n="set.save.btn"]').textContent; const back=document.querySelector('#lang-seg [data-lang=system]'); back.click(); ${wait(200)} document.getElementById('btn-save-settings').click(); ${wait(1200)} return 'dir='+dir+' htmlLang='+hl+' tabWork=['+tabW+'] first3=['+lbls+'] saveBtn=['+saveBtn+'] backDir='+document.documentElement.dir; })()`);
           { // quick editor: preview line, ⋯ menu, and a no-change Save must round-trip the note byte-identically
             const t0 = snapshot().sections.flatMap(s => s.items).find(t => t.file === 'work');
             const before = fs.readFileSync(state.settings.workPath, 'utf8');

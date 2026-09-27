@@ -83,8 +83,9 @@
     : u.kind === 'toggle' ? (u.starring ? T('u.markedNow') : T('u.clearedNow'))
     : u.kind === 'reorder' ? T('u.moved')
     : u.kind === 'clear' ? T('u.cleared')
+    : u.kind === 'settings' ? T('u.reset')
     : T('u.completed');
-  const undoText = u => `${undoVerb(u)}: ${u.label}`;
+  const undoText = u => u.label ? `${undoVerb(u)}: ${u.label}` : undoVerb(u); // a settings reset has no task label
 
   // Countdown hairline (M7): drains with transform scaleX, never width. Pause math uses elapsed time, not layout.
   function countdown(fill) {
@@ -136,5 +137,14 @@
     const tip = T('upd.title', { v: update.version });
     btn.title = tip; btn.setAttribute('aria-label', tip);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo, renderUpdate };
+  // theme color + text sizes from settings (every window calls this with each snapshot's settings)
+  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], SIZE_K = [0.92, 1, 1.1, 1.2];
+  function applyTheme(s) {
+    if (!s) return;
+    const r = document.documentElement, a = ACCENTS.includes(s.accent) ? s.accent : 'blue';
+    if (a === 'blue') delete r.dataset.accent; else r.dataset.accent = a;
+    r.style.setProperty('--ui-k', SIZE_K[s.labelSize] ?? 1);
+    r.style.setProperty('--task-k', SIZE_K[s.taskSize] ?? 1);
+  }
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo, renderUpdate, applyTheme, ACCENTS };
 })();

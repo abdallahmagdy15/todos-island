@@ -77,7 +77,7 @@ const STRINGS_EN = {
   'set.sound': 'Sounds',
   'set.sound.hint': 'soft chimes when the island shows and on actions',
   'set.glass': 'Glass',
-  'set.glass.hint': 'how much of your screen shows through the island · it thickens itself when text would get hard to read',
+  'set.glass.hint': 'how much of your screen shows through the island',
   'set.glass.solid': 'Solid',
   'set.autostart': 'Start with Windows',
   'set.autostart.hint': 'quiet boot — no popup',
@@ -192,6 +192,7 @@ const STRINGS_EN = {
   'u.cleared': 'Cleared',
   'u.undo': 'Undo',
   'u.secs': '{n}s',
+  'u.reset': 'Settings reset',
 
   'tray.show': 'Show island now',
   'tray.open': 'Open tasks window',
@@ -299,11 +300,36 @@ const STRINGS_EN = {
   'upd.title': "Version {v} is out. Open the download page",
   'set.update': "Check for updates",
   'set.update.hint': "one quiet check with GitHub at startup; a green Update pill shows when a new version is out",
+  'set.setup': "Run setup again",
+  'set.setup.hint': "the first-run wizard — change what you want, the rest stays",
+  'set.setup.btn': "Open setup",
+  'set.reset': "Reset settings",
+  'set.reset.hint': "every setting back to its first-run value — your note files are never touched",
+  'set.reset.btn': "Reset",
 
   // tint setting
   'set.tint': "Tint",
   'set.tint.hint': "how strongly the island glass takes on the accent color · text stays readable",
   'set.tint.off': "Off",
+
+  // look: theme color + text sizes, settings split
+  'set.h.look': "Look",
+  'set.h.advanced': "Advanced",
+  'set.accent': "Theme color",
+  'set.accent.hint': "buttons, Now and the glass tint follow it",
+  'set.accent.blue': "Blue",
+  'set.accent.violet': "Violet",
+  'set.accent.teal': "Teal",
+  'set.accent.pink': "Pink",
+  'set.accent.graphite': "Graphite",
+  'set.labelSize': "Label size",
+  'set.labelSize.hint': "buttons, headings and hints",
+  'set.taskSize': "Task text size",
+  'set.taskSize.hint': "task titles in the island and here",
+  'set.size.0': "S",
+  'set.size.1': "M",
+  'set.size.2': "L",
+  'set.size.3': "XL",
 };
 if (typeof window !== 'undefined') (window.LOCALES = window.LOCALES || {}).en = STRINGS_EN;
 if (typeof module !== 'undefined') module.exports = STRINGS_EN;

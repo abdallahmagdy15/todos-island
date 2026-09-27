@@ -22,7 +22,11 @@ const CHECKS = {
     ['ink', 'glass over card over paper', 4.5], ['muted', 'glass over card over paper', 4.5],
     // tasks window glass: list text over the paper sheet, chrome text over the clearest glass — each over the strongest color field
     ['ink', 'sheet over amb-1 over paper', 4.5], ['muted', 'sheet over amb-1 over paper', 4.5], ['faint', 'sheet over amb-1 over paper', 4.5], ['accent', 'sheet over amb-1 over paper', 4.5], ['ink', 'chrome-min over amb-1 over paper', 4.5], ['muted', 'chrome-min over amb-1 over paper', 4.5], ['faint', 'chrome-min over amb-1 over paper', 4.5], ['accent', 'chrome-min over amb-1 over paper', 4.5], ['ink', 'sheet over amb-2 over paper', 4.5], ['muted', 'sheet over amb-2 over paper', 4.5], ['faint', 'sheet over amb-2 over paper', 4.5], ['accent', 'sheet over amb-2 over paper', 4.5], ['ink', 'chrome-min over amb-2 over paper', 4.5], ['muted', 'chrome-min over amb-2 over paper', 4.5], ['faint', 'chrome-min over amb-2 over paper', 4.5], ['accent', 'chrome-min over amb-2 over paper', 4.5], ['ink', 'sheet over amb-3 over paper', 4.5], ['muted', 'sheet over amb-3 over paper', 4.5], ['faint', 'sheet over amb-3 over paper', 4.5], ['accent', 'sheet over amb-3 over paper', 4.5], ['ink', 'chrome-min over amb-3 over paper', 4.5], ['muted', 'chrome-min over amb-3 over paper', 4.5], ['faint', 'chrome-min over amb-3 over paper', 4.5], ['accent', 'chrome-min over amb-3 over paper', 4.5],
-    ['accent', 'accent-soft over pill-bg', 4.5], ['ink', 'accent-soft over pill-bg', 4.5], ['faint', 'chip over pill-bg', 4.5], ['muted', 'chip over card over paper', 4.5]
+    ['accent', 'accent-soft over pill-bg', 4.5], ['ink', 'accent-soft over pill-bg', 4.5], ['faint', 'chip over pill-bg', 4.5], ['muted', 'chip over card over paper', 4.5],
+    // island labels (stronger greys) on the solid pill and on its tinted surfaces
+    ['island-muted', 'pill-bg', 4.5], ['island-faint', 'pill-bg', 4.5], ['island-muted', 'accent-soft over pill-bg', 4.5],
+    ['island-faint', 'chip over pill-bg', 4.5], ['island-muted', 'chip over pill-bg', 4.5],
+    ['danger-deep', 'chip over sheet over amb-1 over paper', 4.5] // the Reset button (btn-soft.danger) on the settings sheet
   ]
 };
 
@@ -32,7 +36,14 @@ function blocks(css) {
   const light = strip.match(/(^|\n):root\s*\{([^}]*)\}/);
   const darkMedia = strip.match(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{\s*:root[^{]*\{([^}]*)\}/);
   const L = decls(light ? light[2] : '');
-  return { light: L, dark: { ...L, ...decls(darkMedia ? darkMedia[1] : '') } };
+  const D = { ...L, ...decls(darkMedia ? darkMedia[1] : '') };
+  const out = { light: L, dark: D };
+  // theme colors: :root[data-accent="x"] blocks (light at top level, dark inside the media query) layered on the base
+  const media = [...strip.matchAll(/@media\s*\(prefers-color-scheme:\s*dark\)\s*\{([\s\S]*?)\n\}/g)].map(m => m[1]).join('\n');
+  const top = strip.replace(/@media[^{]*\{[\s\S]*?\n\}/g, '');
+  for (const m of top.matchAll(/:root\[data-accent="(\w+)"\]\s*\{([^}]*)\}/g)) out['light/' + m[1]] = { ...L, ...decls(m[2]) };
+  for (const m of media.matchAll(/:root\[data-accent="(\w+)"\]\s*\{([^}]*)\}/g)) out['dark/' + m[1]] = { ...D, ...decls(m[2]) };
+  return out;
 }
 function resolve(vars, name, depth = 0) {
   const v = vars[name];
@@ -83,7 +94,7 @@ for (const [file, pairs] of Object.entries(CHECKS)) {
       } catch (e) { fails++; console.error(`  ✗ ${file} ${scheme}: ${fg} on ${bg} — ${e.message}`); continue; }
       const okp = r >= min;
       if (!okp) fails++;
-      console[okp ? 'log' : 'error'](`  ${okp ? '✓' : '✗'} ${scheme.padEnd(5)} ${fg} on ${bg}: ${r.toFixed(2)} (min ${min})`);
+      console[okp ? 'log' : 'error'](`  ${okp ? '✓' : '✗'} ${scheme.padEnd(14)} ${fg} on ${bg}: ${r.toFixed(2)} (min ${min})`);
     }
   }
 }

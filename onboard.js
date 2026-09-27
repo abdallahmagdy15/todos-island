@@ -321,6 +321,7 @@ document.addEventListener('keydown', e => {
 (async () => {
   defs = await window.api.defaults();
   LANG = defs.lang || 'en';
+  if (defs.accent && defs.accent !== 'blue') document.documentElement.dataset.accent = defs.accent; // theme color follows Settings
   window.I18N.applyDoc(LANG);
   ans.reminders.dayStart = $('ob-start').value = defs.dayStart || '09:00';
   ans.reminders.dayEnd = $('ob-end').value = defs.dayEnd || '17:00';

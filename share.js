@@ -112,6 +112,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') window.close
   snap = await window.api.getSnapshot();
   if (snap && snap.lang && snap.lang !== LANG) { LANG = snap.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
   window.SFX.enabled = !!(snap.settings && snap.settings.soundOn); // respects the app's sound setting
+  window.UI.applyTheme(snap.settings);
   render();
 })();
 window.api.onTasksChanged(async () => { snap = await window.api.getSnapshot(); render(); });

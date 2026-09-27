@@ -3,6 +3,8 @@ contextBridge.exposeInMainWorld('api', {
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
   saveSettings: s => ipcRenderer.invoke('save-settings', s),
+  resetSettings: () => ipcRenderer.invoke('reset-settings'),
+  openOnboard: () => ipcRenderer.invoke('open-onboarding'),
   updateTask: (file, id, patch) => ipcRenderer.invoke('update-task', file, id, patch),
   toggleActive: (id, file) => ipcRenderer.invoke('toggle-active', id, file),
   addTask: (file, data) => ipcRenderer.invoke('add-task', file, data),

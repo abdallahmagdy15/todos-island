@@ -77,7 +77,7 @@ const STRINGS_AR = {
   'set.sound': 'الأصوات',
   'set.sound.hint': 'نغمات خفيفة عند ظهور الجزيرة وعند الإجراءات',
   'set.glass': 'الزجاج',
-  'set.glass.hint': 'كم يظهر من شاشتك خلف الجزيرة · يزداد سُمكًا تلقائيًا إذا صعبت قراءة النص',
+  'set.glass.hint': 'كم يظهر من شاشتك خلف الجزيرة',
   'set.glass.solid': 'مُصمت',
   'set.autostart': 'التشغيل مع ويندوز',
   'set.autostart.hint': 'إقلاع صامت — بلا نافذة',
@@ -192,6 +192,7 @@ const STRINGS_AR = {
   'u.cleared': 'أُفرغت',
   'u.undo': 'تراجع',
   'u.secs': '{n}ث',
+  'u.reset': 'تمت إعادة ضبط الإعدادات',
 
   'tray.show': 'إظهار الجزيرة الآن',
   'tray.open': 'فتح نافذة المهام',
@@ -299,11 +300,36 @@ const STRINGS_AR = {
   'upd.title': "الإصدار {v} متاح. افتح صفحة التنزيل",
   'set.update': "التحقق من التحديثات",
   'set.update.hint': "فحص هادئ واحد مع GitHub عند التشغيل؛ يظهر زر «تحديث» أخضر عند صدور إصدار جديد",
+  'set.setup': "تشغيل الإعداد مجددًا",
+  'set.setup.hint': "معالج أول تشغيل — غيّر ما تريد، والباقي يبقى كما هو",
+  'set.setup.btn': "افتح الإعداد",
+  'set.reset': "إعادة ضبط الإعدادات",
+  'set.reset.hint': "كل إعداد يعود إلى قيمته الأولى — ملفات ملاحظاتك لا تُمس إطلاقًا",
+  'set.reset.btn': "إعادة ضبط",
 
   // tint setting
   'set.tint': "الصبغة",
   'set.tint.hint': "مدى اصطباغ زجاج الجزيرة باللون المميّز · يبقى النص مقروءًا",
   'set.tint.off': "بلا",
+
+  // look: theme color + text sizes, settings split
+  'set.h.look': "المظهر",
+  'set.h.advanced': "متقدم",
+  'set.accent': "لون السمة",
+  'set.accent.hint': "الأزرار و«الآن» وصبغة الزجاج تتبعه",
+  'set.accent.blue': "أزرق",
+  'set.accent.violet': "بنفسجي",
+  'set.accent.teal': "أخضر مزرق",
+  'set.accent.pink': "وردي",
+  'set.accent.graphite': "رمادي داكن",
+  'set.labelSize': "حجم التسميات",
+  'set.labelSize.hint': "الأزرار والعناوين والتلميحات",
+  'set.taskSize': "حجم نص المهام",
+  'set.taskSize.hint': "عناوين المهام في الجزيرة وهنا",
+  'set.size.0': "صغير",
+  'set.size.1': "عادي",
+  'set.size.2': "كبير",
+  'set.size.3': "أكبر",
 };
 if (typeof window !== 'undefined') (window.LOCALES = window.LOCALES || {}).ar = STRINGS_AR;
 if (typeof module !== 'undefined') module.exports = STRINGS_AR;

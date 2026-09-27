@@ -49,7 +49,8 @@ The tokens can go in any order, and all of them are optional. The app's own edit
   - Press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> to show or hide it.
 - **Liquid glass.** The island bends, blurs and tints the screen behind it, live, like real glass.
   - Choose how see-through it is in *Settings → Island → Glass*: **Solid**, 20%, 35%, 50% or 65%.
-  - If text would get hard to read over a busy or dark background, the glass thickens itself.
+  - A soft glow behind the text keeps it readable over busy backgrounds. Nothing is measured while it runs, so it stays light.
+  - Pick a **theme color** (blue, violet, teal, pink or graphite) and separate **label** and **task text sizes** in *Settings*.
   - The tasks window has a soft color field behind a glass header and composer.
 - **Undo for everything.** Complete, delete, un-mark Now, reorder or clear done: every change you make gets a short countdown with an Undo button.
 - **Share your day.** Pick tasks, then copy them as WhatsApp-ready text or Markdown, or export a `.md` file. This is useful for daily updates to a lead, a team or an AI assistant.
