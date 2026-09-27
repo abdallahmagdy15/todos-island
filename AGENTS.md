@@ -41,7 +41,7 @@ Confirmed with the owner (interview, 2026-09-26). This is what makes it differen
 
 A "no" on any of these → propose it to the owner, don't build it.
 
-**Defaults:** `DEFAULT_SETTINGS` in main.js are the owner's own tuned setup: 60/60 min cadence, 10 s dismiss, 5 s undo, 1 s hover, weekend-aware, autostart and sound on. Every new install starts from them. Change a default only on the owner's word.
+**Defaults:** `DEFAULT_SETTINGS` in main.js are the owner's own tuned setup: 60/60 min cadence, 10 s dismiss, 5 s undo, 1 s hover, weekend-aware, autostart and sound on, Glass 50 % (`glassLevel: 3`). Every new install starts from them. Change a default only on the owner's word.
 
 ## Architecture map
 
@@ -60,7 +60,7 @@ A "no" on any of these → propose it to the owner, don't build it.
 | lib/i18n.js + locales/en.js, ar.js | interface strings (English/Arabic), dual-mode loader | any user-visible text |
 | lib/icon.js | tray icon PNG generated in pure Node (zlib + CRC32) | icon changes |
 | scripts/make-icon.js | regenerates `build/icon.ico` (7 sizes) — run `npm run icon` | icon changes |
-| island.html/css/js | the drop-down pill UI (top of screen) | island behavior/looks |
+| island.html/css/js | the drop-down pill UI (top of screen) + its liquid glass (live screen stream → lens canvas) | island behavior/looks |
 | window.html/css/js | main tasks window: tabs, list, search, settings | main window |
 | editor.html/css/js | quick-edit popup for one task | editor |
 | share.html/css/js | share window: pick tasks → copy as WhatsApp/Markdown text or export .md | share/export |
@@ -117,7 +117,29 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
 - **Keyboard:** task lists are ONE roving tab stop (↑/↓, Enter edit, Space/x complete, `*`/s Now, 0–3 priority, Del delete, `/` search, `n` new, `?` key list). The island takes focus ONLY when summoned by the global shortcut and drops focusability on hide — timed pops never steal focus. The shortcut is a **toggle**: the same key dismisses a visible island through the animated retract (`retract-island` channel → `onRetract`).
 - **Shared components (ui-shared.js):** `UI.mountUndo` is THE undo bubble (window toast + island bar); `UI.countdown` drains bars with `transform: scaleX` and pauses from elapsed time; `UI.prioChips` / `UI.dueControl` are the only priority/due inputs. Don't fork them per window.
 - **Editor:** shows a "will write" line (via `compose-task`); Save writes what that line says. Rare actions (move/delete) live in the ⋯ menu.
-- **Glass (liquid-glass pass):** real `backdrop-filter` glass ONLY on floating layers (undo toast, notice, `?` popover, editor ⋯ menu). The island pill gets glass-LOOK only — `.rim` specular edge + top sheen drawn inside; never acrylic/mica/backdrop/outer shadow on the island (square halo). The tasks window uses Win 11 Mica (`backgroundMaterial`) only on build ≥ 22621 (`MICA` in main.js, `?mica=1` → `.mica` class); set `TODO_ISLAND_NO_MICA=1` to force solid.
+- **Liquid glass (v1.5, owner-approved variant "4 · hybrid", 2026-09-27).** Setting `glassLevel` sets how see-through the island is: 0 = Solid (drawn thick glass), 1–4 = 20/35/50/65 % (default 3). Settings → Island → Glass shows it as five clickable steps (`.steps`).
+  - **Island.**
+    - The transparent window has nothing to blur, so the island renderer **streams the screen under itself**: getUserMedia with `chromeMediaSource: 'desktop'`.
+    - It paints the strip under the pill into `<canvas id="gl-bd">` about 5×/s. `#isl-lens` (an SVG displacement lens map built in JS, plus a 3-channel color split) bends it, and CSS blurs and tints it (`.gl-tint`, animatable `--g-alpha`).
+    - A pop starts frosted and the glass fades in with the first frame, mid-drop.
+    - `measureNeed` thickens the tint so text keeps 4.5:1 (ink) and 3:1 (muted) on 85% of the strip.
+    - Drawn layers `.gl-arc/.gl-rim/.gl-sweep` plus inset shadows give it thickness.
+    - Gel drop (`gelDrop`, independent X/Y springs via `Motion.spring`) and gel press.
+    - **No pointer-follow glow:** the owner rejected the mouse halo.
+  - **Main process.** It only resolves the screen's media-source id (`resolveGlassSource`): once at startup, and again on display changes.
+    - **`desktopCapturer.getSources` BLOCKS the main process for 0.5–1.7 s**, so it must never run on the pop path. This was measured, and the block made the E2E composer step flaky.
+    - The island is excluded from capture (`setContentProtection` → WDA_EXCLUDEFROMCAPTURE) while glass is on, so it never films itself.
+    - **Documented side effect:** with glass on, the island is absent from screenshots and screen shares. Solid makes it visible again.
+    - The stream stops 60 s after the island hides.
+  - **Tasks window.**
+    - Mica was removed (owner: not noticeable).
+    - `.glass-on` (level > 0) turns on the `.ambient` color field: `--amb-1..3` (blue = Now, ochre/coral = priority), drifting slowly.
+    - The list sits on a paper `--sheet`. The header, the floating composer and the status line are `backdrop-filter` glass at `--g-chrome` (never clearer than 0.56 = `--chrome-min`, which the contrast gate checks).
+    - The tab cursor is a small glass lens on `--ease-spring`.
+    - Floating layers (toast, notice, `?`, ⋯) keep `--glass`.
+  - **Gotcha:** an ANCESTOR holding a filled opacity/transform animation cuts `backdrop-filter` off from its backdrop. Release or cancel finished animations on the parents of glass.
+  - **`prefers-reduced-transparency`** → solid everywhere.
+  - **Showcase mode** (README screenshots only): `TODO_ISLAND_SHOWCASE=1` (island stays capturable and gets one still photo per pop), `TODO_ISLAND_THEME=light|dark`, `TODO_ISLAND_SHOT=<png>` (captures the tasks window).
 - **Packaging:** build.files is ["**/*"] — ship the whole app (zero runtime deps), never an explicit list (v1.4.0 shipped without locales/ and onboard.js; labels rendered as raw keys). After EVERY `npm run dist`, run `npm run verify-dist` — it asserts the asar contains the 27 critical runtime files.
 - **CSS coverage (hard gate):** every class in a window’s markup must resolve in the stylesheets that window loads — `npm test` runs `scripts/css-coverage.js` and FAILS on unresolved classes (born from the unstyled Language segmented control, 2026-09-26). Shared component styles live in tokens.css (`.seg` lives there; share.css must not re-declare). Adding markup that references a style = adding/verifying the style in the same change. JS-only state classes go in the ALLOW list with a reason.
 - **i18n (v1.4):** interface English/Arabic via `locales/${code}.js` + `lib/i18n.js` (dual-mode: window.I18N / require). Setting `uiLang`: system|en|ar; snapshot carries resolved `lang`. **Notation never translates** (bangs, stars, dates, numerals). Renderers re-apply via `I18N.applyDoc` (data-i18n/-ph/-title/-aria + dir/lang) on lang change; `UI.setLang` feeds shared components. Locale consts must be unique per file (`STRINGS_EN`/`STRINGS_AR`) — plain script tags share one global scope. `npm test` includes the en/ar parity gate.
@@ -136,7 +158,7 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
 
 ## House rules (learned the hard way)
 
-1. **Transparent island window:** NEVER add a CSS box-shadow to the pill — it clips against the window edge and shows as a square halo.
+1. **Transparent island window:** NEVER add an OUTER CSS box-shadow to the pill — it clips against the window edge and shows as a square halo. Inset shadows are fine (the glass thickness uses them); E2E `island-glass` asserts `outerShadows=0`.
 2. **Nested flex:** every flexible ancestor in a chain that holds long `nowrap`/clamped text needs `min-width: 0` — flex items default to `min-width: auto` and will stretch the window.
 3. **`[hidden]`**: any element with a `display` rule needs the global `[hidden] { display: none !important; }` guard (already in both CSS files — keep it).
 4. **Task IDs change** when title/priority/due change; `update-task` returns the new id and the editor adopts it.
@@ -148,7 +170,9 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
 10. **Autostart:** `applyAutoStart()` must pass `app.getAppPath()` (dev) + `--hidden` in login-item args — a bare electron.exe Run entry boots the default Electron welcome page. `--hidden` launches also skip the 1.5 s launch pop; startup re-applies the registration as self-heal.
 11. **State lives in `app.getPath('userData')/state.json`** (writable when packaged — asar is read-only). Never write next to `__dirname`.
 12. **Island geometry:** top-anchored at `wa.y + 10`, grows DOWN via the `island-size` IPC (height + optional space borrowed above, clamped to the work area). Don't bottom-anchor it.
-13. **Settings migration:** `migrateSettings()` upgrades old keys (`intervalMin` → `workIntervalMin`). When adding settings keys, give them a DEFAULT_SETTINGS entry so old state.json files merge cleanly.
+13. **Shortcut reliability:** the island window runs with `backgroundThrottling: false`. A throttled hidden renderer froze the retract animation, so the window stayed "visible" and the next shortcut press only dismissed it (the owner saw "press twice"). `retract()` has a 320 ms hard backstop that never hides a pill that has been re-shown in the meantime.
+14. **i18n at load:** every renderer calls `I18N.applyDoc(LANG)` once at startup. Placeholders, titles and aria labels have no inline fallback, so English windows used to show empty placeholders.
+15. **Settings migration:** `migrateSettings()` upgrades old keys (`intervalMin` → `workIntervalMin`). When adding settings keys, give them a DEFAULT_SETTINGS entry so old state.json files merge cleanly.
 
 ## Write access
 

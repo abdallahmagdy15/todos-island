@@ -20,7 +20,8 @@ const CHECKS = {
     ['accent', 'pill-bg', 4.5], ['p1', 'pill-bg', 4.5], ['p2', 'pill-bg', 4.5], ['p3', 'pill-bg', 4.5],
     ['ink', 'glass over paper', 4.5], ['muted', 'glass over paper', 4.5], ['accent', 'glass over paper', 4.5],
     ['ink', 'glass over card over paper', 4.5], ['muted', 'glass over card over paper', 4.5],
-    ['ink', 'head-mica over paper', 4.5], ['muted', 'head-mica over paper', 4.5], ['faint', 'head-mica over paper', 4.5],
+    // tasks window glass: list text over the paper sheet, chrome text over the clearest glass — each over the strongest color field
+    ['ink', 'sheet over amb-1 over paper', 4.5], ['muted', 'sheet over amb-1 over paper', 4.5], ['faint', 'sheet over amb-1 over paper', 4.5], ['accent', 'sheet over amb-1 over paper', 4.5], ['ink', 'chrome-min over amb-1 over paper', 4.5], ['muted', 'chrome-min over amb-1 over paper', 4.5], ['faint', 'chrome-min over amb-1 over paper', 4.5], ['accent', 'chrome-min over amb-1 over paper', 4.5], ['ink', 'sheet over amb-2 over paper', 4.5], ['muted', 'sheet over amb-2 over paper', 4.5], ['faint', 'sheet over amb-2 over paper', 4.5], ['accent', 'sheet over amb-2 over paper', 4.5], ['ink', 'chrome-min over amb-2 over paper', 4.5], ['muted', 'chrome-min over amb-2 over paper', 4.5], ['faint', 'chrome-min over amb-2 over paper', 4.5], ['accent', 'chrome-min over amb-2 over paper', 4.5], ['ink', 'sheet over amb-3 over paper', 4.5], ['muted', 'sheet over amb-3 over paper', 4.5], ['faint', 'sheet over amb-3 over paper', 4.5], ['accent', 'sheet over amb-3 over paper', 4.5], ['ink', 'chrome-min over amb-3 over paper', 4.5], ['muted', 'chrome-min over amb-3 over paper', 4.5], ['faint', 'chrome-min over amb-3 over paper', 4.5], ['accent', 'chrome-min over amb-3 over paper', 4.5],
     ['accent', 'accent-soft over pill-bg', 4.5], ['ink', 'accent-soft over pill-bg', 4.5], ['faint', 'chip over pill-bg', 4.5], ['muted', 'chip over card over paper', 4.5]
   ]
 };

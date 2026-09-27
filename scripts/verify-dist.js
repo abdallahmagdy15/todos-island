@@ -30,4 +30,11 @@ if (missing.length) {
   console.error('verify-dist: MISSING FROM ASAR -> ' + missing.join(', '));
   process.exit(1);
 }
+// never ship the developer's own data: v1.4.1 carried a dev state.json (real note paths) that fresh
+// installs adopted — onboarding skipped, two "can't read" errors on first launch
+const leaked = [...files].filter(f => /(^|\/)state\.json$|\.log$/i.test(f) && !f.startsWith('node_modules/'));
+if (leaked.length) {
+  console.error('verify-dist: PRIVATE FILES IN ASAR -> ' + leaked.join(', '));
+  process.exit(1);
+}
 console.log('verify-dist: ' + MUST_EXIST.length + ' critical files present in the asar ✓');

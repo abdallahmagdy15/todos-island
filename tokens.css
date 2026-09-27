@@ -14,6 +14,8 @@
   --ease-out: cubic-bezier(.22, 1, .36, 1);
   --ease-in: cubic-bezier(.4, 0, 1, 1); /* exits only */
   --d-1: 120ms; --d-2: 200ms; --d-3: 320ms;
+  /* a sampled spring (bounce .25, response .42 s): settles with one soft overshoot — for glass that slides */
+  --ease-spring: linear(0, 0.038, 0.132, 0.254, 0.385, 0.513, 0.629, 0.730, 0.814, 0.881, 0.932, 0.969, 0.995, 1.013, 1.023, 1.027, 1.028, 1.027, 1.024, 1.021, 1.017, 1.013, 1.010, 1.007, 1.005, 1.003, 1.002, 1.001, 1, 1, 1);
 
   /* light — warm paper, near-black ink, fountain-pen blue */
   --paper: #f7f6f2; --card: #ffffff; --input: #efeee9; --head: rgba(247, 246, 242, 0.88); --pane: rgba(28, 27, 25, 0.015);
@@ -25,10 +27,18 @@
   --ok: #2b7a3a; --danger: var(--p3);
   --shadow: 0 10px 30px rgba(28, 27, 25, 0.16);
   --pill-bg: #fbfaf7; --pill-border: rgba(28, 27, 25, 0.12); --prog-bg: rgba(28, 27, 25, 0.06);
-  /* glass: translucent surface for FLOATING layers only + specular rim/sheen drawn inside surfaces */
+  /* liquid glass — the material: tint base (rgb triplet, alpha set per Glass level), specular top arc,
+     bounce light at the bottom edge, inner shade (thickness), translucent edge. Drawn INSIDE surfaces only. */
   --glass: rgba(255, 255, 255, 0.72); --rim-hi: rgba(255, 255, 255, 0.95); --rim-lo: rgba(255, 255, 255, 0);
   --sheen: rgba(255, 255, 255, 0.55);
-  --head-mica: rgba(247, 246, 242, 0.55); /* frosted strips over Mica (tasks window, Win 11 22H2+) */
+  --g-base: 251, 250, 247;
+  --spec: rgba(255, 255, 255, 0.95); --spec-bounce: rgba(255, 255, 255, 0.5); --spec-glow: rgba(255, 255, 255, 0.75);
+  --inner-shade: rgba(28, 27, 25, 0.16); --g-edge: rgba(255, 255, 255, 0.55);
+  --fringe-a: rgba(255, 60, 120, 0.16); --fringe-b: rgba(40, 150, 255, 0.16);
+  /* tasks window: the color field behind the glass (blue = Now, ochre + coral = priority), peak alpha as painted */
+  --amb-1: rgba(127, 156, 255, 0.42); --amb-2: rgba(255, 199, 102, 0.42); --amb-3: rgba(255, 143, 126, 0.38);
+  --sheet: rgba(247, 246, 242, 0.74);        /* the list's paper over the field */
+  --chrome-min: rgba(251, 250, 247, 0.56);   /* glass header/composer at the clearest level — the contrast gate's worst case */
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -43,7 +53,13 @@
     --pill-bg: #171716; --pill-border: rgba(236, 235, 230, 0.10); --prog-bg: rgba(236, 235, 230, 0.06);
     --glass: rgba(30, 30, 28, 0.66); --rim-hi: rgba(255, 255, 255, 0.16); --rim-lo: rgba(255, 255, 255, 0);
     --sheen: rgba(255, 255, 255, 0.045);
-    --head-mica: rgba(18, 18, 17, 0.45);
+    --g-base: 23, 23, 22;
+    --spec: rgba(255, 255, 255, 0.42); --spec-bounce: rgba(255, 255, 255, 0.14); --spec-glow: rgba(255, 255, 255, 0.12);
+    --inner-shade: rgba(0, 0, 0, 0.55); --g-edge: rgba(255, 255, 255, 0.12);
+    --fringe-a: rgba(255, 80, 140, 0.14); --fringe-b: rgba(60, 170, 255, 0.16);
+    --amb-1: rgba(53, 82, 201, 0.42); --amb-2: rgba(138, 90, 7, 0.42); --amb-3: rgba(143, 47, 37, 0.38);
+    --sheet: rgba(18, 18, 17, 0.74);
+    --chrome-min: rgba(23, 23, 22, 0.56);
   }
 }
 

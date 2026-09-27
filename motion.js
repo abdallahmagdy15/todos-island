@@ -12,6 +12,14 @@
       if (!el || mq.matches || !el.animate) return Promise.resolve();
       return el.animate(frames, { easing: EASE_OUT, fill: 'forwards', ...opts }).finished.catch(() => {});
     },
+    // Apple-style spring (damping = 1 − bounce, response in seconds) → progress fn of t (s), overshoot allowed.
+    // Sample it into keyframes with easing 'linear' — that keeps X and Y on independent springs.
+    spring({ bounce = 0, response = 0.4 } = {}) {
+      const z = 1 - bounce, w0 = 2 * Math.PI / response;
+      if (z >= 1) return t => 1 - Math.exp(-w0 * t) * (1 + w0 * t);
+      const wd = w0 * Math.sqrt(1 - z * z);
+      return t => 1 - Math.exp(-z * w0 * t) * (Math.cos(wd * t) + (z * w0 / wd) * Math.sin(wd * t));
+    },
     // small horizontal nudge for "can't do that" (no bounce — two short shifts, linear)
     nudge(el) {
       return this.play(el, [

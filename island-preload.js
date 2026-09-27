@@ -9,9 +9,12 @@ contextBridge.exposeInMainWorld('api', {
   onPlaySound: cb => ipcRenderer.on('play-sound', () => cb()),
   openWindow: tab => ipcRenderer.send('open-window', tab),
   onLangChanged: cb => ipcRenderer.on('lang-changed', (_e, lang) => cb(lang)),
-  onShown: cb => ipcRenderer.on('island-shown', () => cb()),
+  onShown: cb => ipcRenderer.on('island-shown', (_e, info) => cb(info || {})),
   onFocusRequest: cb => ipcRenderer.on('island-focus', () => cb()),
   onRetract: cb => ipcRenderer.on('retract-island', () => cb()),
+  onGlass: cb => ipcRenderer.on('island-glass', (_e, src) => cb(src)), // liquid glass: the screen's media-source id + display bounds
+  onPhoto: cb => ipcRenderer.on('island-photo', (_e, bd) => cb(bd)), // showcase screenshots only: one still of the strip under the island
+  onBounds: cb => ipcRenderer.on('island-bounds', (_e, b) => cb(b)),
   openShare: () => ipcRenderer.invoke('open-share'),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),

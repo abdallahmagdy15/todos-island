@@ -10,7 +10,7 @@ const WINDOWS = ['window.html', 'island.html', 'editor.html', 'share.html', 'onb
 // classes added at runtime by JS (states, animation hooks) — no static rule expected
 const ALLOW = new Set([
   'active', 'sel', 'checked', 'hovered', 'pinned', 'expanded', 'striking', 'flash', 'invalid',
-  'rec', 'done', 'bad', 'warn', 'mono', 'on', 'rim', 'mica', 'dirty-note', 'attn', 'dragging',
+  'rec', 'done', 'bad', 'warn', 'mono', 'on', 'rim', 'fill', 'dirty-note', 'attn', 'dragging',
   'drop-above', 'md-h', 'mt', 'np-reset' // np-reset: onboarding's "Use default" hook class (data-reset carries the behavior; no styles by design)
 ]);
 

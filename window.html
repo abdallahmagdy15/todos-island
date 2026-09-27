@@ -7,6 +7,7 @@
 <link rel="stylesheet" href="window.css">
 </head>
 <body>
+  <div class="ambient" aria-hidden="true"><i class="amb amb-1"></i><i class="amb amb-2"></i><i class="amb amb-3"></i></div>
   <header>
     <span class="logo"><span class="mark" id="mark" aria-hidden="true">[ ]</span> Todo Island</span>
     <nav>
@@ -109,6 +110,18 @@
         <div class="srow">
           <div class="slabel"><label for="set-focus" data-i18n="set.focus">Focus by time</label><span class="shint" data-i18n="set.focus.hint">work tasks in work hours, personal tasks outside</span></div>
           <div class="sctl"><input id="set-focus" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label id="glass-lbl" data-i18n="set.glass">Glass</label><span class="shint" data-i18n="set.glass.hint">how much of your screen shows through the island</span></div>
+          <div class="sctl">
+            <div class="steps" id="glass-steps" role="radiogroup" aria-labelledby="glass-lbl">
+              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.glass.solid">Solid</button>
+              <button class="step" type="button" role="radio" data-glass="1">20%</button>
+              <button class="step" type="button" role="radio" data-glass="2">35%</button>
+              <button class="step" type="button" role="radio" data-glass="3">50%</button>
+              <button class="step" type="button" role="radio" data-glass="4">65%</button>
+            </div>
+          </div>
         </div>
         <div class="srow">
           <div class="slabel"><label for="set-sound" data-i18n="set.sound">Sounds</label><span class="shint" data-i18n="set.sound.hint">soft chimes when the island shows and on actions</span></div>

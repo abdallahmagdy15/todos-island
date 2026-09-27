@@ -8,6 +8,7 @@ let prevActive = null; // ids that were Now last render — newly-Now titles get
 const { esc, bangCls } = window.UI;
 const $ = id => document.getElementById(id);
 let LANG = 'en';
+window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback — apply once at load, not only on a language change
 const T = (k, prm) => window.I18N.t(LANG, k, prm);
 
 function dueHtml(t) {
@@ -347,8 +348,9 @@ function retract() {
   if (retracting) return;
   retracting = true;
   clearTimeout(dismissT);
-  window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN })
-    .then(() => { window.api.hide(); retracting = false; });
+  const anim = window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
+  // backstop: the window must really hide even if the animation stalls, or the next shortcut press only "dismisses"
+  Promise.race([anim, new Promise(r => setTimeout(r, 320))]).then(() => { if (retracting) { window.api.hide(); retracting = false; } });
 }
 // edit hand-off: the pill steps aside, the tasks window takes over, the editor opens on top for that task
 function editFromIsland(file, id) {
@@ -357,12 +359,201 @@ function editFromIsland(file, id) {
   window.api.openWindow();
   window.api.openEditor(file, id);
 }
-window.api.onShown(() => {
-  retracting = false; // heal a retract whose animation promise died silently — the pill is visible again
+window.api.onShown(info => {
+  retracting = false;
+  // a new pop: the old screen copy is stale — start frosted (tint at full) and let the fresh copy fade in
+  if (!info.fresh && glassLevel > 0) { haveFrame = false; needAlpha = 0; applyGlass(true); tick(); } // a warm stream paints at once // heal a retract whose animation promise died silently — the pill is visible again
   const pill = $('pill');
   pill.getAnimations().forEach(a => a.cancel());
-  window.Motion.play(pill, [{ transform: 'translateY(-115%)', opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 340, easing: 'cubic-bezier(.22,.9,.36,1)', fill: 'none' });
+  gelDrop(pill);
 });
+
+// ---- liquid glass ----
+// Glass level (Settings): 0 = solid thick glass · 1–4 = 20/35/50/65 % of the screen shows through.
+// While the island is up it streams the screen (main hands over the media-source id; the island itself is excluded
+// from capture) and paints the strip under the pill into the #gl-bd canvas ~5×/s. The lens filter (#isl-lens)
+// bends it, CSS blurs + tints it. The tint never gets thinner than the text needs (measureNeed).
+const GLASS_ALPHA = [1, 0.8, 0.65, 0.5, 0.35];
+const GL_PAD = 16; // the backdrop canvas overhangs the pill so the blur never pulls in transparent edges
+const FRAME_MS = 200, STREAM_LINGER_MS = 60e3; // keep the stream warm a minute after hiding: quick re-pops are instant
+let glassLevel = 3, winPos = { x: window.screenX, y: window.screenY }, needAlpha = 0, haveFrame = false;
+let source = null, stream = null, video = null, starting = null, frameT = null, lingerT = null, frames = 0, photo = null;
+function applyGlass(pending = false) {
+  const lens = glassLevel > 0 && (haveFrame || pending);
+  document.body.dataset.glass = lens ? 'lens' : 'solid';
+  document.body.classList.toggle('gl-ready', haveFrame);
+  $('pill').style.setProperty('--g-alpha', haveFrame && glassLevel > 0 ? Math.max(GLASS_ALPHA[glassLevel], needAlpha).toFixed(2) : '1');
+  if (lens) { sizeCanvas(); scheduleLensMap(); }
+}
+function sizeCanvas() {
+  const pill = $('pill'), c = $('gl-bd'), w = pill.clientWidth + 2 * GL_PAD, h = pill.clientHeight + 2 * GL_PAD;
+  if (w > 2 * GL_PAD && (c.width !== w || c.height !== h)) { c.width = w; c.height = h; paint(); } // resizing clears — repaint now
+}
+// the strip under the pill, in screen DIP: window position + the pill's layout box (transforms ignored on purpose)
+function stripRect() {
+  const pill = $('pill');
+  return { x: winPos.x + pill.offsetLeft + pill.clientLeft - GL_PAD, y: winPos.y + pill.offsetTop + pill.clientTop - GL_PAD };
+}
+function paint() {
+  const c = $('gl-bd'), ctx = c.getContext('2d'), r = stripRect();
+  if (video && video.videoWidth && source) {
+    const k = video.videoWidth / source.display.width; // video px per DIP
+    ctx.drawImage(video, (r.x - source.display.x) * k, (r.y - source.display.y) * k, c.width * k, c.height * k, 0, 0, c.width, c.height);
+    return true;
+  }
+  if (photo && photo.img.complete) { ctx.drawImage(photo.img, r.x - photo.x, r.y - photo.y, c.width, c.height, 0, 0, c.width, c.height); return true; }
+  return false;
+}
+function tick() {
+  clearTimeout(frameT);
+  if (document.visibilityState !== 'visible') return;
+  if (paint()) {
+    frames++;
+    if (!haveFrame || frames % 10 === 0) { // first frame, then every ~2 s: keep the text-safety tint honest
+      needAlpha = measureNeed($('gl-bd'));
+      const first = !haveFrame; haveFrame = true;
+      if (first || document.body.dataset.glass !== 'lens') applyGlass(); else $('pill').style.setProperty('--g-alpha', Math.max(GLASS_ALPHA[glassLevel], needAlpha).toFixed(2));
+    }
+  }
+  frameT = setTimeout(tick, FRAME_MS);
+}
+async function startStream() {
+  clearTimeout(lingerT);
+  if (stream && stream.active) return tick();
+  if (starting || !source) return starting;
+  starting = (async () => {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { mandatory: {
+        chromeMediaSource: 'desktop', chromeMediaSourceId: source.id,
+        maxWidth: source.display.width, maxHeight: source.display.height, maxFrameRate: 10 } } });
+      video = video || Object.assign(document.createElement('video'), { muted: true });
+      video.srcObject = stream;
+      await video.play();
+      tick();
+    } catch (e) { stream = null; console.log('GLASS-STREAM-FAIL ' + e.message); } // stays frosted — never an error for the user
+    finally { starting = null; }
+  })();
+  return starting;
+}
+function stopStream() {
+  clearTimeout(frameT);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+  if (video) video.srcObject = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') return;
+  clearTimeout(frameT); clearTimeout(lingerT);
+  lingerT = setTimeout(stopStream, STREAM_LINGER_MS);
+});
+window.api.onGlass(src => { source = src; photo = null; if (glassLevel > 0) startStream(); });
+window.api.onPhoto(bd => { // showcase screenshots: a still photo instead of the stream
+  if (!bd) return;
+  const img = new Image();
+  img.onload = () => { photo = { img, x: bd.x, y: bd.y }; haveFrame = false; tick(); };
+  img.src = bd.url;
+});
+window.api.onBounds(b => { if (b) { winPos = b; paint(); } });
+// displacement map for a rounded rect: pixels near the edge sample from further in, like light through a thick lens
+function lensMap(w, h, r, bezel) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const ctx = c.getContext('2d'), img = ctx.createImageData(w, h), d = img.data;
+  const iw = w - 2 * GL_PAD, ih = h - 2 * GL_PAD, hx = iw / 2 - r, hy = ih / 2 - r;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const px = x + 0.5 - w / 2, py = y + 0.5 - h / 2, ax = Math.abs(px), ay = Math.abs(py);
+    const qx = ax - hx, qy = ay - hy;
+    let dist, nx = 0, ny = 0;
+    if (qx > 0 && qy > 0) { const L = Math.hypot(qx, qy) || 1; dist = r - L; nx = Math.sign(px) * qx / L; ny = Math.sign(py) * qy / L; }
+    else if (qx > qy) { dist = iw / 2 - ax; nx = Math.sign(px); }
+    else { dist = ih / 2 - ay; ny = Math.sign(py); }
+    const t = Math.min(1, Math.max(0, 1 - dist / bezel)), m = t * t * t, i = (y * w + x) * 4;
+    d[i] = 128 - nx * m * 127; d[i + 1] = 128 - ny * m * 127; d[i + 2] = 128; d[i + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  return c.toDataURL();
+}
+let lensT = null, lensKey = '';
+function scheduleLensMap() { clearTimeout(lensT); lensT = setTimeout(buildLensMap, 120); } // heights settle after unfolds
+function buildLensMap() {
+  const pill = $('pill'), w = pill.clientWidth + 2 * GL_PAD, h = pill.clientHeight + 2 * GL_PAD;
+  const key = w + 'x' + h;
+  if (!pill.clientWidth || key === lensKey) return;
+  lensKey = key;
+  const im = $('isl-lens-map'), f = $('isl-lens');
+  im.setAttribute('href', lensMap(w, h, 25, 34)); im.setAttribute('width', w); im.setAttribute('height', h);
+  f.setAttribute('width', w); f.setAttribute('height', h);
+}
+new ResizeObserver(() => { if (document.body.dataset.glass === 'lens') { sizeCanvas(); scheduleLensMap(); } }).observe($('pill'));
+// readability floor: over a busy or dark (light theme) / bright (dark theme) desktop the glass thickens itself,
+// so body text keeps 4.5:1 and secondary text 3:1 on ~85% of the strip, whatever level is picked
+const hexRgb = v => { const m = String(v).trim().match(/^#([0-9a-f]{6})$/i); return m ? [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16)) : null; };
+const lumOf = ([r, g, b]) => { const ch = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b); };
+const ratio = (a, b) => { const x = lumOf(a), y = lumOf(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+const probe = document.createElement('canvas');
+function measureNeed(src) {
+  const cs = getComputedStyle(document.documentElement);
+  const ink = hexRgb(cs.getPropertyValue('--ink')), muted = hexRgb(cs.getPropertyValue('--muted'));
+  const base = cs.getPropertyValue('--g-base').split(',').map(Number);
+  if (!ink || !muted || base.length !== 3 || !src.width) return 0;
+  const W = 64, H = Math.max(4, Math.round(W * src.height / src.width));
+  probe.width = W; probe.height = H;
+  const ctx = probe.getContext('2d', { willReadFrequently: true });
+  ctx.filter = 'blur(2px)'; ctx.drawImage(src, 0, 0, W, H);
+  const px = ctx.getImageData(0, 0, W, H).data, needs = [];
+  for (let i = 0; i < px.length; i += 4) {
+    const P = [px[i], px[i + 1], px[i + 2]];
+    let a = 0;
+    for (; a < 1; a += 0.05) {
+      const mix = base.map((v, k) => v * a + P[k] * (1 - a));
+      if (ratio(ink, mix) >= 4.5 && ratio(muted, mix) >= 3) break;
+    }
+    needs.push(Math.min(1, a));
+  }
+  needs.sort((x, y) => x - y);
+  return needs[Math.floor(needs.length * 0.85)] || 0;
+}
+
+// gel drop-in: the pill falls from the screen edge on a spring, X and Y settling on their own springs,
+// so it lands like a drop of liquid, then one light sweep crosses the glass. Reduced motion: no motion.
+function gelDrop(pill) {
+  const M = window.Motion;
+  if (M.reduced) return;
+  const H = pill.offsetHeight + 16;
+  const fy = M.spring({ bounce: 0.2, response: 0.5 }), fx = M.spring({ bounce: 0.3, response: 0.55 }), fs = M.spring({ bounce: 0.3, response: 0.45 });
+  const lerp = (a, b, p) => a + (b - a) * p;
+  const T = 950, N = 57, frames = [];
+  for (let i = 0; i <= N; i++) {
+    const t = (i / N) * T / 1000;
+    frames.push({ translate: `0 ${lerp(-H, 0, fy(t)).toFixed(2)}px`, scale: `${lerp(0.55, 1, fx(t)).toFixed(4)} ${lerp(0.4, 1, fs(t)).toFixed(4)}`, opacity: Math.min(1, t / 0.12) });
+  }
+  frames[N] = { translate: '0 0', scale: '1 1', opacity: 1 };
+  pill.animate(frames, { duration: T, easing: 'linear', fill: 'none' });
+  $('gl-sweep').animate([{ backgroundPosition: '130% 0' }, { backgroundPosition: '-30% 0' }], { duration: 1100, delay: 420, easing: 'cubic-bezier(.4,0,.2,1)', fill: 'none' });
+}
+// gel press: the glass squishes under a press and wobbles back from wherever it is (buttons keep their own press)
+(() => {
+  const pill = $('pill'), M = window.Motion;
+  let held = false, pressAnim = null;
+  const cur = () => { const v = getComputedStyle(pill).scale; if (!v || v === 'none') return [1, 1]; const p = v.split(' ').map(Number); return [p[0], p[1] ?? p[0]]; };
+  pill.addEventListener('pointerdown', e => {
+    if (M.reduced || e.button !== 0 || e.target.closest('button, input, textarea')) return;
+    held = true;
+    const [x, y] = cur();
+    if (pressAnim) pressAnim.cancel();
+    pressAnim = pill.animate([{ scale: `${x} ${y}` }, { scale: '1.008 0.978' }], { duration: 130, easing: M.EASE_OUT, fill: 'forwards' });
+  });
+  const release = () => {
+    if (!held) return;
+    held = false;
+    const [x, y] = cur();
+    if (pressAnim) pressAnim.cancel();
+    const fx = M.spring({ bounce: 0.5, response: 0.36 }), fy = M.spring({ bounce: 0.45, response: 0.32 }), frames = [];
+    for (let i = 0; i <= 40; i++) { const t = i / 40 * 0.7; frames.push({ scale: `${(x + (1 - x) * fx(t)).toFixed(4)} ${(y + (1 - y) * fy(t)).toFixed(4)}` }); }
+    frames[40] = { scale: '1 1' };
+    pressAnim = pill.animate(frames, { duration: 700, easing: 'linear', fill: 'none' });
+  };
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) pill.addEventListener(ev, release);
+})();
 
 $('btn-share').addEventListener('click', () => { window.SFX.play('tick'); window.api.openShare(); retract(); }); // pill steps aside, share window takes over
 $('btn-gear').addEventListener('click', () => { window.api.openWindow(); retract(); });
@@ -404,7 +595,11 @@ window.api.onPlaySound(() => window.SFX.play('show'));
 
 function handleSnap(s) {
   if (s && s.lang && s.lang !== LANG) { LANG = s.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
-  if (s && s.settings) window.SFX.enabled = !!s.settings.soundOn;
+  if (s && s.settings) {
+    window.SFX.enabled = !!s.settings.soundOn;
+    const g = Number.isInteger(s.settings.glassLevel) ? s.settings.glassLevel : 3;
+    if (g !== glassLevel) { glassLevel = g; if (!g) stopStream(); else if (source) startStream(); applyGlass(); }
+  }
   if (!snap) expanded = false;
   if (animating) { pendingSnap = s; return; }
   snap = s;
@@ -413,4 +608,5 @@ function handleSnap(s) {
 window.api.onSnapshot(handleSnap);
 // main's first sendSnap can beat this renderer's listeners — fetch once so the skeleton never sticks
 (async () => { try { const s = await window.api.getSnapshot(); if (s && !snap) handleSnap(s); } catch (e) {} })();
+applyGlass();
 render(); // skeleton until the first snapshot lands

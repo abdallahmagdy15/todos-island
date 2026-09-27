@@ -1,7 +1,7 @@
 'use strict';
 // Todo Island — tray reminder over the two Obsidian notes.
 // Sources are only written on the owner's own clicks in the app (owner's hands), never in bulk by the AI.
-const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard } = require('electron');
+const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, desktopCapturer } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { NoteFile, resolveDue, MONTHS } = require('./lib/parse.js');
@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   dayStart: '09:00', dayEnd: '17:00',
   dismissSec: 10, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
   weekendAware: true, autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
+  glassLevel: 3, // 0 = solid · 1–4 = 20/35/50/65 % of the screen shows through the island (liquid glass)
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
   personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
 };
@@ -41,9 +42,11 @@ try {
   delete state.activeId; delete state.activeFile; // dead since the * marker moved "active" into the notes
   if (saved.onboarded === undefined) state.onboarded = true; // pre-onboarding install
 } catch (e) {
-  // one-time migration: carry over a dev-era state.json that lived next to main.js
+  // one-time migration: carry over a dev-era state.json that lived next to main.js — DEV ONLY.
+  // A packaged build must never read one: v1.4.1 shipped the developer's state.json inside the asar,
+  // so fresh installs adopted foreign note paths, skipped onboarding and opened on two "can't read" errors.
   const legacy = path.join(__dirname, 'state.json');
-  if (legacy !== STATE_PATH && fs.existsSync(legacy)) {
+  if (!app.isPackaged && legacy !== STATE_PATH && fs.existsSync(legacy)) {
     try {
       const old = JSON.parse(fs.readFileSync(legacy, 'utf8'));
       state = { ...state, ...old, settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(old.settings || {}) }) };
@@ -61,10 +64,8 @@ const THEME = {
   dark: { bg: '#121211', overlay: '#121211', symbol: '#a9a69e' }
 };
 const theme = () => THEME[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
-// G5: real Windows 11 Mica behind the tasks window — only on 22H2+ (build >= 22621); older builds keep the solid paper.
-// (a frameless window with a transparent background but NO material would show the raw desktop.)
-const MICA = process.platform === 'win32' && +String(require('os').release()).split('.')[2] >= 22621 && !process.env.TODO_ISLAND_NO_MICA;
-const overlay = (mica = false) => ({ color: mica ? '#00000000' : theme().overlay, symbolColor: theme().symbol, height: 46 });
+// the tasks window draws its own glass header, so its native controls sit on a transparent overlay
+const overlay = (clear = false) => ({ color: clear ? '#00000000' : theme().overlay, symbolColor: theme().symbol, height: 46 });
 // in-memory undo log — one entry per interaction, tokened, countdown-driven cleanup.
 // entries live ONLY for the undo window: each popup fires undo-expire(token) when its countdown ends,
 // undo-action(token) consumes its entry; pushUndo lazily drops anything expired. Nothing on disk.
@@ -156,11 +157,59 @@ function snapshot() {
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
-function showIsland(opts = {}) {
+
+// ---- liquid glass: the island window is transparent, but Windows gives it nothing to blur.
+// The island renderer streams the screen under itself (getUserMedia, chromeMediaSource 'desktop') while it is up,
+// and bends, blurs and tints those frames (lens filter in island.html) — live glass, not a stale photo.
+// The island is excluded from capture (WDA_EXCLUDEFROMCAPTURE), so it never sees itself. Local only: frames stay
+// in the island's renderer. Side effect (documented): with glass on, the island is absent from screenshots/shares.
+// Main only resolves the screen's media-source id — desktopCapturer.getSources BLOCKS the main process for
+// ~0.5–1.7 s, so it runs once in the background (startup, display changes), never on the pop path.
+const glassOn = () => (state.settings.glassLevel | 0) > 0;
+const SHOWCASE = !!process.env.TODO_ISLAND_SHOWCASE; // README screenshots: island stays capturable, one photo per pop
+if (SHOWCASE && /^(light|dark)$/.test(process.env.TODO_ISLAND_THEME || '')) nativeTheme.themeSource = process.env.TODO_ISLAND_THEME;
+const applyCaptureExclusion = () => { if (island) island.setContentProtection(glassOn() && !SHOWCASE); };
+let glassSource = null, resolvingSource = null;
+function resolveGlassSource() {
+  if (resolvingSource) return resolvingSource;
+  const d = screen.getPrimaryDisplay(), t0 = Date.now();
+  resolvingSource = desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false })
+    .then(srcs => {
+      const src = srcs.find(x => String(x.display_id) === String(d.id)) || srcs[0];
+      glassSource = src ? { id: src.id, display: d.bounds } : null;
+      LOG('GLASS-SOURCE ' + (src ? src.id : 'none') + ' ' + (Date.now() - t0) + 'ms');
+    })
+    .catch(e => { glassSource = null; LOG('GLASS-SOURCE-FAIL ' + e.message); })
+    .finally(() => { resolvingSource = null; });
+  return resolvingSource;
+}
+let displayT = null;
+const onDisplayChange = () => { clearTimeout(displayT); displayT = setTimeout(() => { glassSource = null; if (glassOn() && !SHOWCASE) resolveGlassSource(); }, 1500); };
+async function captureUnderIsland() { // SHOWCASE only: one still photo before the pop (the stream would film the island itself)
+  const d = screen.getPrimaryDisplay(), wa = d.workArea, b = island.getBounds();
+  const srcs = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: d.size, fetchWindowIcons: false });
+  const src = srcs.find(x => String(x.display_id) === String(d.id)) || srcs[0];
+  if (!src || src.thumbnail.isEmpty()) return null;
+  const k = src.thumbnail.getSize().width / d.bounds.width;
+  const rect = { x: b.x - d.bounds.x, y: wa.y - d.bounds.y, width: b.width, height: Math.min(980, wa.height) };
+  const img = src.thumbnail.crop({ x: Math.round(rect.x * k), y: Math.round(rect.y * k), width: Math.round(rect.width * k), height: Math.round(rect.height * k) });
+  return { url: 'data:image/jpeg;base64,' + img.toJPEG(90).toString('base64'), x: b.x, y: wa.y, w: rect.width, h: rect.height };
+}
+const sendBounds = () => { if (island) { const b = island.getBounds(); island.webContents.send('island-bounds', { x: b.x, y: b.y }); } };
+async function showIsland(opts = {}) {
   if (!state.onboarded) { openOnboarding(); return; } // nothing to show until first-run setup picks the notes
   if (!island) return;
+  const wasHidden = !island.isVisible();
+  if (wasHidden && glassOn()) {
+    if (SHOWCASE) { try { island.webContents.send('island-photo', await captureUnderIsland()); } catch (e) { LOG('GLASS-CAPTURE-FAIL ' + e.message); } }
+    else {
+      if (!glassSource) await (resolvingSource || resolveGlassSource()); // first pop after launch/display change only
+      if (glassSource) island.webContents.send('island-glass', glassSource); // the renderer (re)starts its stream
+    }
+  }
+  sendBounds();
   sendSnap(); island.showInactive();
-  island.webContents.send('island-shown'); // always: resets renderer state (cancels stuck animations, replays drop-in)
+  island.webContents.send('island-shown', { fresh: !wasHidden }); // always: resets renderer state (cancels stuck animations, replays drop-in)
   if (state.settings.soundOn) island.webContents.send('play-sound');
   // keyboard summon only: the island takes focus so arrows/Enter/Space work. Timed pops NEVER steal focus.
   if (opts.focus) { island.setFocusable(true); island.focus(); island.webContents.send('island-focus'); }
@@ -174,10 +223,14 @@ function createIsland() {
     width: W, height: 120, x: wa.x + Math.round((wa.width - W) / 2), y: wa.y + 10,
     frame: false, transparent: true, resizable: false, movable: false, skipTaskbar: true,
     focusable: false, alwaysOnTop: true, hasShadow: false, thickFrame: false, show: false,
-    webPreferences: { preload: path.join(__dirname, 'island-preload.js') }
+    // no background throttling: a hidden/occluded island renderer had its timers + animations frozen, so a retract
+    // never finished, the window stayed "visible" and the next shortcut press only dismissed it (needed twice)
+    webPreferences: { preload: path.join(__dirname, 'island-preload.js'), backgroundThrottling: false }
   });
   island.setAlwaysOnTop(true, 'screen-saver');
+  applyCaptureExclusion();
   lockZoom(island.webContents);
+  island.webContents.on('console-message', (_e, _l, msg) => { if (/^GLASS/.test(msg)) LOG('ISLAND ' + msg); });
   island.loadFile('island.html');
 }
 
@@ -187,20 +240,24 @@ function openWindow(tab) {
   if (mainWin) { mainWin.show(); mainWin.focus(); if (tab) mainWin.webContents.send('show-tab', tab); return; }
   mainWin = new BrowserWindow({
     width: 920, height: 660, minWidth: 760, minHeight: 540,
-    backgroundColor: MICA ? '#00000000' : theme().bg,
-    ...(MICA ? { backgroundMaterial: 'mica' } : {}),
+    backgroundColor: theme().bg,
     autoHideMenuBar: true, show: false,
     frame: false, titleBarStyle: 'hidden',
     // overlay must exist at creation — setTitleBarOverlay throws otherwise ("Titlebar overlay is not enabled")
-    titleBarOverlay: overlay(MICA),
+    titleBarOverlay: overlay(true),
     webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
   });
   applyOverlay();
   lockZoom(mainWin.webContents);
   mainWin.webContents.on('console-message', (_e, _lvl, msg) => LOG('WIN-CONSOLE: ' + msg));
-  const query = { ...(tab ? { tab } : {}), ...(MICA ? { mica: '1' } : {}) };
-  mainWin.loadFile('window.html', Object.keys(query).length ? { query } : undefined);
+  mainWin.loadFile('window.html', tab ? { query: { tab } } : undefined);
   mainWin.once('ready-to-show', () => mainWin.show());
+  if (SHOWCASE && process.env.TODO_ISLAND_SHOT) { // README screenshots: the window paints its own glass, so capturePage is exact
+    mainWin.once('ready-to-show', () => setTimeout(async () => {
+      if (!mainWin) return;
+      fs.writeFileSync(process.env.TODO_ISLAND_SHOT, (await mainWin.webContents.capturePage()).toPNG()); LOG('SHOT ' + process.env.TODO_ISLAND_SHOT);
+    }, 2500));
+  }
   mainWin.on('render-process-gone', (_e, d) => LOG('WIN-GONE: ' + d.reason));
   mainWin.on('closed', () => { mainWin = null; });
 }
@@ -255,20 +312,25 @@ function createNote(p, isWork) {
 }
 
 // ---- first-run onboarding: 4 short screens → planSetup (lib/setup.js) → notes created/adopted → island pops ----
-let onboardWin = null;
-function openOnboarding() {
+let onboardWin = null, onboardOpts = {};
+// setup repair: an onboarded install whose EVERY enabled note is gone (moved, renamed, a foreign path) reopens setup
+// instead of greeting the user with nothing but "can't read" errors. One missing note of two stays an honest error.
+const missingNotes = () => ['work', 'personal'].filter(tag => noteOn(tag) && !fs.existsSync(state.settings[tag + 'Path'] || ''));
+const needsRepair = () => { const on = ['work', 'personal'].filter(noteOn); return on.length > 0 && missingNotes().length === on.length; };
+// opts: { rerun } — an existing install runs setup again (tray "Set up again…" or repair); Skip then just closes
+function openOnboarding(opts = {}) {
   if (onboardWin && !onboardWin.isDestroyed()) { onboardWin.show(); onboardWin.focus(); return; }
+  onboardOpts = { rerun: !!state.onboarded, repair: !!opts.repair };
   onboardWin = new BrowserWindow({
-    width: 560, height: 660, resizable: false, maximizable: false, minimizable: false, center: true,
-    backgroundColor: MICA ? '#00000000' : theme().bg,
-    ...(MICA ? { backgroundMaterial: 'mica' } : {}),
+    width: 580, height: 700, resizable: false, maximizable: false, minimizable: false, center: true,
+    backgroundColor: theme().bg,
     autoHideMenuBar: true, show: false, frame: false, titleBarStyle: 'hidden',
-    titleBarOverlay: overlay(MICA),
+    titleBarOverlay: overlay(),
     webPreferences: { preload: path.join(__dirname, 'onboard-preload.js') }
   });
   lockZoom(onboardWin.webContents);
   onboardWin.webContents.on('console-message', (_e, _lvl, msg) => LOG('ONBOARD-CONSOLE: ' + msg));
-  onboardWin.loadFile('onboard.html', MICA ? { query: { mica: '1' } } : undefined);
+  onboardWin.loadFile('onboard.html');
   onboardWin.once('ready-to-show', () => onboardWin.show());
   // closing mid-way = Skip, so the app is always usable afterwards
   onboardWin.on('closed', () => { onboardWin = null; if (!state.onboarded) { finishOnboarding({ skip: true }); setTimeout(showIsland, 400); } });
@@ -294,6 +356,8 @@ function finishOnboarding(answers) {
   };
 }
 ipcMain.handle('onboard-defaults', () => ({
+  lang: uiLang(), rerun: onboardOpts.rerun, repair: onboardOpts.repair, mode: state.settings.mode,
+  missing: onboardOpts.repair ? missingNotes().map(tag => path.basename(state.settings[tag + 'Path'])) : [],
   defaultDir: DEFAULT_DIR, noteName: NOTE_NAME, shortcut: state.settings.shortcut,
   dayStart: state.settings.dayStart, dayEnd: state.settings.dayEnd,
   every: state.settings.workIntervalMin, autoStart: state.settings.autoStart
@@ -354,7 +418,7 @@ function lockZoom(wc) {
 function applyOverlay() {
   if (!mainWin) return;
   try {
-    mainWin.setTitleBarOverlay(overlay(MICA));
+    mainWin.setTitleBarOverlay(overlay(true));
   } catch (e) { LOG('OVERLAY-SKIP ' + e.message); }
 }
 nativeTheme.on('updated', applyOverlay);
@@ -393,6 +457,7 @@ function rebuildTrayMenu() {
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: tt(L, 'tray.show'), click: () => { state.lastShown = Date.now(); saveState(); showIsland(); } },
     { label: tt(L, 'tray.open'), click: openWindow },
+    { label: tt(L, 'tray.setup'), click: () => openOnboarding() },
     { type: 'separator' },
     { label: tt(L, 'tray.quit'), click: () => app.quit() }
   ]));
@@ -421,6 +486,7 @@ ipcMain.on('island-size', (_e, h, top = 0) => {
   const y = Math.max(wa.y, wa.y + 10 - topExtra);
   const b = island.getBounds();
   island.setBounds({ x: b.x, y, width: b.width, height });
+  sendBounds(); // the glass copy is pinned to screen coordinates — the renderer re-aligns it
 });
 ipcMain.on('hide-island', hideIsland);
 ipcMain.on('open-window', (_e, tab) => openWindow(tab));
@@ -518,6 +584,7 @@ ipcMain.handle('save-settings', (_e, s) => {
     }
   }
   if (clean.mode !== undefined && !['both', 'work', 'personal'].includes(clean.mode)) delete clean.mode;
+  if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };
   // switching a note ON creates it when its file doesn't exist yet (the user's own click — owner's hands)
@@ -529,6 +596,8 @@ ipcMain.handle('save-settings', (_e, s) => {
     }
   }
   saveState();
+  applyCaptureExclusion(); // glass level may have changed
+  if (glassOn() && !glassSource && !SHOWCASE) resolveGlassSource();
   if (clean.uiLang !== undefined && clean.uiLang !== state.settings.uiLang) {
     // language switch: tray re-labels, every live window re-applies its chrome, island re-renders via snapshot
     rebuildTrayMenu();
@@ -653,12 +722,17 @@ else {
     }
     createIsland();
     createTray();
+    screen.on('display-metrics-changed', onDisplayChange); screen.on('display-added', onDisplayChange); screen.on('display-removed', onDisplayChange);
+    if (glassOn() && !SHOWCASE) setTimeout(resolveGlassSource, 1000); // off the pop path: this call blocks main ~0.5 s
     registerShortcut();
     if (state.onboarded && state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
     LOG('TRAY-READY');
     // one shakedown pop at launch — manual launches only; a system (--hidden) boot stays quiet
+    const quietBoot = process.argv.includes('--hidden');
     if (!state.onboarded) openOnboarding(); // fresh install: first-run setup instead of the launch pop
-    else if (!process.argv.includes('--hidden')) setTimeout(showIsland, 1500);
+    // every note gone → setup again (manual launches only: at login a synced folder may simply not be mounted yet)
+    else if (!quietBoot && needsRepair()) { LOG('ONBOARD-REPAIR ' + missingNotes().join(',')); openOnboarding({ repair: true }); }
+    else if (!quietBoot) setTimeout(showIsland, 1500);
     if (process.env.TODO_ISLAND_UNDO_TEST) {
       setTimeout(async () => {
         try {
@@ -695,9 +769,9 @@ else {
           if (shareWin && !shareWin.isDestroyed()) shareWin.close();
           await iStep('island-check+undo', `(async()=>{ const c=document.querySelector('#body .row [data-chk]'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,1200)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
-          await step('glass+mica', `(async()=>{ const t=document.getElementById('undo-toast'); const bf=getComputedStyle(t).backdropFilter; return 'micaClass='+document.documentElement.classList.contains('mica')+' bodyBg='+getComputedStyle(document.body).backgroundColor+' toastBackdrop='+bf; })()`);
-          LOG('UTEST mica-enabled(main): ' + MICA + ' os=' + require('os').release());
-          await iStep('island-rim', `(async()=>{ const p=document.getElementById('pill'); const cs=getComputedStyle(p); return 'rimClass='+p.classList.contains('rim')+' pillShadow='+cs.boxShadow+' before='+getComputedStyle(p,'::before').content+' sheen='+getComputedStyle(p,'::after').content; })()`);
+          await step('glass-window', `(async()=>{ const h=getComputedStyle(document.querySelector('header')); const t=getComputedStyle(document.getElementById('undo-toast')); return 'glassOn='+document.documentElement.classList.contains('glass-on')+' headerBackdrop='+h.backdropFilter+' toastBackdrop='+t.backdropFilter+' ambient='+getComputedStyle(document.querySelector('.ambient')).display; })()`);
+          LOG('UTEST glass-level(main): ' + state.settings.glassLevel);
+          await iStep('island-glass', `(async()=>{ const p=document.getElementById('pill'); const cs=getComputedStyle(p); const outer=cs.boxShadow.split(/,(?![^(]*[)])/).filter(x=>x.trim()!=='none'&&!x.includes('inset')).length; return 'mode='+document.body.dataset.glass+' outerShadows='+outer+' liveFrame='+document.body.classList.contains('gl-ready')+' alpha='+p.style.getPropertyValue('--g-alpha'); })()`);
           const wait = ms => `await new Promise(r=>setTimeout(r,${ms}));`;
           const key = k => `document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'${k}',bubbles:true}));`;
           await step('kbd-roving+priority', `(async()=>{ document.getElementById('tab-work').click(); ${wait(300)} const rows=[...document.querySelectorAll('#task-list .wrow')]; rows[0].focus(); ${key('ArrowDown')} const moved=document.activeElement===rows[1]; const stops=rows.filter(r=>r.tabIndex===0).length; ${key('3')} ${wait(700)} const b1=document.activeElement.querySelector('.bang').textContent; ${key('0')} ${wait(700)} const b2=document.activeElement.querySelector('.bang').textContent; return 'moved='+moved+' tabstops='+stops+' after3=['+b1+'] after0=['+b2+'] role='+document.querySelector('#task-list .fold').getAttribute('role'); })()`);

@@ -6,8 +6,28 @@
 <link rel="stylesheet" href="island.css">
 </head>
 <body>
+  <!-- liquid glass lens: displacement map (edges bend inward like thick glass) + a slight color split at the rim.
+       feImage href/size are filled by island.js to match the pill; three channels bend by slightly different amounts. -->
+  <svg class="defs" width="0" height="0" aria-hidden="true" focusable="false">
+    <filter id="isl-lens" x="0" y="0" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feImage id="isl-lens-map" result="map" x="0" y="0" preserveAspectRatio="none"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="110" xChannelSelector="R" yChannelSelector="G" result="d0"/>
+      <feColorMatrix in="d0" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="c0"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="123" xChannelSelector="R" yChannelSelector="G" result="d1"/>
+      <feColorMatrix in="d1" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="c1"/>
+      <feDisplacementMap in="SourceGraphic" in2="map" scale="136" xChannelSelector="R" yChannelSelector="G" result="d2"/>
+      <feColorMatrix in="d2" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="c2"/>
+      <feComposite in="c0" in2="c1" operator="arithmetic" k2="1" k3="1" result="rg"/>
+      <feComposite in="rg" in2="c2" operator="arithmetic" k2="1" k3="1"/>
+    </filter>
+  </svg>
   <div id="wrap">
-    <div id="pill" class="rim">
+    <div id="pill">
+      <canvas class="gl gl-bd" id="gl-bd" aria-hidden="true"></canvas>
+      <span class="gl gl-tint" aria-hidden="true"></span>
+      <span class="gl gl-arc" aria-hidden="true"></span>
+      <span class="gl gl-rim" aria-hidden="true"></span>
+      <span class="gl gl-sweep" id="gl-sweep" aria-hidden="true"></span>
       <div id="progress"><span id="progress-fill"></span></div>
       <div class="pill-top">
         <span class="mark" id="mark" aria-hidden="true">[ ]</span>

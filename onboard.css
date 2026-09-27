@@ -4,8 +4,6 @@
 
 main#stage { flex: 1; min-height: 0; position: relative; overflow: hidden; }
 .screen { position: absolute; inset: 0; overflow-y: auto; padding: var(--s-5) 36px var(--s-4); display: flex; flex-direction: column; }
-.mica main#stage { background: color-mix(in srgb, var(--paper) 88%, transparent); }
-.mica .ob-foot { background: var(--head-mica); }
 
 .lead { font-size: 24px; font-weight: 700; letter-spacing: -0.4px; line-height: 1.2; margin: var(--s-4) 0 var(--s-2); outline: none; }
 .md-h.big { font-size: var(--fs-5); margin-bottom: var(--s-1); outline: none; }

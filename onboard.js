@@ -2,7 +2,6 @@
 // First-run setup — 4 screens, answers go to main (onboard-finish → lib/setup.js planSetup). Skip is always safe.
 const $ = id => document.getElementById(id);
 const M = window.Motion;
-if (new URLSearchParams(location.search).get('mica') === '1') document.documentElement.classList.add('mica');
 
 const ans = {
   mode: 'both',

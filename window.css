@@ -26,6 +26,7 @@ header {
 .mark.err { color: var(--p3); }
 nav { position: relative; display: flex; gap: 2px; margin-inline-start: auto; -webkit-app-region: no-drag; }
 .tab {
+  position: relative; z-index: 1; /* above the glass lens that slides behind the active tab */
   border: 0; background: transparent; color: var(--muted); font-family: inherit; font-size: var(--fs-3);
   padding: 8px 12px; border-radius: var(--r-2); cursor: pointer; font-weight: 600;
   transition: background var(--d-1) ease, color var(--d-1) ease;
@@ -34,11 +35,15 @@ nav { position: relative; display: flex; gap: 2px; margin-inline-start: auto; -w
 .tab.active { color: var(--ink); }
 .tab .cnt { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); margin-inline-start: 5px; }
 .tab .cnt.bad { color: var(--p3); font-weight: 700; }
-/* M6: one 2px cursor slides under the active tab (transform only) */
+/* M6: a small glass lens slides behind the active tab on a spring (one soft overshoot), a 2px accent foot under it */
 .tab-cursor {
-  position: absolute; left: 0; bottom: -7px; width: 100px; height: 2px; border-radius: 1px;
-  background: var(--accent); transform-origin: left; pointer-events: none;
-  transition: transform var(--d-2) var(--ease-out);
+  position: absolute; left: 0; top: 0; bottom: 0; width: 80px; border-radius: var(--r-2); pointer-events: none; z-index: 0;
+  background: color-mix(in srgb, var(--card) 72%, transparent);
+  box-shadow: inset 0 1px 0 var(--spec), inset 0 -8px 12px -9px var(--inner-shade), 0 0 0 1px var(--rule-soft), 0 2px 6px -2px rgba(0, 0, 0, 0.14);
+  transition: transform 560ms var(--ease-spring), width 560ms var(--ease-spring);
+}
+.tab-cursor::after {
+  content: ''; position: absolute; left: 30%; right: 30%; bottom: -5px; height: 2px; border-radius: 1px; background: var(--accent);
 }
 .hdr-btn {
   -webkit-app-region: no-drag; margin-inline-start: var(--s-2); width: 32px; height: 32px; flex: none;
@@ -435,6 +440,7 @@ kbd {
   .toast, .notice, .keys-pop, .menu {
     background: var(--glass);
     -webkit-backdrop-filter: blur(18px) saturate(1.5); backdrop-filter: blur(18px) saturate(1.5);
+    box-shadow: inset 0 -16px 22px -20px var(--inner-shade), var(--shadow);
   }
 }
 .toast::before, .notice::before, .keys-pop::before, .menu::before { /* specular rim, inside the surface */
@@ -447,9 +453,47 @@ kbd {
 .search-clear:active { transform: translateY(-50%) scale(0.94); }
 .wexp.open:active:not(:disabled) { transform: rotate(180deg) scale(0.97); }
 
-/* ---- G5 Mica (tasks window, Win 11 22H2+): body goes transparent so the system material shows;
-   chrome strips become frosted veils; the reading area stays a near-solid paper veil ---- */
-.mica body { background: transparent; }
-.mica header, .mica .new-task, .mica .statusline { background: var(--head-mica); }
-.mica #view-tasks .list-pane, .mica #view-settings { background: color-mix(in srgb, var(--paper) 88%, transparent); }
-.mica .search-box #search, .mica .new-task textarea { background: var(--card); }
+/* ---- liquid glass (Settings → Glass > 0): a soft color field lives behind the window, the chrome is glass over it.
+   The list stays on a paper sheet (reading surface); header, composer and status line let the field through.
+   The field is made of the app's own meanings: blue = Now, ochre + coral = priority. Gated by npm run contrast. ---- */
+.ambient { display: none; position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+.glass-on .ambient { display: block; }
+.amb { position: absolute; display: block; border-radius: 50%; filter: blur(70px); will-change: transform; }
+.amb-1 { width: 520px; height: 420px; left: -140px; top: -160px; background: var(--amb-1); animation: drift1 38s ease-in-out infinite alternate; }
+.amb-2 { width: 440px; height: 380px; right: -140px; top: 90px; background: var(--amb-2); animation: drift2 46s ease-in-out infinite alternate; }
+.amb-3 { width: 480px; height: 400px; left: 28%; bottom: -230px; background: var(--amb-3); animation: drift3 54s ease-in-out infinite alternate; }
+@keyframes drift1 { to { transform: translate(90px, 60px) scale(1.1); } }
+@keyframes drift2 { to { transform: translate(-80px, 70px) scale(0.92); } }
+@keyframes drift3 { to { transform: translate(-60px, -50px) scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .amb { animation: none; } }
+.glass-on body { background: var(--paper); } /* canvas under the field */
+.glass-on #view-tasks .list-pane { background: var(--sheet); }
+.glass-on header, .glass-on .statusline, .glass-on .new-task {
+  background: rgba(var(--g-base), var(--g-chrome, 0.66));
+  -webkit-backdrop-filter: blur(22px) saturate(1.7); backdrop-filter: blur(22px) saturate(1.7);
+}
+.glass-on header { border-bottom-color: transparent; box-shadow: inset 0 -1px 0 var(--rule-soft), inset 0 1px 0 var(--spec); }
+.glass-on .statusline { border-top-color: transparent; box-shadow: inset 0 1px 0 var(--rule-soft); }
+.glass-on .new-task { /* the composer floats: a glass capsule over the field, thick edge inside */
+  position: relative; margin: 0 var(--s-3) var(--s-3); border: 1px solid var(--g-edge); border-radius: var(--r-3);
+  box-shadow: inset 0 1px 0 var(--spec), inset 0 -1px 0 var(--spec-bounce), inset 0 -22px 28px -24px var(--inner-shade), 0 10px 28px -16px rgba(0, 0, 0, 0.3);
+}
+.glass-on .new-task textarea, .glass-on .search-box #search { background: var(--card); }
+.glass-on #view-settings { background: var(--sheet); }
+@media (prefers-reduced-transparency: reduce) {
+  .glass-on .ambient { display: none; }
+  .glass-on header, .glass-on .statusline, .glass-on .new-task { background: var(--head); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* Glass setting: five clickable stages that fill up like a bar (Solid → 65 % see-through) */
+.steps { display: flex; gap: 3px; padding: 3px; border-radius: var(--r-2); background: var(--chip); }
+.step {
+  min-width: 44px; padding: 6px 8px; border: 0; border-radius: var(--r-1); cursor: pointer;
+  background: transparent; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 650;
+  transition: background var(--d-1) ease, color var(--d-1) ease, box-shadow var(--d-1) ease;
+}
+.step:first-child { font-family: inherit; font-size: var(--fs-2); }
+.step:hover { color: var(--ink); }
+.step.fill { background: var(--accent-soft); color: var(--ink); }
+.step.sel { background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.step:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }

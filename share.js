@@ -6,6 +6,7 @@ const $ = id => document.getElementById(id);
 
 let snap = null, fmt = 'wa', LANG = 'en';
 const T = (k, prm) => window.I18N.t(LANG, k, prm);
+window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback — apply once at load
 const sel = new Set();
 
 function sections() {
