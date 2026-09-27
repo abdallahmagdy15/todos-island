@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="share.css">
 </head>
 <body>
+  <div class="ambient" aria-hidden="true"></div>
   <header>
     <span class="logo" data-i18n="sh.header">Share progress</span>
     <span id="share-note" class="note-inline" role="status" data-i18n="sh.pick">pick tasks → copy or export</span>
@@ -24,8 +25,8 @@
         <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
       </div>
       <span class="sel-hint" id="sel-hint" data-i18n="sh.selHint">Select tasks to share</span>
-      <button id="btn-copy" class="btn-accent" type="button" disabled data-i18n="sh.copy">Copy</button>
       <button id="btn-export" class="btn-soft" type="button" disabled data-i18n="sh.export">Export .md</button>
+      <button id="btn-copy" class="btn-accent" type="button" disabled data-i18n="sh.copy">Copy</button>
     </div>
   </footer>
   <script src="sfx.js"></script>

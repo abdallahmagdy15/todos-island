@@ -32,7 +32,7 @@ async function load(full = false) { // full = first open / after save; subtask e
     updatePreview();
   }
   $('ed-subs').innerHTML = t.subs.map(s =>
-    `<li class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}<button class="sub-del" type="button" aria-label="Delete subtask ${esc(s.t)}">&times;</button></li>`).join('')
+    `<li class="${s.done ? 'done' : ''}" data-sub="${esc(s.t)}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span><span class="st">${esc(s.t)}</span><button class="sub-del" type="button" aria-label="Delete subtask ${esc(s.t)}">&times;</button></li>`).join('')
     || '<li class="none-yet">No subtasks yet.</li>';
 }
 $('ed-subs').addEventListener('click', async e => {
@@ -54,8 +54,6 @@ $('ed-active').addEventListener('click', () => {
   touched.active = true;
   window.SFX.play(activeState ? 'starOn' : 'starOff');
   paintActive();
-  // M2 — the Now chip gets the highlighter sweep when switched on
-  if (activeState) window.Motion.play($('ed-active'), [{ backgroundSize: '0% 100%' }, { backgroundSize: '100% 100%' }], { duration: 260, fill: 'none' });
   schedulePreview(0);
 });
 $('ed-addsub').addEventListener('click', async () => {

@@ -7,14 +7,14 @@
 <link rel="stylesheet" href="window.css">
 </head>
 <body>
-  <div class="ambient" aria-hidden="true"><i class="amb amb-1"></i><i class="amb amb-2"></i><i class="amb amb-3"></i></div>
+  <div class="ambient" aria-hidden="true"></div>
   <header>
     <span class="logo"><span class="mark" id="mark" aria-hidden="true">[ ]</span> Todo Island</span>
     <nav>
       <button id="tab-work" class="tab active">Work</button>
       <button id="tab-personal" class="tab">Personal</button>
       <button id="tab-done" class="tab">Done</button>
-      <button id="tab-settings" class="tab">Settings<span class="dirty-dot" id="settings-dirty" hidden aria-label="unsaved changes"></span></button>
+      <button id="tab-settings" class="tab">Settings</button>
       <span class="tab-cursor" aria-hidden="true"></span>
     </nav>
     <button id="btn-update" class="upd" type="button" hidden><span class="upd-dot" aria-hidden="true"></span><span data-i18n="upd.label">Update</span></button>
@@ -26,6 +26,7 @@
   <main>
     <section id="view-tasks">
       <div class="list-pane">
+        <div class="list-sheet">
         <div class="err-strip" id="err-strip" hidden role="alert"></div>
         <div class="search-box">
           <input id="search" type="text" data-i18n-ph="win.search.ph" spellcheck="false" autocomplete="off" data-i18n-aria="win.search.aria">
@@ -37,6 +38,7 @@
           <button id="btn-clear-done" class="btn-text danger" type="button" data-i18n-title="win.done.clearTitle" data-i18n="win.done.clear"></button>
         </div>
         <div id="task-list" role="list" aria-label="Tasks"></div>
+        </div>
         <div class="new-task" id="composer">
           <textarea id="new-title" rows="1" spellcheck="false" data-i18n-aria="win.composer.aria"
             data-i18n-ph="win.composer.ph"></textarea>
@@ -48,7 +50,6 @@
             <button id="btn-add" class="btn-accent" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="win.btn.add">Add</span></button>
           </div>
           <div class="composer-foot">
-            <span class="preview" id="new-preview" hidden><span class="pv-label" data-i18n="win.pv.label">will write</span><code id="new-preview-line"></code></span>
             <span class="composer-hint" id="new-hint" role="status" aria-live="polite"></span>
           </div>
         </div>
@@ -56,19 +57,15 @@
     </section>
 
     <section id="view-settings" hidden>
-      <div class="dirty-guard" id="dirty-guard" hidden role="alert">
-        <span data-i18n="set.guard.text">You have unsaved changes.</span>
-        <button class="btn-accent sm" id="guard-save" type="button" data-i18n="set.guard.save">Save</button>
-        <button class="btn-soft sm" id="guard-discard" type="button" data-i18n="set.guard.discard">Discard</button>
-      </div>
       <form class="settings-card" id="settings-form" autocomplete="off" onsubmit="return false">
+        <section class="sgroup">
         <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.reminders">Reminders</span></h2>
         <div class="srow">
           <div class="slabel"><label for="set-work-rem" data-i18n="set.workRem">Work-time reminders</label><span class="shint" data-i18n="set.workRem.hint">inside the workday · every 5–240 min</span></div>
           <div class="sctl">
             <span class="ctl-group">
               <input id="set-work-rem" type="checkbox" role="switch" class="switch" data-i18n-aria="set.workRem.aria">
-              <input id="set-work-interval" type="number" min="5" max="240" step="5" data-i18n-aria="set.workRem.int">
+              <input id="set-work-interval" type="text" inputmode="decimal" class="num-in" lang="en" dir="ltr" spellcheck="false" data-i18n-aria="set.workRem.int">
               <span class="unit" data-i18n="set.unit.min">min</span>
             </span>
             <span class="fstat" data-for="set-work-interval" role="status"></span>
@@ -79,7 +76,7 @@
           <div class="sctl">
             <span class="ctl-group">
               <input id="set-off-rem" type="checkbox" role="switch" class="switch" data-i18n-aria="set.offRem.aria">
-              <input id="set-off-interval" type="number" min="5" max="240" step="5" data-i18n-aria="set.offRem.int">
+              <input id="set-off-interval" type="text" inputmode="decimal" class="num-in" lang="en" dir="ltr" spellcheck="false" data-i18n-aria="set.offRem.int">
               <span class="unit" data-i18n="set.unit.min">min</span>
             </span>
             <span class="fstat" data-for="set-off-interval" role="status"></span>
@@ -87,14 +84,16 @@
         </div>
         <div class="srow">
           <div class="slabel"><label for="set-start" data-i18n="set.dayStart">Workday start</label></div>
-          <div class="sctl"><input id="set-start" type="time"></div>
+          <div class="sctl"><input id="set-start" type="text" class="time-in" inputmode="numeric" maxlength="5" placeholder="09:00" spellcheck="false" lang="en" dir="ltr"><span class="fstat" data-for="set-start" role="status"></span></div>
         </div>
         <div class="srow">
           <div class="slabel"><label for="set-end" data-i18n="set.dayEnd">Workday end</label></div>
-          <div class="sctl"><input id="set-end" type="time"></div>
+          <div class="sctl"><input id="set-end" type="text" class="time-in" inputmode="numeric" maxlength="5" placeholder="17:00" spellcheck="false" lang="en" dir="ltr"><span class="fstat" data-for="set-end" role="status"></span></div>
         </div>
         <p class="note" data-i18n="set.note.night">Nothing fires after midnight until the workday starts.</p>
-        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.look">Look</span></h2>
+        </section>
+        <section class="sgroup">
+        <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.look">Look</span></h2>
         <div class="srow">
           <div class="slabel"><label id="appear-lbl" data-i18n="set.appear">Appearance</label><span class="shint" data-i18n="set.appear.hint">light or dark for every window, or follow Windows</span></div>
           <div class="sctl">
@@ -113,9 +112,7 @@
               <button class="bgsw" type="button" role="radio" data-bg="dusk" data-i18n-title="set.bg.dusk" data-i18n-aria="set.bg.dusk"></button>
               <button class="bgsw" type="button" role="radio" data-bg="lagoon" data-i18n-title="set.bg.lagoon" data-i18n-aria="set.bg.lagoon"></button>
               <button class="bgsw" type="button" role="radio" data-bg="bloom" data-i18n-title="set.bg.bloom" data-i18n-aria="set.bg.bloom"></button>
-              <button class="bgsw" type="button" role="radio" data-bg="dune" data-i18n-title="set.bg.dune" data-i18n-aria="set.bg.dune"></button>
-              <button class="bgsw" type="button" role="radio" data-bg="wallpaper" data-i18n-title="set.bg.wallpaper" data-i18n-aria="set.bg.wallpaper"></button>
-            </div>
+              <button class="bgsw" type="button" role="radio" data-bg="dune" data-i18n-title="set.bg.dune" data-i18n-aria="set.bg.dune"></button>            </div>
           </div>
         </div>
         <div class="srow">
@@ -164,7 +161,9 @@
             </div>
           </div>
         </div>
-        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.files">Source files</span></h2>
+        </section>
+        <section class="sgroup">
+        <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.files">Source files</span></h2>
         <div class="srow">
           <div class="slabel"><label for="set-mode" data-i18n="set.mode">Tasks</label><span class="shint" data-i18n="set.mode.hint">turning a note on creates it if it doesn't exist yet</span></div>
           <div class="sctl"><select id="set-mode">
@@ -195,7 +194,9 @@
           <input id="set-personal" type="text" class="full" spellcheck="false" data-i18n-aria="set.files.personalPh">
           <span class="fstat" data-for="set-personal" role="status"></span>
         </div>
-        <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.app">App</span></h2>
+        </section>
+        <section class="sgroup">
+        <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.app">App</span></h2>
         <div class="srow">
           <div class="slabel"><label data-i18n="set.lang">Language</label><span class="shint" data-i18n="set.lang.hint">interface only — tasks and dates stay as written</span></div>
           <div class="sctl">
@@ -211,7 +212,8 @@
           <div class="slabel"><label for="set-autostart" data-i18n="set.autostart">Start with Windows</label><span class="shint" data-i18n="set.autostart.hint">quiet boot — no popup</span></div>
           <div class="sctl"><input id="set-autostart" type="checkbox" role="switch" class="switch"></div>
         </div>
-
+        </section>
+        <section class="sgroup">
         <button class="adv-toggle" id="adv-toggle" type="button" aria-expanded="false" aria-controls="set-advanced">
           <span class="hash">##</span> <span data-i18n="set.h.advanced">Advanced</span>
           <svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
@@ -233,11 +235,11 @@
         <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.island">Island</span></h2>
         <div class="srow">
           <div class="slabel"><label for="set-dismiss" data-i18n="set.dismiss">Auto-dismiss after</label><span class="shint" data-i18n="set.dismiss.hint">seconds · 5–600</span></div>
-          <div class="sctl"><input id="set-dismiss" type="number" min="5" max="600" step="5"><span class="fstat" data-for="set-dismiss" role="status"></span></div>
+          <div class="sctl"><input id="set-dismiss" type="text" inputmode="decimal" class="num-in" lang="en" dir="ltr" spellcheck="false"><span class="fstat" data-for="set-dismiss" role="status"></span></div>
         </div>
         <div class="srow">
           <div class="slabel"><label for="set-hover" data-i18n="set.hover">Hover-unfold delay</label><span class="shint" data-i18n="set.hover.hint">seconds resting on a task before it unfolds · 0.5–10</span></div>
-          <div class="sctl"><input id="set-hover" type="number" min="0.5" max="10" step="0.5"><span class="fstat" data-for="set-hover" role="status"></span></div>
+          <div class="sctl"><input id="set-hover" type="text" inputmode="decimal" class="num-in" lang="en" dir="ltr" spellcheck="false"><span class="fstat" data-for="set-hover" role="status"></span></div>
         </div>
         <div class="srow">
           <div class="slabel"><label for="set-focus" data-i18n="set.focus">Focus by time</label><span class="shint" data-i18n="set.focus.hint">work tasks in work hours, personal tasks outside</span></div>
@@ -254,7 +256,7 @@
         </div>
         <div class="srow">
           <div class="slabel"><label for="set-undo" data-i18n="set.undo">Undo window</label><span class="shint" data-i18n="set.undo.hint">seconds · 5–120</span></div>
-          <div class="sctl"><input id="set-undo" type="number" min="5" max="120" step="5"><span class="fstat" data-for="set-undo" role="status"></span></div>
+          <div class="sctl"><input id="set-undo" type="text" inputmode="decimal" class="num-in" lang="en" dir="ltr" spellcheck="false"><span class="fstat" data-for="set-undo" role="status"></span></div>
         </div>
         <div class="srow">
           <div class="slabel"><label for="set-shortcut" data-i18n="set.shortcut">Show-island shortcut</label><span class="shint" data-i18n="set.shortcut.hint">click, then press the keys · Esc cancels</span></div>
@@ -269,13 +271,7 @@
           <div class="sctl"><button id="btn-reset-settings" class="btn-soft sm danger" type="button" data-i18n="set.reset.btn">Reset</button></div>
         </div>
         </div>
-
-        <div class="save-bar">
-          <button id="btn-save-settings" class="btn-accent" type="button" data-i18n="set.save.btn">Save settings</button>
-          <span id="set-dirty-note" class="dirty-note" hidden data-i18n="set.save.dirty">Unsaved changes</span>
-          <span id="set-saved" class="saved" hidden role="status" data-i18n="set.save.saved">Saved ✓</span>
-          <span id="set-err" class="err" hidden role="alert"></span>
-        </div>
+        </section>
       </form>
     </section>
   </main>

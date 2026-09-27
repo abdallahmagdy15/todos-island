@@ -20,13 +20,13 @@ const CHECKS = {
     ['accent', 'pill-bg', 4.5], ['p1', 'pill-bg', 4.5], ['p2', 'pill-bg', 4.5], ['p3', 'pill-bg', 4.5],
     ['ink', 'glass over paper', 4.5], ['muted', 'glass over paper', 4.5], ['accent', 'glass over paper', 4.5],
     ['ink', 'glass over card over paper', 4.5], ['muted', 'glass over card over paper', 4.5],
-    // tasks window glass: list text over the paper sheet, chrome text over the clearest glass — each over the strongest color field
-    ['ink', 'sheet over amb-1 over paper', 4.5], ['muted', 'sheet over amb-1 over paper', 4.5], ['faint', 'sheet over amb-1 over paper', 4.5], ['accent', 'sheet over amb-1 over paper', 4.5], ['ink', 'chrome-min over amb-1 over paper', 4.5], ['muted', 'chrome-min over amb-1 over paper', 4.5], ['faint', 'chrome-min over amb-1 over paper', 4.5], ['accent', 'chrome-min over amb-1 over paper', 4.5], ['ink', 'sheet over amb-2 over paper', 4.5], ['muted', 'sheet over amb-2 over paper', 4.5], ['faint', 'sheet over amb-2 over paper', 4.5], ['accent', 'sheet over amb-2 over paper', 4.5], ['ink', 'chrome-min over amb-2 over paper', 4.5], ['muted', 'chrome-min over amb-2 over paper', 4.5], ['faint', 'chrome-min over amb-2 over paper', 4.5], ['accent', 'chrome-min over amb-2 over paper', 4.5], ['ink', 'sheet over amb-3 over paper', 4.5], ['muted', 'sheet over amb-3 over paper', 4.5], ['faint', 'sheet over amb-3 over paper', 4.5], ['accent', 'sheet over amb-3 over paper', 4.5], ['ink', 'chrome-min over amb-3 over paper', 4.5], ['muted', 'chrome-min over amb-3 over paper', 4.5], ['faint', 'chrome-min over amb-3 over paper', 4.5], ['accent', 'chrome-min over amb-3 over paper', 4.5],
+    // glass panels over the onboarding stage's color field (amb-1..3): text on glass uses the island greys (window.css .glass-on)
+    ...['amb-1', 'amb-2', 'amb-3'].flatMap(f => ['sheet', 'chrome-min'].flatMap(s => ['ink', 'island-muted', 'island-faint', 'accent'].map(fg => [fg, `${s} over ${f} over paper`, 4.5]))),
     ['accent', 'accent-soft over pill-bg', 4.5], ['ink', 'accent-soft over pill-bg', 4.5], ['faint', 'chip over pill-bg', 4.5], ['muted', 'chip over card over paper', 4.5],
     // island labels (stronger greys) on the solid pill and on its tinted surfaces
     ['island-muted', 'pill-bg', 4.5], ['island-faint', 'pill-bg', 4.5], ['island-muted', 'accent-soft over pill-bg', 4.5],
     ['island-faint', 'chip over pill-bg', 4.5], ['island-muted', 'chip over pill-bg', 4.5],
-    ['danger-deep', 'chip over sheet over amb-1 over paper', 4.5] // the Reset button (btn-soft.danger) on the settings sheet
+    ['glass-p3', 'ctl over sheet over amb-1 over paper', 4.5] // the Reset button (btn-soft.danger) on the settings sheet (danger-deep = glass-p3 on glass)
   ]
 };
 
@@ -79,19 +79,33 @@ function color(vars, expr) { // "a over b over c" composites right-to-left onto 
   return c;
 }
 
-// island themes (generated): text over the clearest frost (65 % = base at 0.35) over each mesh color point, and the
-// tasks window's list/chrome over each field color at its painted strength (0.42). Only failures are printed.
+// island themes (generated): text over the island's default frost (50 %) over each mesh color point, and the tasks
+// window's panels and chrome over each scene color point as the screen really shows it: the scene painted at --scene-a
+// with filter saturate(--scene-sat) over paper, then saturated again by the panel's backdrop-filter (--glass-sat), then
+// the panel's frost on top. Text on window glass uses the island greys. Only failures are printed.
 const BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune'];
-const withAlpha = (c, a) => `rgba(${c.r}, ${c.g}, ${c.b}, ${a})`;
+const hex = c => '#' + [c.r, c.g, c.b].map(v => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
+// CSS saturate(s) (Filter Effects spec matrix, applied to sRGB values as Chromium does for CSS filter functions)
+function saturate(c, s) {
+  const [r, g, b] = [c.r, c.g, c.b];
+  return { r: (0.213 + 0.787 * s) * r + (0.715 - 0.715 * s) * g + (0.072 - 0.072 * s) * b,
+    g: (0.213 - 0.213 * s) * r + (0.715 + 0.285 * s) * g + (0.072 - 0.072 * s) * b,
+    b: (0.213 - 0.213 * s) * r + (0.715 - 0.715 * s) * g + (0.072 + 0.928 * s) * b, a: 1 };
+}
 function themeVars(vars) {
   const v = { ...vars, 'frost-min': `rgba(${resolve(vars, 'g-base')}, 0.5)` };
-  for (const t of BG_THEMES) for (let i = 0; i <= 4; i++) v[`amb-${t}-${i}`] = withAlpha(parseColor(resolve(vars, `bg-${t}-${i}`)), 0.42);
+  const paper = parseColor(resolve(vars, 'paper')), sceneA = +resolve(vars, 'scene-a');
+  const sceneSat = +resolve(vars, 'scene-sat'), glassSat = +resolve(vars, 'glass-sat');
+  for (const t of BG_THEMES) for (let i = 0; i <= 4; i++) {
+    const point = saturate(parseColor(resolve(vars, `bg-${t}-${i}`)), sceneSat);
+    v[`scene-${t}-${i}`] = hex(saturate(over({ ...point, a: sceneA }, paper), glassSat)); // what a panel frosts
+  }
   return v;
 }
 const THEME_CHECKS = [];
 for (const t of BG_THEMES) {
   for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'p2', 'p3']) THEME_CHECKS.push([fg, `frost-min over bg-${t}-${i}`, 4.5, true]);
-  for (let i = 1; i <= 3; i++) for (const fg of ['ink', 'muted', 'faint', 'accent']) for (const sfc of ['sheet', 'chrome-min']) THEME_CHECKS.push([fg, `${sfc} over amb-${t}-${i} over paper`, 4.5, true]);
+  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'glass-p2', 'glass-p3', 'glass-ok']) for (const sfc of ['sheet', 'chrome-min']) THEME_CHECKS.push([fg, `${sfc} over scene-${t}-${i}`, 4.5, true]);
 }
 
 let fails = 0, total = 0;

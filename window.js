@@ -12,7 +12,6 @@ function taskRows() {
 
 const openRows = new Set(); // expanded rows survive refreshes
 let freshFrom = null; // ids present before an add/undo — rows not in it get the "fresh ink" settle
-let prevNow = null; // ids that were Now last render — newly-Now titles get the highlighter swipe
 let animating = 0, refreshPending = false; // a refresh mid-animation waits — re-rendering would kill the moving row
 const fileErr = tag => (snap && snap.errors || []).find(e => e.file === tag);
 function matches(t, q) {
@@ -27,11 +26,8 @@ function renderDone(q) { // Done tab: both files, restore or delete (both undoab
   $('btn-clear-done').hidden = !all.length;
   $('task-list').innerHTML = items.map(d => `
     <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(d.title)}">
-      <span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>
       <div class="wrow-main"><span class="wtitle"><span class="tt">${esc(d.title)}</span></span></div>
-      ${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}
-      <button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button>
-      <button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
+      <span class="wmeta"><span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></span>
     </div></div></div>`).join('') || `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>`;
 }
 function renderList() {
@@ -49,35 +45,21 @@ function renderList() {
     const open = openRows.has(t.id);
     const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
       ${(t.notes || []).map(n => `<div class="wdesc">${esc(n)}</div>`).join('')}
-      ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}">${s.done ? '&#10003;' : '&#9634;'} ${esc(s.t)}</div>`).join('')}
+      ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span><span class="st">${esc(s.t)}</span></div>`).join('')}
     </div></div>` : '';
     return `
     <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}" draggable="true">
-      <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(t.title)}"><span class="box"><svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg></span></button>
-      <span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>
-      ${t.active ? '<span class="wstar">&#9733;</span>' : ''}
+      <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(t.title)}"></button>
       <div class="wrow-main">
-        <span class="wtitle">${t.active ? `<span class="hl"><span class="tt">${esc(t.title)}</span></span>` : `<span class="tt">${esc(t.title)}</span>`}</span>
+        <span class="wtitle"><span class="tt">${esc(t.title)}</span></span>
         ${expandBody}
         ${!open && t.subs.length ? `<div class="wsub">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
       </div>
-      ${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${esc(dueLabel(t))}</span>` : ''}
-      ${(t.notes || []).length || t.subs.length ? `<button class="wexp ${open ? 'open' : ''}" data-exp="${esc(t.id)}" title="${open ? 'Collapse' : 'Expand'}" aria-label="${open ? 'Collapse task' : 'Expand task'}"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>` : ''}
-      <button class="wtrash" data-del="${esc(t.id)}" data-file="${t.file}" type="button" title="Delete" aria-label="Delete task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button>
+      <span class="wmeta"><span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${esc(dueLabel(t))}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}<span class="wacts"><button class="wedit" data-edit type="button" title="Edit" aria-label="Edit task"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button>${(t.notes || []).length || t.subs.length ? `<button class="wexp ${open ? 'open' : ''}" data-exp="${esc(t.id)}" title="${open ? 'Collapse' : 'Expand'}" aria-label="${open ? 'Collapse task' : 'Expand task'}"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>` : ''}<button class="wtrash" data-del="${esc(t.id)}" data-file="${t.file}" type="button" title="Delete" aria-label="Delete task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></span>
     </div></div></div>`;
   }).join('') || emptyState(q);
   markFresh();
   settleFocus(hadFocus);
-  // M2 — a task that just became Now gets the highlighter swipe behind its title
-  const nowIds = new Set(all.filter(t => t.active).map(t => t.id));
-  if (prevNow && prevNow.tab === currentTab) {
-    for (const id of nowIds) {
-      if (prevNow.ids.has(id)) continue;
-      const hl = document.querySelector(`#task-list .wrow[data-id="${CSS.escape(id)}"] .hl`);
-      window.Motion.play(hl, [{ backgroundSize: '0% 72%' }, { backgroundSize: '100% 72%' }], { duration: 260, fill: 'none' });
-    }
-  }
-  prevNow = { tab: currentTab, ids: nowIds };
 }
 // overdue never relies on color alone: "2 Sep · 23d late"
 function daysLate(t) {
@@ -128,14 +110,6 @@ const visibleIds = () => new Set([...document.querySelectorAll('#task-list .wrow
 
 // task mode: a one-note setup hides the other note's tab; the composer always targets a visible tab
 const enabledNotes = () => { const m = (snap && snap.settings.mode) || 'both'; return m === 'both' ? ['work', 'personal'] : [m]; };
-// liquid glass (Settings → Glass): 0 = solid window; 1–4 = the color field shows through a glass header + composer.
-// The window's glass never goes as clear as the island's — it sits over text you read.
-const CHROME_ALPHA = [1, 0.86, 0.76, 0.66, 0.56];
-function applyGlass(level) {
-  const g = Number.isInteger(level) ? level : 3;
-  document.documentElement.classList.toggle('glass-on', g > 0);
-  document.documentElement.style.setProperty('--g-chrome', CHROME_ALPHA[g] ?? 0.66);
-}
 function applyMode() {
   const on = enabledNotes();
   for (const tag of ['work', 'personal']) $('tab-' + tag).hidden = !on.includes(tag);
@@ -186,17 +160,19 @@ function renderChrome() { // status mark, error strip, status line — the notes
     `<span class="${fileErr(tag) ? 'bad' : ''}">${esc(src[tag] || tag)}</span>`).join(' \u00B7 ');
   renderLastWrite();
 }
-const ago = ms => ms < 45e3 ? T('win.ago.now') : ms < 3600e3 ? T('win.ago.m', { n: Math.round(ms / 60e3) }) : ms < 86400e3 ? T('win.ago.h', { n: Math.round(ms / 3600e3) }) : T('win.ago.d', { n: Math.round(ms / 86400e3) });
+// status line in plain words: "Saved work-tasks.md at 14:05" (an older day adds its date) · "Nothing saved yet".
+// Times are notation: 24 h, Western digits, never translated.
+const hhmm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const whenText = at => { const d = new Date(at); return d.toDateString() === new Date().toDateString() ? hhmm(d) : `${d.getDate()} ${window.UI.MONTHS[d.getMonth()]} ${hhmm(d)}`; };
 let lastSeenWrite = 0;
 function renderLastWrite() {
   const lw = snap && snap.lastWrite;
   const el = $('st-write');
-  const fileLbl = f => T(f === 'work' ? 'win.st.file.work' : 'win.st.file.personal');
   if (!lw) { el.textContent = T('win.st.none'); return; }
-  el.textContent = T('win.st.last', { f: fileLbl(lw.file), ago: ago(Date.now() - lw.at) });
+  el.textContent = T('win.st.last', { f: lw.file, t: whenText(lw.at) });
   if (lw.at !== lastSeenWrite) { // M8-style flash: a write just landed in the note
     const first = !lastSeenWrite; lastSeenWrite = lw.at;
-    if (!first) { el.textContent = T('win.st.wrote', { f: T(lw.file === 'work' ? 'win.st.file.work' : 'win.st.file.personal') }); el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
+    if (!first) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); }
   }
 }
 setInterval(() => { if (snap) renderLastWrite(); }, 30e3);
@@ -205,7 +181,7 @@ async function refresh() {
   if (animating) { refreshPending = true; return; }
   snap = await window.api.getSnapshot();
   if (snap && snap.lang && snap.lang !== LANG) { LANG = snap.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
-  if (snap && snap.settings) { window.SFX.enabled = !!snap.settings.soundOn; applyGlass(snap.settings.glassLevel); window.UI.applyTheme(snap.settings); }
+  if (snap && snap.settings) { window.SFX.enabled = !!snap.settings.soundOn; window.UI.applyTheme(snap.settings); }
   applyMode();
   updateTabCounts();
   renderChrome();
@@ -291,7 +267,7 @@ $('btn-rerun-setup').addEventListener('click', () => { window.SFX.play('tick'); 
 $('btn-reset-settings').addEventListener('click', async () => { // settings only: note files are never created, deleted, or modified
   window.SFX.play('delete');
   await window.api.resetSettings();
-  await loadSettings(); setDirty(false); // the form shows the defaults immediately; the undo bubble is the safety net
+  await loadSettings(); // the form shows the defaults immediately; the undo bubble is the safety net
 });
 $('err-strip').addEventListener('click', e => {
   if (e.target.closest('[data-retry]')) refresh();
@@ -353,15 +329,12 @@ async function updatePreview() {
   if (my !== composer.seq) return r; // a newer keystroke already asked
   composer.result = r;
   prioCtl.set(r.priority); dueCtl.set(r.due); // chips mirror the final truth: typed token unless a chip was clicked
-  $('new-preview').hidden = !r.ok;
-  $('new-preview-line').textContent = r.line || '';
   return r;
 }
 function resetComposer() {
   $('new-title').value = ''; autoGrow($('new-title'));
   composer.prio = undefined; composer.due = undefined; composer.result = null;
   prioCtl.set(null); dueCtl.set(null);
-  $('new-preview').hidden = true;
 }
 let hintT = null;
 function composerHint(msg) {
@@ -390,8 +363,11 @@ function toggleKeys(force) {
 }
 $('st-keys').addEventListener('click', () => toggleKeys());
 document.addEventListener('click', e => { if (!$('keys-pop').hidden && !e.target.closest('#keys-pop, #st-keys')) toggleKeys(false); });
-const MAX_TA = 212; // ≈ 10 visible lines, scrolls inside beyond
-function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, MAX_TA) + 'px'; }
+const MAX_LINES = 6; // the composer grows with each line up to 6, then scrolls inside
+function autoGrow(ta) {
+  const cs = getComputedStyle(ta), max = parseFloat(cs.lineHeight) * MAX_LINES + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, max) + 'px';
+}
 $('new-title').addEventListener('input', () => {
   autoGrow($('new-title'));
   $('new-title').classList.remove('invalid'); composerHint('');
@@ -419,8 +395,7 @@ $('btn-add').addEventListener('click', async () => {
   await refresh();
 });
 
-// ---- tabs (Settings guards unsaved edits instead of silently dropping them) ----
-let pendingTab = null;
+// ---- tabs ----
 function showTab(tab) {
   currentTab = tab;
   localStorage.setItem('ti-tab', tab); // remember where you left off
@@ -428,15 +403,9 @@ function showTab(tab) {
   $('tab-' + tab).classList.add('active');
   moveTabCursor();
   $('view-tasks').hidden = false; $('view-settings').hidden = true;
-  $('dirty-guard').hidden = true;
   renderList();
 }
-for (const tab of ['work', 'personal', 'done']) {
-  $('tab-' + tab).addEventListener('click', () => {
-    if (settingsDirty && !$('view-settings').hidden) { pendingTab = tab; $('dirty-guard').hidden = false; $('guard-save').focus(); return; }
-    showTab(tab);
-  });
-}
+for (const tab of ['work', 'personal', 'done']) $('tab-' + tab).addEventListener('click', () => showTab(tab));
 { // restore last tab (or the one the island asked for)
   const asked = new URLSearchParams(location.search).get('tab');
   const saved = localStorage.getItem('ti-tab');
@@ -456,8 +425,12 @@ window.api.onShowTab(tab => {
   else if (['work', 'personal', 'done'].includes(tab)) $('tab-' + tab).click();
 });
 
-// ---- settings: manual Save, visible dirty state, every error and clamp shown at its own field ----
-let settingsDirty = false, langSel = 'system';
+// ---- settings save themselves (owner, v1.11 — no Save button): picks (switches, steps, swatches, segments, selects)
+// save at once; typed fields save when committed (Enter / leaving the field), so a half-typed number or path never
+// saves. Every error and clamp is shown at its own field; the status line says "Settings saved". ----
+let langSel = 'system';
+let saveChain = Promise.resolve();
+const autoSave = () => { saveChain = saveChain.then(saveSettings, saveSettings); return saveChain; }; // one write at a time, in order
 for (const b of document.querySelectorAll('#lang-seg .seg-btn')) b.addEventListener('click', () => {
   langSel = b.dataset.lang;
   document.querySelectorAll('#lang-seg .seg-btn').forEach(x => {
@@ -465,7 +438,7 @@ for (const b of document.querySelectorAll('#lang-seg .seg-btn')) b.addEventListe
     x.classList.toggle('sel', on);
     x.setAttribute('aria-checked', on);
   });
-  setDirty(true);
+  autoSave();
 });
 // Glass (frost) + text sizes: clickable stages that fill like a bar. Arrows move them (RTL-aware).
 function stepper(id) {
@@ -478,14 +451,14 @@ function stepper(id) {
       b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1;
     });
   } };
-  steps.forEach(b => b.addEventListener('click', () => { api.set(+b.dataset.glass); setDirty(true); }));
+  steps.forEach(b => b.addEventListener('click', () => { api.set(+b.dataset.glass); autoSave(); }));
   $(id).addEventListener('keydown', e => {
     const d = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
     if (!d) return;
     e.preventDefault();
     const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
     const v = Math.max(0, Math.min(steps.length - 1, api.value + (rtl ? -d : d)));
-    api.set(v); steps[v].focus(); setDirty(true);
+    api.set(v); steps[v].focus(); autoSave();
   });
   return api;
 }
@@ -498,14 +471,14 @@ function setAccent(a) {
   accentSel = a;
   swatches.forEach(b => { const on = b.dataset.accent === a; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
 }
-swatches.forEach(b => b.addEventListener('click', () => { setAccent(b.dataset.accent); setDirty(true); }));
+swatches.forEach(b => b.addEventListener('click', () => { setAccent(b.dataset.accent); autoSave(); }));
 $('accent-sw').addEventListener('keydown', e => {
   const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
   if (!d) return;
   e.preventDefault();
   const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
   const i = swatches.findIndex(b => b.dataset.accent === accentSel), n = (i + (rtl ? -d : d) + swatches.length) % swatches.length;
-  setAccent(swatches[n].dataset.accent); swatches[n].focus(); setDirty(true);
+  setAccent(swatches[n].dataset.accent); swatches[n].focus(); autoSave();
 });
 // Theme: one tile per island theme, a radiogroup like the swatches
 const bgTiles = [...document.querySelectorAll('#bg-sw .bgsw')];
@@ -514,14 +487,14 @@ function setBg(t) {
   bgSel = t;
   bgTiles.forEach(b => { const on = b.dataset.bg === t; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); b.tabIndex = on ? 0 : -1; });
 }
-bgTiles.forEach(b => b.addEventListener('click', () => { setBg(b.dataset.bg); setDirty(true); }));
+bgTiles.forEach(b => b.addEventListener('click', () => { setBg(b.dataset.bg); autoSave(); }));
 $('bg-sw').addEventListener('keydown', e => {
   const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
   if (!d) return;
   e.preventDefault();
   const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
   const i = bgTiles.findIndex(b => b.dataset.bg === bgSel), n = (i + (rtl ? -d : d) + bgTiles.length) % bgTiles.length;
-  setBg(bgTiles[n].dataset.bg); bgTiles[n].focus(); setDirty(true);
+  setBg(bgTiles[n].dataset.bg); bgTiles[n].focus(); autoSave();
 });
 // Appearance: System / Light / Dark for every window (main sets nativeTheme.themeSource on save)
 let appearSel = 'system';
@@ -529,7 +502,7 @@ function setAppear(v) {
   appearSel = v;
   document.querySelectorAll('#appear-seg .seg-btn').forEach(b => { const on = b.dataset.appear === v; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
 }
-document.querySelectorAll('#appear-seg .seg-btn').forEach(b => b.addEventListener('click', () => { setAppear(b.dataset.appear); setDirty(true); }));
+document.querySelectorAll('#appear-seg .seg-btn').forEach(b => b.addEventListener('click', () => { setAppear(b.dataset.appear); autoSave(); }));
 // Advanced settings: collapsed by default; the open/closed choice is remembered per viewer (a convenience only)
 function setAdvanced(open) {
   $('set-advanced').hidden = !open; $('adv-toggle').setAttribute('aria-expanded', String(open));
@@ -538,13 +511,6 @@ function setAdvanced(open) {
 $('adv-toggle').addEventListener('click', () => setAdvanced($('set-advanced').hidden));
 try { setAdvanced(localStorage.getItem('ti-adv-open') === '1'); } catch (e) { setAdvanced(false); }
 window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); refresh(); });
-function setDirty(on) {
-  settingsDirty = on;
-  $('settings-dirty').hidden = !on;
-  $('set-dirty-note').hidden = !on;
-  $('btn-save-settings').classList.toggle('attn', on);
-  if (on) $('set-saved').hidden = true;
-}
 function fstat(id, msg, kind) {
   const el = document.querySelector(`.fstat[data-for="${id}"]`);
   if (!el) return;
@@ -579,18 +545,16 @@ async function loadSettings() {
   });
   document.querySelectorAll('.fstat').forEach(el => { el.textContent = ''; el.className = 'fstat'; });
   document.querySelectorAll('#settings-form .invalid').forEach(el => el.classList.remove('invalid'));
-  $('set-err').hidden = true;
-  setDirty(false);
 }
 $('tab-settings').addEventListener('click', async () => {
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   $('tab-settings').classList.add('active');
   moveTabCursor();
   $('view-tasks').hidden = true; $('view-settings').hidden = false;
-  if (!settingsDirty) await loadSettings(); // coming back to unsaved edits keeps them
+  await saveChain; await loadSettings(); // a save still in flight lands first, then the form shows what is stored
 });
-$('settings-form').addEventListener('input', () => setDirty(true));
-$('settings-form').addEventListener('change', () => setDirty(true));
+// 'change' = a switch/select flipped, or a typed field committed (Enter / leaving it) — never per keystroke
+$('settings-form').addEventListener('change', () => autoSave());
 // a schedule's interval input greys out while its toggle is off
 for (const [t, i] of [['set-work-rem', 'set-work-interval'], ['set-off-rem', 'set-off-interval']]) {
   $(t).addEventListener('change', () => { $(i).disabled = !$(t).checked; });
@@ -624,11 +588,12 @@ $('set-shortcut').addEventListener('keydown', e => {
   const key = KEYMAP[e.key] || (e.key.length === 1 ? e.key.toUpperCase() : e.key);
   if (!mods.length && !/^F\d{1,2}$/.test(key)) { fstat('set-shortcut', T('set.shortcut.ctrl'), 'warn'); return; }
   setShortcut([...mods, key].join('+'));
-  setDirty(true);
+  autoSave();
 });
 
 function readNumber(id, min, max, fallback) { // clamps are announced at the field, never silent
-  const raw = $(id).value.trim();
+  // a plain text field (a native number input draws the OS locale's digits): typed Arabic-Indic digits / separator read too
+  const raw = $(id).value.trim().replace(/[٠-٩۰-۹]/g, c => String(c.charCodeAt(0) & 0xF)).replace(/[٫,]/g, '.');
   const n = raw === '' ? NaN : +raw;
   const v = Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
   if (!Number.isFinite(n)) fstat(id, T('set.clamp.empty', { v }), 'warn');
@@ -636,15 +601,20 @@ function readNumber(id, min, max, fallback) { // clamps are announced at the fie
   $(id).value = v;
   return v;
 }
+function readTime(id, fallback) { // "930" / "9:30" / Arabic-Indic digits → "09:30"; an unreadable time keeps the old one, said at the field
+  const v = window.UI.normTime($(id).value);
+  if (!v) fstat(id, T('set.time.bad', { v: fallback }), 'warn');
+  $(id).value = v || fallback;
+  return v || fallback;
+}
 async function saveSettings() {
   document.querySelectorAll('.fstat').forEach(el => { el.textContent = ''; el.className = 'fstat'; });
   document.querySelectorAll('#settings-form .invalid').forEach(el => el.classList.remove('invalid'));
-  $('set-err').hidden = true;
   const res = await window.api.saveSettings({
     workIntervalMin: readNumber('set-work-interval', 5, 240, 60),
     offIntervalMin: readNumber('set-off-interval', 5, 240, 60),
     workRemindersOn: $('set-work-rem').checked, offRemindersOn: $('set-off-rem').checked,
-    dayStart: $('set-start').value || '09:00', dayEnd: $('set-end').value || '17:00',
+    dayStart: readTime('set-start', (snap && snap.settings.dayStart) || '09:00'), dayEnd: readTime('set-end', (snap && snap.settings.dayEnd) || '17:00'),
     dismissSec: readNumber('set-dismiss', 5, 600, 10),
     undoSec: readNumber('set-undo', 5, 120, 5),
     hoverSec: readNumber('set-hover', 0.5, 10, 1),
@@ -669,23 +639,25 @@ async function saveSettings() {
       if (k === 'workPath') $('edit-work').hidden = false;
       if (k === 'personalPath') $('edit-personal').hidden = false;
     }
-    $('set-err').textContent = keys.length === 1 ? T('set.err.one') : T('set.err.many', { n: keys.length });
-    $('set-err').hidden = false;
     if (res.errors.shortcut) setShortcut((await window.api.getSnapshot()).settings.shortcut);
-    setDirty(true);
+    statusFlash(T('set.save.partial'), 'bad'); // everything else was saved; the bad fields say why
     return false;
   }
   const s = (await window.api.getSnapshot()).settings;
   $('work-name').textContent = baseName(s.workPath); $('work-name').title = s.workPath;
   $('personal-name').textContent = baseName(s.personalPath); $('personal-name').title = s.personalPath;
-  setDirty(false);
-  $('set-saved').hidden = false;
-  setTimeout(() => { $('set-saved').hidden = true; }, 1500);
+  statusFlash(T('set.save.saved'));
   return true;
 }
-$('btn-save-settings').addEventListener('click', saveSettings);
-$('guard-save').addEventListener('click', async () => { if (await saveSettings() && pendingTab) showTab(pendingTab); pendingTab = null; });
-$('guard-discard').addEventListener('click', () => { setDirty(false); if (pendingTab) showTab(pendingTab); pendingTab = null; });
+// a short message in the status line's write slot, then back to the last note write
+let flashT = null;
+function statusFlash(msg, kind) {
+  const el = $('st-write');
+  clearTimeout(flashT);
+  el.textContent = msg; el.classList.toggle('bad', kind === 'bad');
+  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+  flashT = setTimeout(() => { el.classList.remove('bad'); renderLastWrite(); }, 2200);
+}
 
 // ---- small notices (honest one-liners: "Can't undo — note changed", etc.) ----
 let noticeT = null;
@@ -710,7 +682,7 @@ window.api.onShowUndo(d => {
         freshFrom = null;
         notice(r.reason === 'changed' ? `Can't undo — ${r.files.join(', ')} changed since.` : 'Undo expired.', 'bad');
       }
-      if (r && r.ok && d.kind === 'settings') { await loadSettings(); setDirty(false); } // a settings reset came back — re-fill the form
+      if (r && r.ok && d.kind === 'settings') { await loadSettings(); } // a settings reset came back — re-fill the form
     }
   });
 });

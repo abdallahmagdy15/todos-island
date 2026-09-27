@@ -50,8 +50,28 @@
   --bg-lagoon-0: #e6f3f1; --bg-lagoon-1: #b7e8e4; --bg-lagoon-2: #b8ecc4; --bg-lagoon-3: #c9e2fa; --bg-lagoon-4: #d2f4ee;
   --bg-bloom-0: #f8eaf0; --bg-bloom-1: #ffd4e3; --bg-bloom-2: #ffd6c4; --bg-bloom-3: #eed6ff; --bg-bloom-4: #ffd6e4;
   --bg-dune-0: #f3eee4; --bg-dune-1: #f0dcbd; --bg-dune-2: #efdace; --bg-dune-3: #dbe1cb; --bg-dune-4: #f5e2c4;
-  --sheet: rgba(247, 246, 242, 0.74);        /* the list's paper over the field */
-  --chrome-min: rgba(251, 250, 247, 0.56);   /* glass header/composer at the clearest level — the contrast gate's worst case */
+  /* the reading panels over the scene (list, settings cards, editor, share) follow Settings → Glass like the island:
+     rgba(--sheet-rgb, --g-sheet) with --g-sheet set per level by UI.applyTheme. --sheet = the CLEAREST level (65 %),
+     the contrast gate's worst case — keep it equal to the last value of the level list in ui-shared.js */
+  --sheet-rgb: 247, 246, 242; --sheet: rgba(247, 246, 242, 0.38);
+  --chrome-min: rgba(251, 250, 247, 0.42);   /* glass header/composer at the clearest level — the contrast gate's worst case */
+  /* glass controls (v1.11 round 2, owner: "true liquid glass, not white"): ONE material for buttons, chips, tracks, fields and
+     switches in every window. The light carries a piece (rim, top specular, bottom bounce, inner shade), not its fill.
+     ctl = a resting control's clear fill · lens = THE selected piece, the one strong glass in a group · sheen = the light
+     falling across a piece's top half · ctl-line = the hairline that separates a clear piece from the panel under it ·
+     well = recessed track or field · drop = the soft lift shadow · gel-hi = the light inside accent gel (the ONE primary) */
+  --ctl: rgba(255, 255, 255, 0.2); --ctl-hover: rgba(255, 255, 255, 0.38); --lens: rgba(255, 255, 255, 0.62);
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0) 58%);
+  --ctl-line: rgba(28, 27, 25, 0.1); --well-a: 0.12;
+  --drop: rgba(28, 27, 25, 0.16); --gel-hi: rgba(255, 255, 255, 0.5);
+  /* the hues on window glass: a step deeper (light) / brighter (dark) than on paper, so !!! / !! / "Saved" stay 4.5:1 over
+     the vivid scene (window.css .glass-on swaps them in, like the island's stronger greys) */
+  --glass-p3: #a8301f; --glass-p2: #7c5200; --glass-ok: #236a31;
+  --scene-a: 0.9;     /* how strongly the island theme paints behind the tasks window */
+  --scene-sat: 1.1;   /* the scene a touch livelier than the island's mesh (filter: saturate) — moderate, owner round 3 */
+  --glass-sat: 1.4;   /* every glass panel saturates what it frosts (backdrop-filter) — contrast.js models both */
+  /* island text: raised (owner, 2026-09-27 — replaced the soft glow): lit from above, a small shadow under each letter */
+  --d-hi: rgba(255, 255, 255, 0.85); --d-lo: rgba(28, 27, 25, 0.38);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -78,8 +98,16 @@
     --bg-lagoon-0: #0d1716; --bg-lagoon-1: #166661; --bg-lagoon-2: #23673e; --bg-lagoon-3: #295c9c; --bg-lagoon-4: #18665e;
     --bg-bloom-0: #1a0f15; --bg-bloom-1: #a6306d; --bg-bloom-2: #904432; --bg-bloom-3: #793db2; --bg-bloom-4: #9d376c;
     --bg-dune-0: #16130e; --bg-dune-1: #73542c; --bg-dune-2: #824c37; --bg-dune-3: #505e40; --bg-dune-4: #6e5632;
-    --sheet: rgba(18, 18, 17, 0.74);
-    --chrome-min: rgba(23, 23, 22, 0.56);
+    --sheet-rgb: 18, 18, 17; --sheet: rgba(18, 18, 17, 0.38);
+    --scene-a: 0.7;
+    --chrome-min: rgba(23, 23, 22, 0.42);
+    --ctl: rgba(255, 255, 255, 0.07); --ctl-hover: rgba(255, 255, 255, 0.13); --lens: rgba(255, 255, 255, 0.17);
+    --sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0) 58%);
+    --ctl-line: rgba(0, 0, 0, 0.32); --well-a: 0.24;
+    --drop: rgba(0, 0, 0, 0.45); --gel-hi: rgba(255, 255, 255, 0.28);
+    --d-hi: rgba(255, 255, 255, 0.16); --d-lo: rgba(0, 0, 0, 0.8);
+    --glass-p3: #ff8f80; --glass-p2: var(--p2); --glass-ok: var(--ok);
+    --scene-sat: 1.05; --glass-sat: 1.35;
   }
 }
 
@@ -97,13 +125,19 @@
   :root[data-accent="graphite"] { --accent: #c8ccd4; --accent-ink: #121211; --accent-soft: rgba(200, 204, 212, 0.14); --accent-border: rgba(200, 204, 212, 0.30); --amb-1: rgba(72, 78, 92, 0.42); }
 }
 
-/* the tasks window's color field follows the island theme (Wallpaper → Mist: the window never reads the desktop picture) */
+/* the tasks window's color field follows the island theme */
 :root { --tb-1: var(--bg-mist-1); --tb-2: var(--bg-mist-2); --tb-3: var(--bg-mist-3); }
 :root[data-bg="mist"] { --tb-1: var(--bg-mist-1); --tb-2: var(--bg-mist-2); --tb-3: var(--bg-mist-3); }
 :root[data-bg="dusk"] { --tb-1: var(--bg-dusk-1); --tb-2: var(--bg-dusk-2); --tb-3: var(--bg-dusk-3); }
 :root[data-bg="lagoon"] { --tb-1: var(--bg-lagoon-1); --tb-2: var(--bg-lagoon-2); --tb-3: var(--bg-lagoon-3); }
 :root[data-bg="bloom"] { --tb-1: var(--bg-bloom-1); --tb-2: var(--bg-bloom-2); --tb-3: var(--bg-bloom-3); }
 :root[data-bg="dune"] { --tb-1: var(--bg-dune-1); --tb-2: var(--bg-dune-2); --tb-3: var(--bg-dune-3); }
+/* the tasks window's scene = the island's own mesh (island.js MESH: [point, x, y, rx, ry]), painted still with CSS gradients */
+:root, :root[data-bg="mist"] { --scene: radial-gradient(35% 60% at 30% 90%, var(--bg-mist-4), transparent 70%), radial-gradient(40% 70% at 70% 95%, var(--bg-mist-3), transparent 70%), radial-gradient(45% 80% at 88% 10%, var(--bg-mist-2), transparent 70%), radial-gradient(40% 70% at 12% 20%, var(--bg-mist-1), transparent 70%), var(--bg-mist-0); }
+:root[data-bg="dusk"] { --scene: radial-gradient(40% 70% at 30% 100%, var(--bg-dusk-2), transparent 70%), radial-gradient(45% 80% at 92% 55%, var(--bg-dusk-3), transparent 70%), radial-gradient(40% 70% at 55% 5%, var(--bg-dusk-4), transparent 70%), radial-gradient(45% 75% at 8% 15%, var(--bg-dusk-1), transparent 70%), var(--bg-dusk-0); }
+:root[data-bg="lagoon"] { --scene: radial-gradient(35% 60% at 90% 95%, var(--bg-lagoon-4), transparent 70%), radial-gradient(40% 70% at 50% 10%, var(--bg-lagoon-2), transparent 70%), radial-gradient(40% 70% at 85% 20%, var(--bg-lagoon-3), transparent 70%), radial-gradient(45% 80% at 15% 85%, var(--bg-lagoon-1), transparent 70%), var(--bg-lagoon-0); }
+:root[data-bg="bloom"] { --scene: radial-gradient(35% 60% at 25% 95%, var(--bg-bloom-4), transparent 70%), radial-gradient(40% 70% at 60% 100%, var(--bg-bloom-2), transparent 70%), radial-gradient(40% 70% at 10% 30%, var(--bg-bloom-3), transparent 70%), radial-gradient(45% 80% at 90% 15%, var(--bg-bloom-1), transparent 70%), var(--bg-bloom-0); }
+:root[data-bg="dune"] { --scene: radial-gradient(35% 60% at 95% 95%, var(--bg-dune-3), transparent 70%), radial-gradient(40% 70% at 35% 100%, var(--bg-dune-2), transparent 70%), radial-gradient(40% 70% at 80% 25%, var(--bg-dune-1), transparent 70%), radial-gradient(45% 80% at 10% 10%, var(--bg-dune-4), transparent 70%), var(--bg-dune-0); }
 
 [hidden] { display: none !important; } /* kills ghost elements whose display rule overrides the attribute */
 @media (prefers-reduced-motion: reduce) {
@@ -130,15 +164,24 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 ::-webkit-scrollbar-thumb:hover { background: var(--rule); }
 ::-webkit-scrollbar-track { background: transparent; }
 
-/* segmented control (Language, WhatsApp/Markdown) — shared, tokens only */
-.seg { display: flex; background: var(--chip); border-radius: var(--r-2); padding: 3px; }
+/* glass track (v1.11): tabs (header nav), segmented controls (.seg) and glass steps (.steps) are ONE component — a clear
+   recessed dock, nearly see-through, and ONE raised glass lens under the chosen item: the only strong piece in the group
+   (round 2, owner: "the dock more transparent so the selected piece stands out"). Unchosen items have no fill at all.
+   THE selected style everywhere (tracks and chips): the lens + a faint accent tint + an accent inner edge. */
+.seg, .steps, header nav { display: inline-flex; gap: 2px; padding: 3px; border-radius: calc(var(--r-2) + 2px);
+  background: rgba(var(--g-base), var(--well-a)); box-shadow: inset 0 1px 2px var(--inner-shade), inset 0 0 0 1px var(--rule-soft), inset 0 -1px 0 var(--spec-bounce); }
 .seg-btn {
-  border: 0; background: transparent; color: var(--muted); font-family: inherit;
-  font-size: var(--fs-2); font-weight: 650; padding: 6px 13px; border-radius: var(--r-1); cursor: pointer;
+  height: 26px; padding: 0 12px; border: 0; border-radius: calc(var(--r-2) - 1px); background: transparent; color: var(--muted);
+  font-family: inherit; font-size: var(--fs-2); font-weight: 650; cursor: pointer; white-space: nowrap;
   transition: background var(--d-1) ease, color var(--d-1) ease, box-shadow var(--d-1) ease;
 }
-.seg-btn:hover { color: var(--ink); }
-.seg-btn.sel { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); }
+.seg-btn:hover:not(.sel) { color: var(--ink); background: var(--ctl); }
+.seg-btn.sel, .step.sel, .tab-cursor, .chip.sel {
+  color: var(--ink);
+  background: var(--sheen), color-mix(in srgb, var(--sel-hue, var(--accent)) 8%, var(--lens));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--sel-hue, var(--accent)) 72%, transparent), inset 0 1px 0 var(--spec),
+    inset 0 -1px 0 var(--spec-bounce), inset 0 -8px 10px -9px var(--inner-shade), 0 1px 1px var(--drop), 0 4px 10px -5px var(--drop);
+}
 .seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* "Update" pill — a newer release exists (island + tasks-window top bars). Green = status, never a popup.

@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="editor.css">
 </head>
 <body>
+  <div class="ambient" aria-hidden="true"></div>
   <header>
     <span class="logo"><span class="mark" id="ed-mark" aria-hidden="true">[ ]</span> <span data-i18n="ed.title">Quick edit</span></span>
     <span id="ed-badge" class="badge"></span>
@@ -36,11 +37,6 @@
       <div class="save-bar">
         <div class="ed-preview"><span class="pv-label" data-i18n="win.pv.label">will write</span><code id="ed-preview-line"></code></div>
         <div class="ed-actions">
-          <button class="btn-accent" id="ed-save" type="button" data-i18n-title="ed.saveTitle" data-i18n="set.guard.save">Save</button>
-          <button class="btn-soft" id="ed-complete" type="button">
-            <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="ed.complete">Complete</span>
-          </button>
-          <span class="saved" id="ed-saved" hidden role="status" data-i18n="set.save.saved">Saved ✓</span>
           <div class="menu-wrap">
             <button class="btn-soft btn-icon" id="ed-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="ed-menu" data-i18n-title="ed.more" data-i18n-aria="ed.more.aria">
               <svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
@@ -52,6 +48,11 @@
               <button role="menuitem" id="ed-delete" class="danger" type="button" data-i18n="ed.del">Delete task</button>
             </div>
           </div>
+          <span class="saved" id="ed-saved" hidden role="status" data-i18n="set.save.saved">Saved ✓</span>
+          <button class="btn-soft" id="ed-complete" type="button">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="ed.complete">Complete</span>
+          </button>
+          <button class="btn-accent" id="ed-save" type="button" data-i18n-title="ed.saveTitle" data-i18n="set.guard.save">Save</button>
         </div>
       </div>
     </div>

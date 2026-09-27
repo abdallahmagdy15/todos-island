@@ -52,12 +52,13 @@ The tokens can go in any order, and all of them are optional. The app's own edit
   - Done subtasks tuck away behind one line; open ones always show.
   - Pin the island to keep it on screen.
   - Press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> to show or hide it.
-- **Glass themes.** The island is frosted glass over a soft picture you choose in *Settings → Look → Theme*: **Mist**, **Dusk**, **Lagoon**, **Bloom**, **Dune**, or **Wallpaper** (a frosted still of your own desktop picture).
+- **Glass themes.** The island is frosted glass over a soft picture you choose in *Settings → Look → Theme*: **Mist**, **Dusk**, **Lagoon**, **Bloom** or **Dune**.
   - Every theme has a light and a dark version. Pick **Light**, **Dark** or **System** in *Settings → Look → Appearance*; every window follows it.
   - Choose how much of the theme shows through in *Settings → Look → Glass*: **Solid**, 20%, 35%, 50% or 65%.
   - The picture is drawn once, not recorded from your screen, so nothing lags or runs in the background.
   - Pick a **theme color** (blue, violet, teal, pink or graphite) and separate **label** and **task text sizes** in *Settings*.
-  - The tasks window's soft color field follows your theme, behind a glass header and composer.
+  - Every window (tasks, editor, Share and setup) wears the same theme as clear liquid glass, and the Glass setting controls how much shows through there too.
+  - Settings save as you change them. There's no Save button.
 - **Undo for everything.** Complete, delete, un-mark Now, reorder or clear done: every change you make gets a short countdown with an Undo button.
 - **Share your day.** Pick tasks, then copy them as WhatsApp-ready text or Markdown, or export a `.md` file. This is useful for daily updates to a lead, a team or an AI assistant.
 - **Keyboard first.** In the task list: <kbd>↑</kbd>/<kbd>↓</kbd> to move, <kbd>Enter</kbd> to edit, <kbd>Space</kbd> to complete, <kbd>\*</kbd> for Now, <kbd>0</kbd>–<kbd>3</kbd> for priority, <kbd>/</kbd> to search, <kbd>?</kbd> for all shortcuts.
@@ -83,7 +84,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 
 - Your tasks and notes stay on your PC. The app collects no analytics and needs no account.
 - The one network request: at startup (then once a day) it asks GitHub for the latest release number. Nothing about you or your tasks is sent. If a newer version exists, a small green **Update** pill appears in the top bar; nothing downloads on its own. You can turn this off in *Settings → App → Check for updates*.
-- The island never records your screen. The **Wallpaper** theme reads the copy of your desktop picture that Windows already keeps on your PC; it stays in the island and is never saved or sent anywhere.
+- The island never records your screen or reads your desktop picture.
 - The island is a normal window: it shows up in screenshots and screen shares like any other app.
 
 ## Develop

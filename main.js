@@ -30,7 +30,7 @@ const DEFAULT_SETTINGS = {
   accent: 'blue', // theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
   labelSize: 1, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
   appearance: 'system', // system | light | dark → nativeTheme.themeSource (every window follows)
-  islandTheme: 'mist', // the picture under the island's glass: mist | dusk | lagoon | bloom | dune | wallpaper
+  islandTheme: 'mist', // the picture under the island's glass: mist | dusk | lagoon | bloom | dune
   glassLevel: 3, // frost: 0 = solid · 1–4 = 20/35/50/65 % of the theme shows through the island's glass
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
   personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
@@ -39,6 +39,7 @@ const migrateSettings = s => {
   if (s.intervalMin !== undefined && s.workIntervalMin === undefined) s.workIntervalMin = s.intervalMin; // v1.2 single interval → work interval
   delete s.intervalMin;
   delete s.tintLevel; // v1.7 Tint setting — removed with the live screen glass (v1.8)
+  if (s.islandTheme === 'wallpaper') s.islandTheme = 'mist'; // the Wallpaper theme was removed in v1.11 (owner)
   return s;
 };
 const saveState = () => fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
@@ -68,12 +69,13 @@ try {
 let tray = null, island = null, mainWin = null;
 // native chrome colors — must match tokens.css (--paper / --head / --muted) so the title bar blends in
 const THEME = {
-  light: { bg: '#f7f6f2', overlay: '#f7f6f2', symbol: '#5c5a55' },
-  dark: { bg: '#121211', overlay: '#121211', symbol: '#a9a69e' }
+  light: { bg: '#f7f6f2', symbol: '#5c5a55' },
+  dark: { bg: '#121211', symbol: '#a9a69e' }
 };
 const theme = () => THEME[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
-// the tasks window draws its own glass header, so its native controls sit on a transparent overlay
-const overlay = (clear = false) => ({ color: clear ? '#00000000' : theme().overlay, symbolColor: theme().symbol, height: 46 });
+// every window paints its own chrome (glass header over the theme scene, or paper), so the native controls always sit on a
+// clear overlay. Height 50 = the header's (window.css): a floating glass header is 6 + 38 + 6, so the buttons center on it.
+const overlay = () => ({ color: '#00000000', symbolColor: theme().symbol, height: 50 });
 // in-memory undo log — one entry per interaction, tokened, countdown-driven cleanup.
 // entries live ONLY for the undo window: each popup fires undo-expire(token) when its countdown ends,
 // undo-action(token) consumes its entry; pushUndo lazily drops anything expired. Nothing on disk.
@@ -209,47 +211,16 @@ ipcMain.handle('open-update', () => { if (update) shell.openExternal(update.url)
 // ---- island themes: the island paints its own picture under its glass (island.js). It no longer films the screen
 // (owner, 2026-09-27: the live copy lagged behind scrolling and filmed the mouse pointer as a blurry ghost), so the
 // island is an ordinary window again: it shows in screenshots and screen shares.
-// The Wallpaper theme reads the copy of the desktop picture Windows keeps (TranscodedWallpaper) plus how it is laid
-// out (fill / fit / stretch). A plain-color desktop has no picture → null, and the island falls back to Mist.
 const SHOWCASE = !!process.env.TODO_ISLAND_SHOWCASE; // README screenshots: TODO_ISLAND_THEME forces light/dark
 const applyAppearance = () => {
   const forced = SHOWCASE && /^(light|dark)$/.test(process.env.TODO_ISLAND_THEME || '') ? process.env.TODO_ISLAND_THEME : null;
   nativeTheme.themeSource = forced || (['light', 'dark'].includes(state.settings.appearance) ? state.settings.appearance : 'system');
 };
 applyAppearance();
-const WALL_FILE = path.join(process.env.APPDATA || '', 'Microsoft', 'Windows', 'Themes', 'TranscodedWallpaper');
-let wallSent = null; // mtime of the picture the island has — re-read only when Windows changes it
-function readDesktopKey() {
-  return new Promise(res => require('child_process').execFile('reg', ['query', 'HKCU\\Control Panel\\Desktop'], { windowsHide: true, timeout: 4000 }, (err, out) => {
-    if (err) return res(null);
-    const val = k => { const m = new RegExp('^\\s*' + k + '\\s+REG_SZ\\s*(.*)$', 'mi').exec(out); return m ? m[1].trim() : ''; };
-    res({ path: val('WallPaper'), style: val('WallpaperStyle'), tile: val('TileWallpaper') });
-  }));
-}
-async function sendWallpaper(force = false) {
-  if (!island || state.settings.islandTheme !== 'wallpaper' || (state.settings.glassLevel | 0) === 0) return;
-  try {
-    const key = await readDesktopKey();
-    if (key && !key.path) { if (wallSent !== 'none') { wallSent = 'none'; island.webContents.send('island-wallpaper', null); } return; }
-    const st = await fs.promises.stat(WALL_FILE);
-    if (!force && wallSent === st.mtimeMs) return;
-    const img = nativeImage.createFromBuffer(await fs.promises.readFile(WALL_FILE));
-    if (img.isEmpty()) throw new Error('unreadable picture');
-    const d = screen.getPrimaryDisplay().bounds, sz = img.getSize();
-    const small = sz.width > 960 ? img.resize({ width: 960, quality: 'good' }) : img; // frosted hard — 960 px is plenty
-    const style = key && key.style === '2' ? 'stretch' : key && key.style === '6' ? 'fit' : 'fill'; // 10 fill · 22 span · 0 center → fill
-    island.webContents.send('island-wallpaper', { url: 'data:image/jpeg;base64,' + small.toJPEG(82).toString('base64'), display: { x: d.x, y: d.y, width: d.width, height: d.height }, style });
-    wallSent = st.mtimeMs;
-    LOG('WALLPAPER ' + sz.width + 'x' + sz.height + ' ' + style);
-  } catch (e) { LOG('WALLPAPER-FAIL ' + e.message); if (wallSent !== 'none') { wallSent = 'none'; island.webContents.send('island-wallpaper', null); } }
-}
-const sendBounds = () => { if (island) { const b = island.getBounds(); island.webContents.send('island-bounds', { x: b.x, y: b.y }); } };
 async function showIsland(opts = {}) {
   if (!state.onboarded) { openOnboarding(); return; } // nothing to show until first-run setup picks the notes
   if (!island) return;
   const wasHidden = !island.isVisible();
-  if (wasHidden) sendWallpaper(); // background: a changed desktop picture repaints the island, never delays the pop
-  sendBounds();
   // focusable while shown: a non-focusable (WS_EX_NOACTIVATE) window that was hidden and shown again drops every real mouse
   // click on Windows — the island looked alive but ignored clicks after a timed pop (owner report, 2026-09-27; reproduced
   // with real OS clicks, CDP clicks never showed it). showInactive still never takes focus: only the user's own click does.
@@ -282,12 +253,12 @@ function openWindow(tab) {
   if (!state.onboarded) { openOnboarding(); return; }
   if (mainWin) { mainWin.show(); mainWin.focus(); if (tab) mainWin.webContents.send('show-tab', tab); return; }
   mainWin = new BrowserWindow({
-    width: 920, height: 660, minWidth: 760, minHeight: 540,
+    width: 800, height: 660, minWidth: 660, minHeight: 540, // narrower by default (owner, v1.11)
     backgroundColor: theme().bg,
     autoHideMenuBar: true, show: false,
     frame: false, titleBarStyle: 'hidden',
     // overlay must exist at creation — setTitleBarOverlay throws otherwise ("Titlebar overlay is not enabled")
-    titleBarOverlay: overlay(true),
+    titleBarOverlay: overlay(),
     webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
   });
   applyOverlay();
@@ -311,7 +282,7 @@ function openShare() {
   if (shareWin && !shareWin.isDestroyed()) { shareWin.show(); shareWin.focus(); }
   else {
     shareWin = new BrowserWindow({
-      width: 620, height: 680, minWidth: 480, minHeight: 480,
+      width: 680, height: 680, minWidth: 680, minHeight: 480, // 680 = the footer's actions on ONE row (widest: Arabic, nothing picked = 670)
       backgroundColor: theme().bg,
       autoHideMenuBar: true, show: false, parent: mainWin || undefined,
       frame: false, titleBarStyle: 'hidden',
@@ -399,7 +370,8 @@ function finishOnboarding(answers) {
   };
 }
 ipcMain.handle('onboard-defaults', () => ({
-  lang: uiLang(), accent: state.settings.accent, rerun: onboardOpts.rerun, repair: onboardOpts.repair, mode: state.settings.mode,
+  lang: uiLang(), accent: state.settings.accent, rerun: onboardOpts.rerun,
+  look: { accent: state.settings.accent, islandTheme: state.settings.islandTheme, glassLevel: state.settings.glassLevel, labelSize: state.settings.labelSize, taskSize: state.settings.taskSize }, repair: onboardOpts.repair, mode: state.settings.mode,
   missing: onboardOpts.repair ? missingNotes().map(tag => path.basename(state.settings[tag + 'Path'])) : [],
   defaultDir: DEFAULT_DIR, noteName: NOTE_NAME, shortcut: state.settings.shortcut,
   dayStart: state.settings.dayStart, dayEnd: state.settings.dayEnd,
@@ -458,11 +430,11 @@ function lockZoom(wc) {
   wc.on('zoom-changed', () => wc.setZoomFactor(1)); // accidental Ctrl+scroll/plus must never wreck the layout
 }
 
-function applyOverlay() {
-  if (!mainWin) return;
-  try {
-    mainWin.setTitleBarOverlay(overlay(true));
-  } catch (e) { LOG('OVERLAY-SKIP ' + e.message); }
+function applyOverlay() { // Light/Dark switched: every open window's caption symbols follow
+  for (const w of [mainWin, editorWin, shareWin, onboardWin]) {
+    if (!w || w.isDestroyed()) continue;
+    try { w.setTitleBarOverlay(overlay()); } catch (e) { LOG('OVERLAY-SKIP ' + e.message); }
+  }
 }
 nativeTheme.on('updated', applyOverlay);
 
@@ -536,7 +508,6 @@ ipcMain.on('island-size', (_e, h, top = 0) => {
   const y = Math.max(wa.y, wa.y + 10 - topExtra);
   const b = island.getBounds();
   island.setBounds({ x: b.x, y, width: b.width, height });
-  sendBounds(); // the glass copy is pinned to screen coordinates — the renderer re-aligns it
 });
 ipcMain.on('hide-island', hideIsland);
 ipcMain.on('open-window', (_e, tab) => openWindow(tab));
@@ -645,9 +616,10 @@ ipcMain.handle('save-settings', (_e, s) => {
   if (clean.accent !== undefined && !['blue', 'violet', 'teal', 'pink', 'graphite'].includes(clean.accent)) delete clean.accent;
   for (const k of ['labelSize', 'taskSize']) if (clean[k] !== undefined) { const v = Math.round(+clean[k]); if (v >= 0 && v <= 3) clean[k] = v; else delete clean[k]; }
   delete clean.tintLevel; // removed in v1.8
+  for (const k of ['dayStart', 'dayEnd']) if (clean[k] !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(clean[k])) delete clean[k]; // the scheduler splits HH:MM
   if (clean.weekendDays !== undefined && !['auto', 'sat-sun', 'fri-sat'].includes(clean.weekendDays)) delete clean.weekendDays;
   if (clean.appearance !== undefined && !['system', 'light', 'dark'].includes(clean.appearance)) delete clean.appearance;
-  if (clean.islandTheme !== undefined && !['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'wallpaper'].includes(clean.islandTheme)) delete clean.islandTheme;
+  if (clean.islandTheme !== undefined && !['mist', 'dusk', 'lagoon', 'bloom', 'dune'].includes(clean.islandTheme)) delete clean.islandTheme;
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };
@@ -661,7 +633,7 @@ ipcMain.handle('save-settings', (_e, s) => {
   }
   saveState();
   if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
-  applyAppearance(); sendWallpaper(true); // Light/Dark and the island theme may have changed
+  applyAppearance(); // Light/Dark may have changed
   if (clean.uiLang !== undefined && clean.uiLang !== state.settings.uiLang) {
     // language switch: tray re-labels, every live window re-applies its chrome, island re-renders via snapshot
     rebuildTrayMenu();
@@ -677,7 +649,7 @@ function applySettingsSideEffects(prev) {
   if (state.settings.shortcut !== prev.shortcut && !registerShortcut()) LOG('RESET-SHORTCUT-FAIL');
   if (state.settings.autoStart !== prev.autoStart) applyAutoStart(state.settings.autoStart);
   if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
-  applyAppearance(); sendWallpaper(true);
+  applyAppearance();
   if (uiLang() !== resolveLang(prev.uiLang, app.getLocale())) {
     rebuildTrayMenu();
     for (const w of [mainWin, shareWin, editorWin]) if (w && !w.isDestroyed()) w.webContents.send('lang-changed', uiLang());
@@ -812,7 +784,6 @@ else {
     }
     createIsland();
     createTray();
-    screen.on('display-metrics-changed', () => sendWallpaper(true)); // a new resolution lays the picture out anew
     registerShortcut();
     setTimeout(checkForUpdate, 8000); setInterval(checkForUpdate, 24 * 3600e3); // after boot settles; a tray app runs for days
     if (state.onboarded && state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
@@ -870,9 +841,9 @@ else {
           LOG('UTEST island-focusable-after-summon: ' + island.isFocusable());
           await step('kbd-complete+undo',`(async()=>{ const r=document.querySelector('#task-list .wrow'); r.focus(); const t=r.querySelector('.tt').textContent; ${key('x')} ${wait(900)} const gone=![...document.querySelectorAll('#task-list .tt')].some(e=>e.textContent===t); ${undoClick} ${wait(900)} const back=[...document.querySelectorAll('#task-list .tt')].some(e=>e.textContent===t); return 'gone='+gone+' back='+back+' live='+document.getElementById('undo-toast').getAttribute('aria-live'); })()`);
           await step('composer-empty-add',`(async()=>{ document.getElementById('new-title').value=''; document.getElementById('btn-add').click(); ${wait(300)} return 'hint=' + document.getElementById('new-hint').textContent; })()`);
-          await step('composer-typed-add', `(async()=>{ const ta=document.getElementById('new-title'); ta.value='!! 26 Sep E2E composed task'; ta.dispatchEvent(new Event('input',{bubbles:true})); ${wait(400)} const pv=document.getElementById('new-preview-line').textContent; const sel=[...document.querySelectorAll('#new-prio .pchip.sel')].map(c=>c.dataset.p).join(); document.getElementById('btn-add').click(); ${wait(700)} const row=[...document.querySelectorAll('.wrow')].find(r=>r.textContent.includes('E2E composed task')); return 'preview=[' + pv + '] chip=' + sel + ' row=' + (row ? row.querySelector('.bang').textContent + '|' + (row.querySelector('.wdue')||{}).textContent : 'MISSING'); })()`);
+          await step('composer-typed-add', `(async()=>{ const ta=document.getElementById('new-title'); ta.value='!! 26 Sep E2E composed task'; ta.dispatchEvent(new Event('input',{bubbles:true})); ${wait(400)} const sel=[...document.querySelectorAll('#new-prio .pchip.sel')].map(c=>c.dataset.p).join(); document.getElementById('btn-add').click(); ${wait(700)} const row=[...document.querySelectorAll('.wrow')].find(r=>r.textContent.includes('E2E composed task')); return 'chip=' + sel + ' row=' + (row ? row.querySelector('.bang').textContent + '|' + (row.querySelector('.wdue')||{}).textContent : 'MISSING'); })()`);
           await step('done-tab+clear+undo', `(async()=>{ document.getElementById('tab-done').click(); ${wait(400)} const n0=document.querySelectorAll('.wrow.done').length; document.getElementById('btn-clear-done').click(); ${wait(700)} const n1=document.querySelectorAll('.wrow.done').length; ${undoClick} ${wait(900)} const n2=document.querySelectorAll('.wrow.done').length; return n0+'→'+n1+'→'+n2; })()`);
-          await step('settings-dirty-guard', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(500)} const d=document.getElementById('set-dismiss'); d.value='3'; d.dispatchEvent(new Event('input',{bubbles:true})); const dot=!document.getElementById('settings-dirty').hidden; document.getElementById('tab-work').click(); ${wait(200)} const guard=!document.getElementById('dirty-guard').hidden; document.getElementById('guard-save').click(); ${wait(700)} const fs=document.querySelector('.fstat[data-for=set-dismiss]').textContent; return 'dot='+dot+' guard='+guard+' clamp=['+fs+'] tab='+document.querySelector('.tab.active').id; })()`);
+          await step('settings-autosave', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(500)} if(document.getElementById('set-advanced').hidden) document.getElementById('adv-toggle').click(); const d=document.getElementById('set-dismiss'); d.value='3'; d.dispatchEvent(new Event('input',{bubbles:true})); ${wait(300)} const typedSaved=(await window.api.getSnapshot()).settings.dismissSec; d.dispatchEvent(new Event('change',{bubbles:true})); ${wait(700)} const fs=document.querySelector('.fstat[data-for=set-dismiss]').textContent; const stored=(await window.api.getSnapshot()).settings.dismissSec; return 'typedSaved='+typedSaved+' clamp=['+fs+'] stored='+stored+' guard='+!!document.getElementById('dirty-guard'); })()`);
           { // reset + undo: settings revert to defaults, the note FILES on disk are never touched, undo restores
             const workBefore = state.settings.workPath, personalBefore = state.settings.personalPath;
             await step('reset-settings', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(400)} const b=document.getElementById('btn-reset-settings'); if(!b) return 'no-btn'; b.click(); await new Promise(r=>setTimeout(r,1200)); const wp=document.getElementById('set-work').value; const g=document.querySelector('#glass-steps .step.sel'); const lang=document.querySelector('#lang-seg .seg-btn.sel'); const t=document.getElementById('undo-toast'); return 'reset='+(wp!==${JSON.stringify(workBefore)})+' glass='+(g?g.dataset.glass:'none')+' lang='+(lang?lang.dataset.lang:'none')+' toast='+!t.hidden; })()`);
@@ -886,7 +857,7 @@ else {
             await new Promise(r => setTimeout(r, 500));
             LOG('UTEST rerun-cancel(main): workStill=[' + state.settings.workPath + ']');
           }
-          await step('lang-switch',`(async()=>{ document.getElementById('tab-settings').click(); ${wait(600)} const ar=document.querySelector('#lang-seg [data-lang=ar]'); if(!ar) return 'no-seg'; ar.click(); ${wait(200)} document.getElementById('btn-save-settings').click(); ${wait(1200)} const dir=document.documentElement.dir, hl=document.documentElement.lang; const tabW=document.getElementById('tab-work').textContent.trim(); const lbls=[...document.querySelectorAll('[data-i18n]')].slice(0,3).map(e=>e.textContent.trim()).join('|'); const saveBtn=document.querySelector('[data-i18n="set.save.btn"]').textContent; const back=document.querySelector('#lang-seg [data-lang=system]'); back.click(); ${wait(200)} document.getElementById('btn-save-settings').click(); ${wait(1200)} return 'dir='+dir+' htmlLang='+hl+' tabWork=['+tabW+'] first3=['+lbls+'] saveBtn=['+saveBtn+'] backDir='+document.documentElement.dir; })()`);
+          await step('lang-switch',`(async()=>{ document.getElementById('tab-settings').click(); ${wait(600)} const ar=document.querySelector('#lang-seg [data-lang=ar]'); if(!ar) return 'no-seg'; ar.click(); ${wait(1400)} const dir=document.documentElement.dir, hl=document.documentElement.lang; const tabW=document.getElementById('tab-work').textContent.trim(); const lbls=[...document.querySelectorAll('[data-i18n]')].slice(0,3).map(e=>e.textContent.trim()).join('|'); const saveBtn=document.querySelector('[data-i18n="set.h.look"]').textContent; const back=document.querySelector('#lang-seg [data-lang=system]'); back.click(); ${wait(1400)} return 'dir='+dir+' htmlLang='+hl+' tabWork=['+tabW+'] first3=['+lbls+'] lookHead=['+saveBtn+'] backDir='+document.documentElement.dir; })()`);
           { // quick editor: preview line, ⋯ menu, and a no-change Save must round-trip the note byte-identically
             const t0 = snapshot().sections.flatMap(s => s.items).find(t => t.file === 'work');
             const before = fs.readFileSync(state.settings.workPath, 'utf8');

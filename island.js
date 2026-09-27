@@ -367,9 +367,9 @@ window.api.onShown(info => {
 // ---- glass over a drawn theme ----
 // The island no longer films the screen (owner, 2026-09-27: the live copy lagged behind scrolling and filmed the
 // mouse pointer as a blurry ghost). Instead it paints its chosen theme into the #gl-bd canvas — a soft mesh
-// gradient, or a frosted still of the desktop wallpaper — and every glass layer stays on top: the lens bends it at
-// the edges, the frost (--g-alpha) covers it at the chosen level, the rim, arc and inner shading give it thickness.
-// Painted only when something changes (size, theme, light/dark, wallpaper); nothing runs per frame.
+// gradient — and every glass layer stays on top: the lens bends it at the edges, the frost (--g-alpha) covers it at
+// the chosen level, the rim, arc and inner shading give it thickness.
+// Painted only when something changes (size, theme, light/dark); nothing runs per frame.
 const GLASS_ALPHA = [1, 0.8, 0.65, 0.5, 0.35]; // Frost (Settings → Glass): 0 = solid · 1–4 = 20/35/50/65 % of the theme shows
 const GL_PAD = 16; // the backdrop canvas overhangs the pill so the blur never pulls in transparent edges
 // mesh gradients: four soft color points over a base, as fractions of the pill box ([color, x, y, rx, ry]).
@@ -381,13 +381,12 @@ const MESH = {
   bloom: [[4, 0.25, 0.95, 0.35, 0.6], [2, 0.6, 1, 0.4, 0.7], [3, 0.1, 0.3, 0.4, 0.7], [1, 0.9, 0.15, 0.45, 0.8]],
   dune: [[3, 0.95, 0.95, 0.35, 0.6], [2, 0.35, 1, 0.4, 0.7], [1, 0.8, 0.25, 0.4, 0.7], [4, 0.1, 0.1, 0.45, 0.8]]
 };
-let glassLevel = 3, bgTheme = 'mist', winPos = { x: window.screenX, y: window.screenY }, haveFrame = false, wall = null;
+let glassLevel = 3, bgTheme = 'mist', haveFrame = false;
 document.documentElement.addEventListener('mouseenter', () => { islandHovered = true; armDismiss(); });
 document.documentElement.addEventListener('mouseleave', () => { islandHovered = false; armDismiss(); }); // leave → fresh full countdown
 function applyGlass() {
   const lens = glassLevel > 0;
   document.body.dataset.glass = lens ? 'lens' : 'solid';
-  document.body.dataset.bg = bgTheme === 'wallpaper' && wall ? 'wallpaper' : 'mesh';
   document.body.classList.toggle('gl-ready', haveFrame);
   $('pill').style.setProperty('--g-alpha', lens ? GLASS_ALPHA[glassLevel].toFixed(2) : '1');
   if (lens) { sizeCanvas(); paint(); scheduleLensMap(); }
@@ -409,32 +408,14 @@ function paintMesh(ctx, w, h) {
     ctx.fillStyle = g; ctx.fillRect(-10, -10, 20, 20); ctx.restore();
   }
 }
-// the wallpaper still is laid out like Windows lays it on the screen (fill / fit / stretch), then the strip under the pill is cut from it
-function paintWall(ctx, w, h) {
-  const { img, display: d, style } = wall, pill = $('pill');
-  const x0 = winPos.x + pill.offsetLeft + pill.clientLeft - GL_PAD - d.x, y0 = winPos.y + pill.offsetTop + pill.clientTop - GL_PAD - d.y;
-  let sx = d.width / img.naturalWidth, sy = d.height / img.naturalHeight;
-  if (style === 'fill') sx = sy = Math.max(sx, sy); else if (style === 'fit') sx = sy = Math.min(sx, sy);
-  const dw = img.naturalWidth * sx, dh = img.naturalHeight * sy;
-  ctx.fillStyle = wall.bgColor || '#000'; ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(img, (d.width - dw) / 2 - x0, (d.height - dh) / 2 - y0, dw, dh);
-}
 function paint() {
   const c = $('gl-bd');
   if (!c.width) return;
-  const ctx = c.getContext('2d');
-  if (bgTheme === 'wallpaper' && wall) paintWall(ctx, c.width, c.height); else paintMesh(ctx, c.width, c.height);
+  paintMesh(c.getContext('2d'), c.width, c.height);
   haveFrame = true; document.body.classList.add('gl-ready');
 }
 const repaint = () => { if (glassLevel > 0) { sizeCanvas(); paint(); } };
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaint); // Light/Dark switched: new token colors
-window.api.onWallpaper(wp => { // main sends the desktop picture (or null: a plain-color desktop → Mist)
-  if (!wp) { wall = null; applyGlass(); return; }
-  const img = new Image();
-  img.onload = () => { wall = { ...wp, img }; applyGlass(); };
-  img.src = wp.url;
-});
-window.api.onBounds(b => { if (b) { winPos = b; if (bgTheme === 'wallpaper') repaint(); } });
 // displacement map for a rounded rect: pixels near the edge sample from further in, like light through a thick lens
 function lensMap(w, h, r, bezel) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;

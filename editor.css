@@ -2,34 +2,30 @@
 .label-hint { font-weight: 400; color: var(--faint); font-size: var(--fs-1); }
 #ed-title {
   width: 100%; min-height: 44px; max-height: 212px; overflow-y: auto;
-  resize: none; line-height: 1.55; font-family: inherit; font-size: var(--fs-3);
-  background: var(--input); border: 1px solid var(--rule); color: var(--ink);
-  border-radius: var(--r-2); padding: 10px 13px;
-  transition: border-color var(--d-1) ease, box-shadow var(--d-1) ease;
+  resize: none; line-height: 1.55; padding: 10px 13px;
 }
 .badge { /* file tag as an inline-code token */
   -webkit-app-region: no-drag;
   font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted);
   background: var(--chip); border-radius: var(--r-1); padding: 2px 7px;
 }
-#ed-main { flex: 1; overflow-y: auto; padding: 20px 22px; }
-#ed-form { animation: edIn var(--d-2) var(--ease-out) both; }
+/* the form is a column that fills the panel, so the footer sits at the window's bottom even for a short task */
+#ed-main { flex: 1; overflow-y: auto; padding: 20px 22px; display: flex; flex-direction: column; }
+#ed-form { flex: 1 0 auto; display: flex; flex-direction: column; animation: edIn var(--d-2) var(--ease-out) backwards; } /* backwards: no filled transform left on the glass footer's ancestor */
 @keyframes edIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .field-row { display: flex; gap: var(--s-5); flex-wrap: wrap; }
-/* the Now chip carries the highlighter (M2 sweeps its background-size) */
-#ed-active {
-  background-image: linear-gradient(var(--accent-soft), var(--accent-soft));
-  background-repeat: no-repeat; background-size: 0% 100%;
-}
-#ed-active.sel { background-size: 100% 100%; background-color: transparent; color: var(--accent); border-color: var(--accent); }
+#ed-active.sel { color: var(--accent); } /* the Now chip: THE selected lens (tokens.css), star in the accent */
 
-/* footer: the "will write" line, then Save · Complete · ⋯ — sticky, never scrolled away */
+/* footer: the "will write" line, then ⋯ · … · Complete · Save (the main action at the right end) — pinned to the
+   window's bottom, sticky when the form scrolls */
 .save-bar {
   flex-direction: column; align-items: stretch; gap: var(--s-2);
   position: sticky; bottom: -20px;
-  margin: 20px -22px -20px; padding: 12px 22px 14px;
+  margin: auto -22px -20px; padding: 12px 22px 14px;
   background: var(--paper); border-top: 1px solid var(--rule-soft);
 }
+.glass-on .save-bar { background: rgba(var(--g-base), var(--g-chrome, 0.5)); -webkit-backdrop-filter: blur(22px) saturate(var(--glass-sat)); backdrop-filter: blur(22px) saturate(var(--glass-sat));
+  border-top-color: transparent; border-radius: 0 0 calc(var(--r-3) + 2px) calc(var(--r-3) + 2px); box-shadow: inset 0 1px 0 var(--rule-soft); }
 .ed-preview { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
 .ed-preview code {
   font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted);
@@ -42,9 +38,10 @@
   background-repeat: no-repeat; background-position: 0 58%; background-size: 100% 1.5px;
 }
 .ed-actions { display: flex; align-items: center; gap: var(--s-2); }
-.menu-wrap { position: relative; margin-inline-start: auto; }
+.menu-wrap { position: relative; }
+#ed-complete { margin-inline-start: auto; }
 .menu {
-  position: absolute; inset-inline-end: 0; bottom: calc(100% + 6px); z-index: 10; min-width: 160px;
+  position: absolute; inset-inline-start: 0; bottom: calc(100% + 6px); z-index: 10; min-width: 160px;
   display: flex; flex-direction: column; padding: 4px;
   background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-3); box-shadow: var(--shadow);
   animation: menuIn var(--d-1) var(--ease-out) both;

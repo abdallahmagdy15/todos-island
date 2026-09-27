@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="onboard.css">
 </head>
 <body>
+  <div class="ambient" aria-hidden="true"></div>
   <header>
     <span class="logo"><span class="mark now" aria-hidden="true">[&#9733;]</span> <span data-i18n="app.name">Todo Island</span></span>
     <span class="step-count" id="step-count" dir="ltr" aria-hidden="true">1 / 4</span>
@@ -140,7 +141,7 @@
         </div>
         <div class="orow" data-needs-rem>
           <label for="ob-start"><b id="hours-label"></b><span id="hours-hint"></span></label>
-          <div class="hours" dir="ltr"><input id="ob-start" type="time" value="09:00" data-i18n-aria="ob.r.start"><span class="dash">&ndash;</span><input id="ob-end" type="time" value="17:00" data-i18n-aria="ob.r.end"></div>
+          <div class="hours" dir="ltr"><input id="ob-start" type="text" inputmode="numeric" maxlength="5" lang="en" spellcheck="false" value="09:00" data-i18n-aria="ob.r.start"><span class="dash">&ndash;</span><input id="ob-end" type="text" inputmode="numeric" maxlength="5" lang="en" spellcheck="false" value="17:00" data-i18n-aria="ob.r.end"></div>
         </div>
         <div class="orow" data-needs-rem>
           <span class="olabel"><b data-i18n="ob.r.every"></b><span data-i18n="ob.r.every.hint"></span></span>
@@ -181,6 +182,7 @@
   <script src="locales/en.js"></script>
   <script src="locales/ar.js"></script>
   <script src="lib/i18n.js"></script>
+  <script src="ui-shared.js"></script>
   <script src="onboard.js"></script>
 </body>
 </html>

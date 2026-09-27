@@ -213,6 +213,29 @@ main#flow { flex: 1; min-height: 0; position: relative; overflow: hidden; }
 .dots i.done { background: var(--accent-border); }
 .ob-actions { display: flex; align-items: center; gap: var(--s-2); }
 
+/* ---- over the theme scene (Settings → Glass > 0, UI.applyTheme): the setup stands in the same world as every window.
+   The stage turns clear (the scene replaces its own color blobs) and keeps its animations; the step copy sits on one glass
+   panel; the cards are clear glass pieces and the chosen mode is THE selected lens. ---- */
+.glass-on .stage { background: transparent; border-bottom-color: transparent; }
+.glass-on .sb, .glass-on .st-edge { display: none; } /* the floating header already marks the top; the edge read as a stray line */
+.glass-on .screen { padding: var(--s-4) 28px var(--s-3); } /* the panel's own gutter (8 px) replaces part of the padding: the copy stays put */
+.glass-on .fine { padding-top: var(--s-2); } /* the panel margins cost height: Reminders (the tallest step) still fits unclipped */
+.glass-on main#flow { margin: var(--s-2) 8px 0; border-radius: calc(var(--r-3) + 2px); background: rgba(var(--sheet-rgb), var(--g-sheet, 0.5));
+  -webkit-backdrop-filter: blur(28px) saturate(var(--glass-sat)); backdrop-filter: blur(28px) saturate(var(--glass-sat));
+  box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), inset 0 -1px 0 var(--spec-bounce), inset 0 -28px 36px -32px var(--inner-shade),
+    0 0 0 1px var(--ctl-line), 0 14px 34px -22px var(--drop); }
+.glass-on .mode, .glass-on .note-pick, .glass-on .opts { border: 0; background: var(--sheen), var(--ctl);
+  box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), inset 0 -9px 12px -11px var(--inner-shade), 0 0 0 1px var(--ctl-line), 0 4px 10px -6px var(--drop); }
+.glass-on .mode:hover { background: var(--sheen), var(--ctl-hover); }
+.glass-on .mode[aria-checked="true"] { background: var(--sheen), color-mix(in srgb, var(--accent) 8%, var(--lens));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 72%, transparent), inset 0 1px 0 var(--spec), inset 0 -8px 10px -9px var(--inner-shade), 0 1px 1px var(--drop), 0 4px 10px -5px var(--drop); }
+.glass-on .hours input { border: 0; background: rgba(var(--g-base), var(--well-a)); box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1px var(--rule); text-align: center; font-family: var(--font-mono); }
+.glass-on .hours input:focus { outline: none; box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--accent-soft); }
+.glass-on .ob-foot { border-top: 0; }
+@media (prefers-reduced-transparency: reduce) {
+  .glass-on main#flow { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
 /* selection + caret carry the palette too */
 ::selection { background: var(--accent-soft); color: var(--ink); }
 input { caret-color: var(--accent); }

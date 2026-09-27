@@ -25,7 +25,7 @@ function render() {
     <div class="sh-sec"><span class="hash">##</span> ${esc(sec.name)} <span class="cnt">${sec.items.length}</span></div>
     ${sec.items.map(t => `
       <div class="sh-row ${sel.has(t.id) ? 'sel' : ''}" data-id="${esc(t.id)}">
-        <span class="selbox ${sel.has(t.id) ? 'on' : ''}"></span>
+        <span class="sh-chk" aria-hidden="true"></span>
         ${t.active ? '<span class="star">\u2605</span>' : ''}
         <span class="shtitle">${esc(t.title)}</span>
         ${t.isDone ? `<span class="tag">${t.file === 'work' ? 'work' : 'personal'}</span>` : ''}
@@ -72,9 +72,7 @@ $('share-list').addEventListener('click', e => {
   if (!row) return;
   const id = row.dataset.id;
   sel.has(id) ? sel.delete(id) : sel.add(id);
-  row.classList.toggle('sel', sel.has(id));
-  const box = row.querySelector('.selbox');
-  if (box) box.classList.toggle('on', sel.has(id));
+  row.classList.toggle('sel', sel.has(id)); // the row's [ ] / [x] is drawn from .sel (share.css)
   syncButtons();
 });
 $('sel-all').addEventListener('click', () => {

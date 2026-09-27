@@ -12,6 +12,14 @@
     const m = String(s || '').match(/^(\d{1,2})\s+([A-Za-z]{3})/);
     return m ? { d: +m[1], m: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() } : null;
   };
+  // a typed time → "HH:MM" (24 h, Western digits) or null: "9" · "930" · "0930" · "9:30" · "09.30" · Arabic-Indic digits
+  const normTime = s => {
+    const w = String(s || '').trim().replace(/[٠-٩۰-۹]/g, c => String(c.charCodeAt(0) & 0xF));
+    const m = w.match(/^(\d{1,2})(?:[:.]?(\d{2}))?$/);
+    if (!m) return null;
+    const h = +m[1], mi = m[2] === undefined ? 0 : +m[2];
+    return h < 24 && mi < 60 ? `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}` : null;
+  };
   const sameDue = (a, b) => !!a && !!b && a.d === b.d && a.m === b.m;
   const iso = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
   const dayOffset = n => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate() + n); };
@@ -138,7 +146,7 @@
     btn.title = tip; btn.setAttribute('aria-label', tip);
   }
   // theme color + text sizes from settings (every window calls this with each snapshot's settings)
-  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'wallpaper'], SIZE_K = [0.92, 1, 1.1, 1.2];
+  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune'], SIZE_K = [0.92, 1, 1.1, 1.2];
   function applyTheme(s) {
     if (!s) return;
     const r = document.documentElement, a = ACCENTS.includes(s.accent) ? s.accent : 'blue';
@@ -146,6 +154,14 @@
     r.dataset.bg = BG_THEMES.includes(s.islandTheme) ? s.islandTheme : 'mist'; // island theme → the tasks window's color field too
     r.style.setProperty('--ui-k', SIZE_K[s.labelSize] ?? 1);
     r.style.setProperty('--task-k', SIZE_K[s.taskSize] ?? 1);
+    // Glass (0 = solid, 1–4): the scene + glass panels in every window that paints a scene (.ambient: tasks, editor, share).
+    // The chrome never goes as clear as the island's — it sits over text you read.
+    const g = Number.isInteger(s.glassLevel) ? s.glassLevel : 3;
+    r.classList.toggle('glass-on', g > 0 && !!document.querySelector('.ambient'));
+    r.style.setProperty('--g-chrome', [1, 0.8, 0.66, 0.54, 0.42][g] ?? 0.54);
+    // the reading panels follow the same Glass steps as the island (Solid · 20 · 35 · 50 · 65 % of the scene through);
+    // the last value = tokens.css --sheet, the contrast gate's worst case
+    r.style.setProperty('--g-sheet', [1, 0.76, 0.62, 0.5, 0.38][g] ?? 0.5);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo, renderUpdate, applyTheme, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, renderUpdate, applyTheme, ACCENTS, BG_THEMES };
 })();

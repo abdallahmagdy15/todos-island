@@ -253,8 +253,9 @@ $('ob-rem').addEventListener('change', () => {
   renderDay();
 });
 $('ob-auto').addEventListener('change', () => { ans.autoStart = $('ob-auto').checked; });
-for (const [id, key, dflt] of [['ob-start', 'dayStart', '09:00'], ['ob-end', 'dayEnd', '17:00']]) {
-  $(id).addEventListener('input', () => { ans.reminders[key] = $(id).value || dflt; renderDay(); });
+for (const [id, key] of [['ob-start', 'dayStart'], ['ob-end', 'dayEnd']]) { // HH:MM text fields (Western digits); a half-typed time keeps the last good one
+  $(id).addEventListener('input', () => { const v = window.UI.normTime($(id).value); if (v) { ans.reminders[key] = v; renderDay(); } });
+  $(id).addEventListener('change', () => { $(id).value = ans.reminders[key]; });
 }
 
 // 4 · ready
@@ -321,7 +322,7 @@ document.addEventListener('keydown', e => {
 (async () => {
   defs = await window.api.defaults();
   LANG = defs.lang || 'en';
-  if (defs.accent && defs.accent !== 'blue') document.documentElement.dataset.accent = defs.accent; // theme color follows Settings
+  window.UI.applyTheme(defs.look || { accent: defs.accent }); // theme color + the island theme's scene behind the setup, as in every window
   window.I18N.applyDoc(LANG);
   ans.reminders.dayStart = $('ob-start').value = defs.dayStart || '09:00';
   ans.reminders.dayEnd = $('ob-end').value = defs.dayEnd || '17:00';
