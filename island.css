@@ -273,3 +273,6 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .undo-count { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); font-variant-numeric: tabular-nums; }
 .undo-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; }
 .undo-fill { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; }
+/* the Update pill keeps its own shape — the icon-button rule above would square it to 28×28 */
+.pill-top button.upd { width: auto; height: 24px; padding: 0 10px 0 8px; border-radius: 12px; color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
+.pill-top button.upd:hover { color: var(--ok); background: color-mix(in srgb, var(--ok) 22%, transparent); }

@@ -128,5 +128,13 @@
     return el._undo;
   }
 
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo };
+  // the green Update pill (island + tasks window): shown only while a newer release exists; tooltip names the version
+  function renderUpdate(btn, update) {
+    if (!btn) return;
+    btn.hidden = !update;
+    if (!update) return;
+    const tip = T('upd.title', { v: update.version });
+    btn.title = tip; btn.setAttribute('aria-label', tip);
+  }
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, prioChips, dueControl, undoText, countdown, mountUndo, renderUpdate };
 })();

@@ -56,6 +56,7 @@ A "no" on any of these → propose it to the owner, don't build it.
 | lib/compose.js | composer: typed text + chip choices → the exact task + note line (`composeTask`, reuses `parseMeta`/`fmtTask`) | add-task / editor preview work |
 | lib/compose.test.js | composer self-check | after touching compose.js |
 | lib/setup.js | pure first-run planner: onboarding answers → settings patch + notes to create/adopt (`planSetup`) | onboarding / task-mode work |
+| lib/update.js + update.test.js | pure update check: GitHub latest-release JSON + running version → `{ version, url }` or null (plain x.y.z only; only this repo's release URLs are ever opened) | update-pill work |
 | lib/setup.test.js | setup planner self-check (skip, folder/file picks, adopt-existing, reminder mapping) | after touching setup.js |
 | lib/i18n.js + locales/en.js, ar.js | interface strings (English/Arabic), dual-mode loader | any user-visible text |
 | lib/icon.js | tray icon PNG generated in pure Node (zlib + CRC32) | icon changes |
@@ -100,7 +101,22 @@ A "no" on any of these → propose it to the owner, don't build it.
 
 - **Task mode** `settings.mode`: `both` | `work` | `personal`. A disabled note is never read (no section, no error, no source), its tab and Settings rows hide, and the composer targets the enabled note. `focusByTime` filters the island only in `both` mode, because a one-note user would otherwise get an empty island half the day. Switching a note ON in Settings creates its file if missing (`createNote`, `wx`: never overwrites).
 - **Onboarding** shows only when there is no state.json. A state.json without `onboarded` is an existing install, and `onboarded` is set to true. Until onboarded: no launch pop, no timed pops, and tray/shortcut/second-instance all open the setup window.
-- Flow: Welcome (hero) → Your tasks (mode + "Use existing file…" / "Choose folder…") → Reminders (on, hours, every, Start with Windows) → Ready (keycaps; the real island drops in).
+- Flow: Welcome → Your tasks (mode + "Use existing file…" / "Choose folder…") → Reminders (on, hours, every, Start with Windows) → Ready (the real island drops in).
+- **The stage (v1.6):** a miniature desktop above the steps (`#stage`, an aria-hidden illustration). Its scene follows the step:
+  1. a note line types itself and becomes a glass island;
+  2. the note files, with their live pick status;
+  3. a 24 h day ribbon of drop-ins, drawn from the same rule planSetup writes and updated live as the inputs change;
+  4. the shortcut keycaps press themselves and the island answers.
+  - Glass cards sit over a color field (`.sb` blobs). Transitions sit ON the glass elements, never on an ancestor (the backdrop-filter gotcha).
+  - Fully i18n: `ob.*` keys, Arabic RTL; notation stays LTR.
+- **Repair / re-run:**
+  - An onboarded install whose EVERY enabled note is missing opens setup at the notes step, with a notice naming the missing notes. This happens on manual launches only; `--hidden` login boots stay quiet.
+  - One missing note out of two stays the honest error.
+  - Tray → "Set up again…" re-runs setup. In a re-run, Skip becomes Cancel and changes nothing.
+- **Never ship a state.json.** v1.4.1's installer carried the developer's dev-era `app/state.json` (real note paths). The legacy next-to-main.js migration adopted it on fresh PCs: onboarding was skipped and the app opened on two "can't read" errors.
+  - The migration now runs only unpackaged, and never in sandbox runs.
+  - build.files excludes `state.json` and `*.log`, and verify-dist FAILS if either is in the asar.
+  - Sandbox runs create default notes inside their own userData, never in the real Documents.
 - **Skip** (button, Esc, or closing the window) = Personal only, one `personal.md` in `Documents/todos-island/`, defaults untouched. Picking nothing = the note is created in that default folder. A picked folder that already holds the note name → adopted, not created.
 - `planSetup` (lib/setup.js) is the single rule for all of this; main.js only performs the plan.
 - E2E: a fresh `TODO_ISLAND_USERDATA` dir (no state.json) triggers onboarding. `TODO_ISLAND_PICK=<path>` answers the native file/folder dialog in sandbox runs. `applyAutoStart` is a no-op in sandbox runs, so tests never touch the real login item.
@@ -140,6 +156,14 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
   - **Gotcha:** an ANCESTOR holding a filled opacity/transform animation cuts `backdrop-filter` off from its backdrop. Release or cancel finished animations on the parents of glass.
   - **`prefers-reduced-transparency`** → solid everywhere.
   - **Showcase mode** (README screenshots only): `TODO_ISLAND_SHOWCASE=1` (island stays capturable and gets one still photo per pop), `TODO_ISLAND_THEME=light|dark`, `TODO_ISLAND_SHOT=<png>` (captures the tasks window).
+- **Update pill (v1.6):**
+  - At startup (+8 s) and then daily, main does ONE `net.fetch` to GitHub's latest-release API. `pickUpdate` decides; the result rides in the snapshot as `update`.
+  - A newer release shows a green **Update** pill (`.upd`, tokens.css; `UI.renderUpdate`) in the island top bar and the tasks-window header. A click opens the release page (`open-update`). No popup, no auto-download.
+  - Any failure is silent (no pill); it tries again the next day.
+  - Setting `updateCheck` (default on) lives in Settings → App.
+  - It never runs in sandbox runs; `TODO_ISLAND_UPDATE_TEST=v9.9.9` fakes a release for E2E/screenshots.
+  - The README privacy section names this request. Keep it accurate if the check changes.
+- **Island top bar:** it always reads "Todo Island" plus the `[★]` mark and the count. The Now task is NOT echoed into the title, because the owner found that a distraction; it lives in its card below.
 - **Packaging:** build.files is ["**/*"] — ship the whole app (zero runtime deps), never an explicit list (v1.4.0 shipped without locales/ and onboard.js; labels rendered as raw keys). After EVERY `npm run dist`, run `npm run verify-dist` — it asserts the asar contains the 27 critical runtime files.
 - **CSS coverage (hard gate):** every class in a window’s markup must resolve in the stylesheets that window loads — `npm test` runs `scripts/css-coverage.js` and FAILS on unresolved classes (born from the unstyled Language segmented control, 2026-09-26). Shared component styles live in tokens.css (`.seg` lives there; share.css must not re-declare). Adding markup that references a style = adding/verifying the style in the same change. JS-only state classes go in the ALLOW list with a reason.
 - **i18n (v1.4):** interface English/Arabic via `locales/${code}.js` + `lib/i18n.js` (dual-mode: window.I18N / require). Setting `uiLang`: system|en|ar; snapshot carries resolved `lang`. **Notation never translates** (bangs, stars, dates, numerals). Renderers re-apply via `I18N.applyDoc` (data-i18n/-ph/-title/-aria + dir/lang) on lang change; `UI.setLang` feeds shared components. Locale consts must be unique per file (`STRINGS_EN`/`STRINGS_AR`) — plain script tags share one global scope. `npm test` includes the en/ar parity gate.
@@ -149,7 +173,7 @@ In-memory `undoLog` Map in main.js: one tokened entry per interaction, exact rol
 ## Commands
 
 - `npm start` — run the app in dev
-- `npm test` — full self-check: parser + scheduler + composer + i18n parity + setup planner (83 asserts; run before any commit)
+- `npm test` — full self-check: parser + scheduler + composer + i18n parity + setup planner (run before any commit)
 - `npm run contrast` — WCAG gate over tokens.css (light + dark); run after any color change
 - `npm run icon` — regenerate build/icon.ico after icon.js changes
 - `npm run dist` — build the Windows NSIS installer into dist/

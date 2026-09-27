@@ -1,7 +1,7 @@
 'use strict';
 // Todo Island — tray reminder over the two Obsidian notes.
 // Sources are only written on the owner's own clicks in the app (owner's hands), never in bulk by the AI.
-const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, desktopCapturer } = require('electron');
+const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, desktopCapturer, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { NoteFile, resolveDue, MONTHS } = require('./lib/parse.js');
@@ -17,13 +17,15 @@ const STATE_PATH = path.join(app.getPath('userData'), 'state.json'); // userData
 const LOGF = path.join(process.env.TEMP || __dirname, 'todo-island.log');
 const LOG = m => { try { fs.appendFileSync(LOGF, `${new Date().toISOString()} ${m}\n`); } catch (e) {} };
 
-const DEFAULT_DIR = path.join(require('os').homedir(), 'Documents', 'todos-island'); // where skipped/unpicked notes are created
+// where skipped/unpicked notes are created; a sandbox run keeps them inside its own userData (never the real Documents)
+const DEFAULT_DIR = SANDBOX ? path.join(app.getPath('userData'), 'Documents', 'todos-island') : path.join(require('os').homedir(), 'Documents', 'todos-island');
 const DEFAULT_SETTINGS = {
   // defaults = the owner's own tuned setup (2026-09-25) — every new install starts from it
   workIntervalMin: 60, offIntervalMin: 60, workRemindersOn: true, offRemindersOn: true,
   dayStart: '09:00', dayEnd: '17:00',
   dismissSec: 10, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
   weekendAware: true, autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
+  updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
   glassLevel: 3, // 0 = solid · 1–4 = 20/35/50/65 % of the screen shows through the island (liquid glass)
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
   personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
@@ -46,7 +48,7 @@ try {
   // A packaged build must never read one: v1.4.1 shipped the developer's state.json inside the asar,
   // so fresh installs adopted foreign note paths, skipped onboarding and opened on two "can't read" errors.
   const legacy = path.join(__dirname, 'state.json');
-  if (!app.isPackaged && legacy !== STATE_PATH && fs.existsSync(legacy)) {
+  if (!app.isPackaged && !SANDBOX && legacy !== STATE_PATH && fs.existsSync(legacy)) {
     try {
       const old = JSON.parse(fs.readFileSync(legacy, 'utf8'));
       state = { ...state, ...old, settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(old.settings || {}) }) };
@@ -153,10 +155,38 @@ function snapshot() {
     : null;
   const sources = {};
   for (const tag of ['work', 'personal']) if (on(tag)) sources[tag] = path.basename(state.settings[tag + 'Path'] || '');
-  return { sections, errors, sources, lastWrite, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo };
+  return { sections, errors, sources, lastWrite, done: [...work.done, ...personal.done], workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update };
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
+
+// ---- update check: one GET to GitHub's latest-release API at startup (then daily). No popup, no download:
+// a newer release lights a green "Update" pill in the island + tasks-window top bars; a click opens its page.
+// Offline / rate-limited / any failure = silence (no pill), next try tomorrow. Off in Settings → App.
+const { pickUpdate, API: UPDATE_API } = require('./lib/update.js');
+let update = null;
+async function checkForUpdate() {
+  const fake = process.env.TODO_ISLAND_UPDATE_TEST; // E2E: pretend this tag is the latest release (no network)
+  if (!state.settings.updateCheck || (SANDBOX && !fake)) return;
+  try {
+    let release;
+    if (fake) release = { tag_name: fake, html_url: 'https://github.com/abdallahmagdy15/todos-island/releases/tag/' + fake };
+    else {
+      const r = await net.fetch(UPDATE_API, { headers: { 'User-Agent': 'todos-island/' + app.getVersion(), Accept: 'application/vnd.github+json' } });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      release = await r.json();
+    }
+    setUpdate(pickUpdate(release, app.getVersion()));
+    LOG('UPDATE-CHECK ' + (update ? 'available ' + update.version : 'up to date ' + app.getVersion()));
+  } catch (e) { LOG('UPDATE-CHECK-FAIL ' + e.message); }
+}
+function setUpdate(u) {
+  if (JSON.stringify(u) === JSON.stringify(update)) return;
+  update = u;
+  sendSnap();
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('tasks-changed'); // the window re-reads its snapshot
+}
+ipcMain.handle('open-update', () => { if (update) shell.openExternal(update.url); });
 
 // ---- liquid glass: the island window is transparent, but Windows gives it nothing to blur.
 // The island renderer streams the screen under itself (getUserMedia, chromeMediaSource 'desktop') while it is up,
@@ -360,7 +390,7 @@ ipcMain.handle('onboard-defaults', () => ({
   missing: onboardOpts.repair ? missingNotes().map(tag => path.basename(state.settings[tag + 'Path'])) : [],
   defaultDir: DEFAULT_DIR, noteName: NOTE_NAME, shortcut: state.settings.shortcut,
   dayStart: state.settings.dayStart, dayEnd: state.settings.dayEnd,
-  every: state.settings.workIntervalMin, autoStart: state.settings.autoStart
+  every: state.settings.workIntervalMin, offEvery: state.settings.offIntervalMin, autoStart: state.settings.autoStart
 }));
 ipcMain.handle('pick-path', async (_e, kind) => {
   // E2E: the native dialog can't be clicked by a script — a sandbox run hands the answer in
@@ -584,6 +614,7 @@ ipcMain.handle('save-settings', (_e, s) => {
     }
   }
   if (clean.mode !== undefined && !['both', 'work', 'personal'].includes(clean.mode)) delete clean.mode;
+  if (clean.updateCheck !== undefined) clean.updateCheck = !!clean.updateCheck;
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };
@@ -596,6 +627,7 @@ ipcMain.handle('save-settings', (_e, s) => {
     }
   }
   saveState();
+  if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
   applyCaptureExclusion(); // glass level may have changed
   if (glassOn() && !glassSource && !SHOWCASE) resolveGlassSource();
   if (clean.uiLang !== undefined && clean.uiLang !== state.settings.uiLang) {
@@ -725,6 +757,7 @@ else {
     screen.on('display-metrics-changed', onDisplayChange); screen.on('display-added', onDisplayChange); screen.on('display-removed', onDisplayChange);
     if (glassOn() && !SHOWCASE) setTimeout(resolveGlassSource, 1000); // off the pop path: this call blocks main ~0.5 s
     registerShortcut();
+    setTimeout(checkForUpdate, 8000); setInterval(checkForUpdate, 24 * 3600e3); // after boot settles; a tray app runs for days
     if (state.onboarded && state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
     LOG('TRAY-READY');
     // one shakedown pop at launch — manual launches only; a system (--hidden) boot stays quiet

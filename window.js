@@ -209,6 +209,7 @@ async function refresh() {
   applyMode();
   updateTabCounts();
   renderChrome();
+  window.UI.renderUpdate($('btn-update'), snap && snap.update);
   renderList();
 }
 window.addEventListener('focus', refresh); // no file watcher: coming back to the window re-reads the notes
@@ -285,6 +286,7 @@ async function onListAction(e) {
 }
 
 $('btn-share').addEventListener('click', () => window.api.openShare());
+$('btn-update').addEventListener('click', () => window.api.openUpdate());
 $('err-strip').addEventListener('click', e => {
   if (e.target.closest('[data-retry]')) refresh();
   if (e.target.closest('[data-open-settings]')) $('tab-settings').click();
@@ -495,7 +497,7 @@ async function loadSettings() {
   $('set-work').value = s.workPath; $('set-personal').value = s.personalPath;
   $('work-name').textContent = baseName(s.workPath); $('work-name').title = s.workPath;
   $('personal-name').textContent = baseName(s.personalPath); $('personal-name').title = s.personalPath;
-  $('set-weekend').checked = !!s.weekendAware; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn;
+  $('set-weekend').checked = !!s.weekendAware; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn; $('set-update').checked = s.updateCheck !== false;
   $('set-focus').checked = !!s.focusByTime;
   $('set-mode').value = s.mode || 'both';
   langSel = s.uiLang || 'system';
@@ -576,7 +578,7 @@ async function saveSettings() {
     undoSec: readNumber('set-undo', 5, 120, 5),
     hoverSec: readNumber('set-hover', 0.5, 10, 1),
     shortcut: shortcutValue || 'Control+Alt+T',
-    weekendAware: $('set-weekend').checked, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked,
+    weekendAware: $('set-weekend').checked, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked, updateCheck: $('set-update').checked,
     focusByTime: $('set-focus').checked,
     mode: $('set-mode').value,
     uiLang: langSel,

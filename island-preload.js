@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   onPhoto: cb => ipcRenderer.on('island-photo', (_e, bd) => cb(bd)), // showcase screenshots only: one still of the strip under the island
   onBounds: cb => ipcRenderer.on('island-bounds', (_e, b) => cb(b)),
   openShare: () => ipcRenderer.invoke('open-share'),
+  openUpdate: () => ipcRenderer.invoke('open-update'),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
   reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),

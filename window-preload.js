@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('api', {
   composeTask: data => ipcRenderer.invoke('compose-task', data),
   openNote: file => ipcRenderer.invoke('open-note', file),
   openShare: () => ipcRenderer.invoke('open-share'),
+  openUpdate: () => ipcRenderer.invoke('open-update'),
   exportMd: text => ipcRenderer.invoke('export-md', text),
   copyText: text => ipcRenderer.invoke('copy-text', text),
   onTasksChanged: cb => ipcRenderer.on('tasks-changed', () => cb()),

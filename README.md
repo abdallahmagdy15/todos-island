@@ -55,6 +55,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 - **Share your day.** Pick tasks, then copy them as WhatsApp-ready text or Markdown, or export a `.md` file. This is useful for daily updates to a lead, a team or an AI assistant.
 - **Keyboard first.** In the task list: <kbd>↑</kbd>/<kbd>↓</kbd> to move, <kbd>Enter</kbd> to edit, <kbd>Space</kbd> to complete, <kbd>\*</kbd> for Now, <kbd>0</kbd>–<kbd>3</kbd> for priority, <kbd>/</kbd> to search, <kbd>?</kbd> for all shortcuts.
 - **English and العربية.** The whole interface switches language, and Arabic uses a full right-to-left layout. Your tasks and dates stay exactly as you wrote them.
+- **Quiet updates.** When a new version is out, a green **Update** pill shows in the island and the tasks window. There's no popup, and a click opens the download page.
 - **Honest when something breaks.** If a note goes missing or can't be read, you get a clear error. You never get an empty "all done" list.
 - **Light and gentle.** No runtime dependencies. Light/dark follows Windows. Sounds are optional, it can start quietly with Windows, and a two-minute first-run setup gets you going.
 
@@ -73,7 +74,8 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 
 ## Privacy
 
-- Everything stays on your PC. The app makes no network requests, collects no analytics and needs no account.
+- Your tasks and notes stay on your PC. The app collects no analytics and needs no account.
+- The one network request: at startup (then once a day) it asks GitHub for the latest release number. Nothing about you or your tasks is sent. If a newer version exists, a small green **Update** pill appears in the top bar; nothing downloads on its own. You can turn this off in *Settings → App → Check for updates*.
 - To draw the glass, the island streams the part of the screen directly behind it. The frames stay in the island's own renderer and are never saved or sent anywhere.
 - While glass is on, Windows keeps the island **out of screenshots and screen shares**, so your tasks don't leak into a meeting. If you want the island to show up in screenshots, set Glass to **Solid**.
 

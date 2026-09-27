@@ -98,3 +98,17 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .seg-btn:hover { color: var(--ink); }
 .seg-btn.sel { background: var(--card); color: var(--ink); box-shadow: 0 0 0 1px var(--rule); }
 .seg-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* "Update" pill — a newer release exists (island + tasks-window top bars). Green = status, never a popup.
+   Appears once with a short materialize; no looping pulse (it waits calmly until clicked). */
+.upd {
+  flex: none; display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px 0 8px;
+  border: 0; border-radius: 12px; cursor: pointer; font-family: inherit; font-size: var(--fs-1); font-weight: 700;
+  color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 38%, transparent), inset 0 1px 0 var(--spec);
+  -webkit-app-region: no-drag; animation: updIn 420ms var(--ease-spring) both;
+  transition: background var(--d-1) ease;
+}
+.upd:hover { background: color-mix(in srgb, var(--ok) 22%, transparent); }
+.upd-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 25%, transparent); }
+@keyframes updIn { from { opacity: 0; transform: scale(0.6); filter: blur(3px); } }

@@ -98,8 +98,8 @@ function render() {
   document.body.classList.toggle('expanded', expanded);
   document.body.classList.toggle('pinned', pinned || errs); // a broken source keeps the pill up until you've seen it
   $('btn-pin').classList.toggle('pinned', pinned);
-  $('head-title').textContent =
-    actives.length === 1 ? actives[0].title : actives.length > 1 ? T('isl.head.titleP', { n: actives.length }) : T('app.name');
+  $('head-title').textContent = T('app.name'); // the Now task lives in its card below — echoing it up here was a distraction (owner)
+  window.UI.renderUpdate($('btn-update'), snap.update);
   $('head-count').textContent =
     actives.length ? T('isl.head.active', { n: actives.length, m: total }) : T('isl.head.count', { m: total });
   const mark = $('mark'); // live status mark, not decoration: [!] broken source · [★] something is Now · [ ] idle
@@ -555,6 +555,7 @@ function gelDrop(pill) {
   for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) pill.addEventListener(ev, release);
 })();
 
+$('btn-update').addEventListener('click', () => { window.api.openUpdate(); retract(); });
 $('btn-share').addEventListener('click', () => { window.SFX.play('tick'); window.api.openShare(); retract(); }); // pill steps aside, share window takes over
 $('btn-gear').addEventListener('click', () => { window.api.openWindow(); retract(); });
 $('btn-close').addEventListener('click', () => retract());
