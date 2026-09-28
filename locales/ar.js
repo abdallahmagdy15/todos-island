@@ -158,6 +158,7 @@ const STRINGS_AR = {
   'isl.close.aria': 'إخفاء الجزيرة',
 
   'ed.title': 'تعديل المهمة',
+  'tw.aria': 'اختر وقتًا', 'tw.hours': 'الساعات', 'tw.minutes': 'الدقائق', // the time wheel (Settings, setup)
   'side.close': 'إغلاق (Esc)', // the side panel's ✕ (Edit / Share)
   'ed.sub.del': 'حذف المهمة الفرعية {t}', 'ed.sub.none': 'لا توجد مهام فرعية بعد.',
   'ed.sub.rename': 'انقر لإعادة التسمية', 'ed.sub.tick': 'تعليم {t} كمنجزة', 'ed.sub.untick': 'إلغاء إنجاز {t}',

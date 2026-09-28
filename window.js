@@ -662,6 +662,7 @@ document.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click'
   b.setAttribute('aria-expanded', !box.hidden);
   if (!box.hidden) box.querySelector('input').focus();
 }));
+for (const id of ['set-start', 'set-end']) window.UI.timeWheel($(id)); // Apple-style wheels; the committed value fires 'change' → autosave
 $('btn-open-work').addEventListener('click', () => window.api.openNote('work'));
 $('btn-open-personal').addEventListener('click', () => window.api.openNote('personal'));
 

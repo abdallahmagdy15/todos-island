@@ -413,7 +413,7 @@ function applyGlass() {
   document.body.dataset.glass = lens ? 'lens' : 'solid';
   document.body.classList.toggle('gl-ready', haveFrame);
   $('pill').style.setProperty('--g-alpha', lens ? GLASS_ALPHA[glassLevel].toFixed(2) : '1');
-  if (lens) { sizeCanvas(); paint(); scheduleLensMap(); }
+  if (lens) { const c = $('gl-bd'); c.width = 0; sizeCanvas(); } // width 0 forces sizeCanvas to reallocate + paint (theme / level change)
 }
 function sizeCanvas() {
   const pill = $('pill'), c = $('gl-bd'), w = pill.clientWidth + 2 * GL_PAD, h = pill.clientHeight + 2 * GL_PAD;
@@ -432,18 +432,16 @@ function paintMesh(ctx, w, h) {
     ctx.fillStyle = g; ctx.fillRect(-10, -10, 20, 20); ctx.restore();
   }
 }
-function paint() {
-  const c = $('gl-bd');
-  if (!c.width) return;
-  paintMesh(c.getContext('2d'), c.width, c.height);
-  haveFrame = true; document.body.classList.add('gl-ready');
-}
-const repaint = () => { if (glassLevel > 0) { sizeCanvas(); paint(); } };
-matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaint); // Light/Dark switched: new token colors
-// displacement map for a rounded rect: pixels near the edge sample from further in, like light through a thick lens
-function lensMap(w, h, r, bezel) {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const ctx = c.getContext('2d'), img = ctx.createImageData(w, h), d = img.data;
+// PERF (owner 2026-09-28: "laggy, heavy"): the lens used to be a CSS `filter: url(#isl-lens)` (3 SVG displacement passes).
+// Chromium re-ran it EVERY frame — idle 72 fps and scroll 48 fps on a 144 Hz screen, measured. Now the lens and the
+// softening are BAKED into the canvas pixels once per paint (same math as feDisplacementMap: sample at
+// p + scale·(map − .5), one scale per color channel), so the page shows a plain static bitmap: 0 per-frame cost.
+const LENS_SCALES = [110, 123, 136]; // R, G, B bend by slightly different amounts (the old filter's chromatic split)
+let lensCache = { key: '', idx: null };
+function lensIndex(w, h) { // per pixel, per channel: WHERE to sample (a source byte offset) — cached per size, so a repaint is lookups only
+  const key = w + 'x' + h;
+  if (lensCache.key === key) return lensCache.idx;
+  const r = 25, bezel = 34, idx = [new Int32Array(w * h), new Int32Array(w * h), new Int32Array(w * h)];
   const iw = w - 2 * GL_PAD, ih = h - 2 * GL_PAD, hx = iw / 2 - r, hy = ih / 2 - r;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const px = x + 0.5 - w / 2, py = y + 0.5 - h / 2, ax = Math.abs(px), ay = Math.abs(py);
@@ -452,24 +450,45 @@ function lensMap(w, h, r, bezel) {
     if (qx > 0 && qy > 0) { const L = Math.hypot(qx, qy) || 1; dist = r - L; nx = Math.sign(px) * qx / L; ny = Math.sign(py) * qy / L; }
     else if (qx > qy) { dist = iw / 2 - ax; nx = Math.sign(px); }
     else { dist = ih / 2 - ay; ny = Math.sign(py); }
-    const t = Math.min(1, Math.max(0, 1 - dist / bezel)), m = t * t * t, i = (y * w + x) * 4;
-    d[i] = 128 - nx * m * 127; d[i + 1] = 128 - ny * m * 127; d[i + 2] = 128; d[i + 3] = 255;
+    const t = Math.min(1, Math.max(0, 1 - dist / bezel)), m = t * t * t, i = y * w + x;
+    const vx = -nx * m * 127 / 255, vy = -ny * m * 127 / 255; // pixels near the edge sample from further in
+    for (let k = 0; k < 3; k++) {
+      const sx = Math.min(w - 1, Math.max(0, Math.round(x + LENS_SCALES[k] * vx))), sy = Math.min(h - 1, Math.max(0, Math.round(y + LENS_SCALES[k] * vy)));
+      idx[k][i] = (sy * w + sx) * 4 + k; // nearest sample, clamped to the canvas (the pad keeps it off the visible edge)
+    }
   }
-  ctx.putImageData(img, 0, 0);
-  return c.toDataURL();
+  lensCache = { key, idx };
+  return idx;
 }
-let lensT = null, lensKey = '';
-function scheduleLensMap() { clearTimeout(lensT); lensT = setTimeout(buildLensMap, 120); } // heights settle after unfolds
-function buildLensMap() {
-  const pill = $('pill'), w = pill.clientWidth + 2 * GL_PAD, h = pill.clientHeight + 2 * GL_PAD;
-  const key = w + 'x' + h;
-  if (!pill.clientWidth || key === lensKey) return;
-  lensKey = key;
-  const im = $('isl-lens-map'), f = $('isl-lens');
-  im.setAttribute('href', lensMap(w, h, 25, 34)); im.setAttribute('width', w); im.setAttribute('height', h);
-  f.setAttribute('width', w); f.setAttribute('height', h);
+function paint() {
+  const c = $('gl-bd');
+  if (!c.width) return;
+  const w = c.width, h = c.height;
+  const src = document.createElement('canvas'); src.width = w; src.height = h;
+  const sctx = src.getContext('2d', { willReadFrequently: true });
+  paintMesh(sctx, w, h);
+  const sd = sctx.getImageData(0, 0, w, h).data, ctx = c.getContext('2d'), out = ctx.createImageData(w, h), od = out.data;
+  const [i0, i1, i2] = lensIndex(w, h);
+  const sat = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--isl-sat')) || 1; // CSS saturate() matrix
+  const a = 0.213 + 0.787 * sat, b = 0.715 - 0.715 * sat, cc = 0.072 - 0.072 * sat, d = 0.213 - 0.213 * sat, e = 0.715 + 0.285 * sat, f = 0.072 + 0.928 * sat;
+  for (let i = 0, n = w * h; i < n; i++) {
+    const R = sd[i0[i]], G = sd[i1[i]], B = sd[i2[i]], o = i * 4;
+    od[o] = a * R + b * G + cc * B; od[o + 1] = d * R + e * G + cc * B; od[o + 2] = d * R + b * G + f * B; od[o + 3] = 255;
+  }
+  ctx.putImageData(out, 0, 0);
+  haveFrame = true; document.body.classList.add('gl-ready');
 }
-new ResizeObserver(() => { if (document.body.dataset.glass === 'lens') { sizeCanvas(); scheduleLensMap(); } }).observe($('pill'));
+const repaint = () => { if (glassLevel > 0) { sizeCanvas(); paint(); } };
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', repaint); // Light/Dark switched: new token colors
+// PERF: while the pill resizes (a hover unfold animates its height every frame) the canvas is NOT reallocated per
+// frame — the last bitmap simply stretches with the pill (it's sized in CSS, a free GPU scale) and ONE repaint runs
+// once the size has settled. (Repainting inside the ResizeObserver cost a 49 ms hitch per unfold, measured.)
+let resizePaintT = null;
+new ResizeObserver(() => {
+  if (document.body.dataset.glass !== 'lens') return;
+  clearTimeout(resizePaintT);
+  resizePaintT = setTimeout(sizeCanvas, 140);
+}).observe($('pill'));
 // gel drop-in: the pill falls from the screen edge on a spring, X and Y settling on their own springs,
 // so it lands like a drop of liquid. No light sweep (owner: distracting). Reduced motion: no motion.
 function gelDrop(pill) {

@@ -219,7 +219,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .etab {
   position: absolute; z-index: 6; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px 0 8px;
   border: 0; border-radius: 11px; cursor: pointer; font-family: inherit; font-size: var(--fs-1); font-weight: 650; line-height: 1;
-  color: var(--muted); background: var(--glass); backdrop-filter: blur(12px) saturate(1.6);
+  /* PERF (owner 2026-09-28, measured): NO backdrop-filter — its first appearance cost a 63 ms + 28 ms hitch while
+     Chromium built the blur pass. A near-solid glass fill reads the same on a 22 px tab. */
+  color: var(--muted); background: color-mix(in srgb, var(--pill-bg) 94%, transparent);
   box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 4px 12px -4px rgba(20, 30, 70, 0.28);
   opacity: 0; transform: translateY(5px) scale(0.9); pointer-events: none; -webkit-app-region: no-drag;
   transition: opacity 150ms ease, transform 240ms var(--ease-spring), color var(--d-1) ease;
@@ -227,6 +229,41 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .etab.on { opacity: 1; transform: none; pointer-events: auto; }
 .etab:hover, .etab:focus-visible { color: var(--accent); }
 .etab .ic { flex: none; width: 11px; height: 11px; stroke-width: 2.2; }
+/* Apple-style time wheel (UI.timeWheel): a small popover anchored to the field; two snapping wheels behind ONE liquid
+   lens band; items curl away in 3-D via a scroll-driven animation (runs on the compositor — no JS per frame). */
+.twheel {
+  position: fixed; z-index: 80; display: flex; align-items: center; gap: 2px; padding: 8px 10px; border-radius: 14px;
+  background: var(--pill-bg); color: var(--ink); /* solid: a translucent wheel let the field behind read through */
+  box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 18px 40px -16px rgba(0, 0, 0, 0.45);
+  opacity: 0; transform: scale(0.94); transition: opacity 140ms ease, transform 220ms var(--ease-out);
+}
+.twheel.on { opacity: 1; transform: none; }
+.tw-band { position: absolute; left: 8px; right: 8px; top: 50%; height: 32px; margin-top: -16px; border-radius: 9px; pointer-events: none;
+  background: linear-gradient(180deg, var(--lq-top), color-mix(in srgb, var(--accent) 9%, var(--lq-mid)) 52%, color-mix(in srgb, var(--accent) 13%, var(--lq-bot)));
+  box-shadow: inset 0 0 0 1px var(--lq-rim), inset 0 1px 0 var(--lq-rim), inset 0 -1px 0 var(--lq-bounce), 0 1px 1px var(--lq-drop); }
+.tw-col {
+  position: relative; width: 52px; height: 160px; overflow-y: auto; scroll-snap-type: y mandatory; scrollbar-width: none; outline: none;
+  perspective: 300px; -webkit-mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent); mask-image: linear-gradient(transparent, #000 30%, #000 70%, transparent);
+}
+.tw-col::-webkit-scrollbar { display: none; }
+.tw-col:focus-visible { box-shadow: inset 0 0 0 2px var(--accent-soft); border-radius: 8px; }
+.tw-pad { height: 64px; }
+.tw-item {
+  height: 32px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center; cursor: pointer;
+  font-family: var(--font-mono); font-size: var(--fs-4); font-weight: 650; font-variant-numeric: tabular-nums;
+  animation: twCurl linear both; animation-timeline: view(); animation-range: cover;
+}
+@keyframes twCurl {
+  0% { opacity: 0.25; transform: rotateX(55deg) scale(0.86); }
+  50% { opacity: 1; transform: none; }
+  100% { opacity: 0.25; transform: rotateX(-55deg) scale(0.86); }
+}
+.tw-sep { position: relative; font-family: var(--font-mono); font-size: var(--fs-4); font-weight: 700; color: var(--muted); padding-bottom: 2px; }
+@media (prefers-reduced-motion: reduce) { .tw-item { animation: none; } .twheel { transition: opacity 120ms ease; transform: none; } }
+/* a unit that lives INSIDE its number field (owner 2026-09-28): "60 min" as one piece, the field keeps its place */
+.unit-field { position: relative; display: inline-flex; flex: none; }
+.unit-field .unit { position: absolute; inset-inline-end: 11px; top: 50%; transform: translateY(-50%); pointer-events: none;
+  font-size: var(--fs-1); font-weight: 600; color: var(--faint); }
 /* tasks window only: the trash tab beside Edit (the island never deletes) */
 .etab-del { padding: 0 8px; }
 .etab-del:hover, .etab-del:focus-visible { color: var(--danger); }

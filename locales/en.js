@@ -158,6 +158,7 @@ const STRINGS_EN = {
   'isl.close.aria': 'Hide island',
 
   'ed.title': 'Edit task',
+  'tw.aria': 'Pick a time', 'tw.hours': 'Hours', 'tw.minutes': 'Minutes', // the time wheel (Settings, setup)
   'side.close': 'Close (Esc)', // the side panel's ✕ (Edit / Share)
   'ed.sub.del': 'Delete subtask {t}', 'ed.sub.none': 'No subtasks yet.',
   'ed.sub.rename': 'Click to rename', 'ed.sub.tick': 'Mark {t} done', 'ed.sub.untick': 'Mark {t} not done',

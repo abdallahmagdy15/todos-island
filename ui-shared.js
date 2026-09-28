@@ -196,6 +196,79 @@
     return api;
   }
 
+  // Apple-style time wheel (owner 2026-09-28: "interactive, not only typing"). Clicking an HH:MM text field opens a
+  // small popover with two snapping wheels (hours 00–23 · minutes 00–59) under it; the field stays typeable (a valid
+  // typed time turns the wheels). The 3-D curl is a scroll-driven animation (compositor, no JS per frame); one mouse-wheel
+  // notch = one step; a wheel settling commits: the field gets the value + 'input' and 'change' (settings autosave /
+  // onboarding listen to those). Esc, Enter, a click outside or leaving the field closes it.
+  const TW_ROW = 32;
+  let twOpen = null; // the one open wheel: { input, pop, close }
+  function timeWheel(input) {
+    if (!input || input.dataset.wheel) return;
+    input.dataset.wheel = '1';
+    input.setAttribute('aria-haspopup', 'dialog');
+    const col = (n, label) => `<div class="tw-col" tabindex="0" role="listbox" aria-label="${label}"><div class="tw-pad"></div>${
+      Array.from({ length: n }, (_, i) => `<div class="tw-item" role="option" data-v="${i}">${String(i).padStart(2, '0')}</div>`).join('')}<div class="tw-pad"></div></div>`;
+    function open() {
+      if (twOpen && twOpen.input === input) return;
+      if (twOpen) twOpen.close();
+      const pop = document.createElement('div');
+      pop.className = 'twheel'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', T('tw.aria'));
+      pop.innerHTML = `<div class="tw-band" aria-hidden="true"></div>${col(24, T('tw.hours'))}<span class="tw-sep" aria-hidden="true">:</span>${col(60, T('tw.minutes'))}`;
+      document.body.appendChild(pop);
+      const [hc, mc] = pop.querySelectorAll('.tw-col');
+      // anchor to the field (the popover grows out of it): below, or above when there's no room; end-aligned
+      const rc = input.getBoundingClientRect(), ph = pop.offsetHeight, pw = pop.offsetWidth;
+      const below = rc.bottom + 6 + ph <= innerHeight - 8;
+      pop.style.top = (below ? rc.bottom + 6 : Math.max(8, rc.top - 6 - ph)) + 'px';
+      pop.style.left = Math.max(8, Math.min(innerWidth - pw - 8, rc.right - pw)) + 'px';
+      pop.style.transformOrigin = (below ? 'top ' : 'bottom ') + (rc.right - pw >= 8 ? 'right' : 'left');
+      const cur = normTime(input.value) || '09:00';
+      const setCol = (c, v, smooth) => c.scrollTo({ top: v * TW_ROW, behavior: smooth ? 'smooth' : 'instant' });
+      setCol(hc, +cur.slice(0, 2)); setCol(mc, +cur.slice(3, 5));
+      const commit = () => {
+        const h = Math.round(hc.scrollTop / TW_ROW), m = Math.round(mc.scrollTop / TW_ROW);
+        const v = String(Math.min(23, h)).padStart(2, '0') + ':' + String(Math.min(59, m)).padStart(2, '0');
+        if (v === normTime(input.value)) return;
+        input.value = v;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      for (const c of [hc, mc]) {
+        c.addEventListener('scrollend', commit);
+        c.addEventListener('wheel', e => { e.preventDefault(); c.scrollBy({ top: Math.sign(e.deltaY) * TW_ROW, behavior: 'smooth' }); }, { passive: false });
+        c.addEventListener('click', e => { const it = e.target.closest('.tw-item'); if (it) setCol(c, +it.dataset.v, true); });
+        c.addEventListener('keydown', e => {
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); c.scrollBy({ top: (e.key === 'ArrowDown' ? 1 : -1) * TW_ROW, behavior: 'smooth' }); }
+          else if (e.key === 'ArrowRight' && c === hc) { e.preventDefault(); mc.focus(); }
+          else if (e.key === 'ArrowLeft' && c === mc) { e.preventDefault(); hc.focus(); }
+        });
+      }
+      const onType = () => { const v = normTime(input.value); if (v) { setCol(hc, +v.slice(0, 2), true); setCol(mc, +v.slice(3, 5), true); } };
+      input.addEventListener('input', onType);
+      const outside = e => { if (!pop.contains(e.target) && e.target !== input) close(); };
+      const keys = e => { if (e.key === 'Escape' || e.key === 'Enter') { if (e.key === 'Escape') e.stopPropagation(); close(); if (document.activeElement !== input) input.focus(); } };
+      const leave = () => setTimeout(() => { if (!pop.contains(document.activeElement) && document.activeElement !== input) close(); }, 0);
+      document.addEventListener('pointerdown', outside, true);
+      pop.addEventListener('keydown', keys); input.addEventListener('keydown', keys);
+      pop.addEventListener('focusout', leave); input.addEventListener('blur', leave);
+      requestAnimationFrame(() => pop.classList.add('on'));
+      function close() {
+        if (!twOpen || twOpen.pop !== pop) return;
+        twOpen = null;
+        document.removeEventListener('pointerdown', outside, true);
+        input.removeEventListener('input', onType); input.removeEventListener('keydown', keys); input.removeEventListener('blur', leave);
+        input.setAttribute('aria-expanded', 'false');
+        pop.classList.remove('on');
+        setTimeout(() => pop.remove(), 200); // leaves the way it came (scale back into the field)
+      }
+      twOpen = { input, pop, close };
+      input.setAttribute('aria-expanded', 'true');
+    }
+    input.addEventListener('pointerdown', () => { if (!input.disabled) open(); });
+    input.addEventListener('keydown', e => { if (e.key === 'ArrowDown' && e.altKey) { e.preventDefault(); open(); } });
+  }
+
   // the green Update pill (island + tasks window): shown only while a newer release exists; tooltip names the version
   function renderUpdate(btn, update) {
     if (!btn) return;
@@ -225,5 +298,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, lateFlip, renderUpdate, applyTheme, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();

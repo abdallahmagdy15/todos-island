@@ -253,6 +253,7 @@ $('ob-rem').addEventListener('change', () => {
   renderDay();
 });
 $('ob-auto').addEventListener('change', () => { ans.autoStart = $('ob-auto').checked; });
+for (const id of ['ob-start', 'ob-end']) window.UI.timeWheel($(id)); // the same wheels as Settings (fires 'input' → the day ribbon follows)
 for (const [id, key] of [['ob-start', 'dayStart'], ['ob-end', 'dayEnd']]) { // HH:MM text fields (Western digits); a half-typed time keeps the last good one
   $(id).addEventListener('input', () => { const v = window.UI.normTime($(id).value); if (v) { ans.reminders[key] = v; renderDay(); } });
   $(id).addEventListener('change', () => { $(id).value = ans.reminders[key]; });

@@ -36,7 +36,8 @@ body[data-glass="lens"] #pill { text-shadow: 0 -1px 0 var(--d-hi), 0 1px 1.5px v
 .gl { position: absolute; inset: 0; border-radius: inherit; pointer-events: none; }
 .gl-bd { /* canvas: the theme picture (a mesh gradient), painted by island.js (overhangs by 16px for the blur) */
   display: none; z-index: -3; inset: -16px; width: calc(100% + 32px); height: calc(100% + 32px); border-radius: 0;
-  filter: url(#isl-lens) saturate(var(--isl-sat)); /* Softer (owner 2026-09-28): the theme at 65 % — contrast.js models it */
+  /* no CSS filter (PERF, owner 2026-09-28): the lens + the softening (--isl-sat, contrast.js models it) are baked into the
+     pixels by island.js paint() — a CSS filter here was re-run every frame and halved the frame rate */
 }
 .gl-tint { display: none; z-index: -2; background: rgba(var(--g-base), var(--g-alpha, 1)); transition: --g-alpha 480ms var(--ease-out); }
 /* the picture fades in once, the first time it is painted */

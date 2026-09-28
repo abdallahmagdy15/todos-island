@@ -316,7 +316,8 @@ h2.md-h { margin-bottom: var(--s-1); }
 .settings-card select option { background: var(--card); color: var(--ink); }
 .settings-card input:disabled { opacity: 0.45; }
 .ctl-group { display: flex; align-items: center; gap: var(--s-2); flex: none; }
-.ctl-group .unit { color: var(--muted); font-size: var(--fs-2); font-weight: 600; }
+.settings-card .unit-field input.num-in { padding-inline-end: 34px; } /* the unit sits inside the field (tokens.css .unit-field) */
+.settings-card input.time-in { cursor: pointer; } /* a click opens the time wheel (UI.timeWheel); typing still works */
 .path-edit { display: flex; flex-direction: column; gap: 4px; padding: 0 0 var(--s-3); border-bottom: 1px solid var(--rule-soft); }
 .path-edit input.full { width: 100%; font-family: var(--font-mono); font-size: var(--fs-2); }
 .note { color: var(--muted); font-size: var(--fs-2); margin: var(--s-2) 0; line-height: 1.6; }
