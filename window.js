@@ -10,7 +10,7 @@ function taskRows() {
   return sec ? sec.items : [];
 }
 
-const openRows = new Set(); // expanded rows survive refreshes
+const closedRows = new Set(); // rows with details are OPEN by default (owner 2026-09-28); these were folded — survives refreshes
 let freshFrom = null; // ids present before an add/undo — rows not in it get the "fresh ink" settle
 let animating = 0, refreshPending = false; // a refresh mid-animation waits — re-rendering would kill the moving row
 const fileErr = tag => (snap && snap.errors || []).find(e => e.file === tag);
@@ -37,12 +37,12 @@ function renderList() {
   $('done-head').hidden = !isDone;
   $('composer').hidden = isDone; // nothing to add to the Done list
   const hadFocus = $('task-list').contains(document.activeElement);
-  if (isDone) { renderDone(q); markFresh(); settleFocus(hadFocus); return; }
+  if (isDone) { renderDone(q); markFresh(); settleFocus(hadFocus); restRestore(); $('btn-fold-all').hidden = true; return; }
   const all = taskRows();
   const rows = all.filter(t => matches(t, q));
   $('search-count').textContent = q ? `${rows.length} / ${all.length}` : '';
   $('task-list').innerHTML = rows.map(t => {
-    const open = openRows.has(t.id);
+    const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && !closedRows.has(t.id);
     const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
       ${(t.notes || []).map(n => `<div class="wdesc">${esc(n)}</div>`).join('')}
       ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span><span class="st">${esc(s.t)}</span></div>`).join('')}
@@ -53,13 +53,37 @@ function renderList() {
       <div class="wrow-main">
         <span class="wtitle"><span class="tt">${esc(t.title)}</span></span>
         ${expandBody}
-        ${!open && t.subs.length ? `<div class="wsub">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
+        ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
       </div>
-      <span class="wmeta"><span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${esc(dueLabel(t))}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}<span class="wacts"><button class="wedit" data-edit type="button" title="Edit" aria-label="Edit task"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button>${(t.notes || []).length || t.subs.length ? `<button class="wexp ${open ? 'open' : ''}" data-exp="${esc(t.id)}" title="${open ? 'Collapse' : 'Expand'}" aria-label="${open ? 'Collapse task' : 'Expand task'}"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>` : ''}<button class="wtrash" data-del="${esc(t.id)}" data-file="${t.file}" type="button" title="Delete" aria-label="Delete task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></span>
+      <span class="wmeta"><span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}${hasDetail ? `<button class="wexp ${open ? 'open' : ''}" data-exp="${esc(t.id)}" title="${open ? 'Collapse' : 'Expand'}" aria-label="${open ? 'Collapse task' : 'Expand task'}"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>` : ''}<span class="wacts"><button class="wtrash" data-del="${esc(t.id)}" data-file="${t.file}" type="button" title="Delete" aria-label="Delete task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></span>
     </div></div></div>`;
   }).join('') || emptyState(q);
   markFresh();
   settleFocus(hadFocus);
+  restRestore();
+  foldAllLabel(rows);
+}
+// ---- rest on a row (the island's hoverSec): the corner Edit tab (owner pick "D", 2026-09-28), the row's quiet actions
+// (⌄ expand · delete) and its full title all arrive together. Passing over rows on the way to another shows none of it.
+let restRow = null, restT = null, restId = null, restTab = null;
+const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySelector('.list-sheet'), {
+  onEdit: r => window.api.openEditor(r.dataset.file, r.dataset.id),
+  onLeave: () => restClear()
+}));
+function restClear() {
+  clearTimeout(restT);
+  document.querySelectorAll('.wrow.dwelt').forEach(r => r.classList.remove('dwelt'));
+  restRow = null; restId = null;
+  editTabEl().hide();
+}
+function restOn(row) {
+  row.classList.add('dwelt'); restRow = row; restId = row.dataset.id;
+  if (!row.classList.contains('done')) editTabEl().show(row, T('isl.btn.editAria', { t: row.querySelector('.tt').textContent }));
+}
+function restRestore() { // a re-render keeps the rested task (same id) rested
+  if (!restId) return;
+  const again = [...document.querySelectorAll('#task-list .wrow')].find(r => r.dataset.id === restId);
+  if (again) restOn(again); else restClear();
 }
 // overdue never relies on color alone: "2 Sep · 23d late"
 function daysLate(t) {
@@ -67,6 +91,8 @@ function daysLate(t) {
   const today0 = new Date(); today0.setHours(0, 0, 0, 0);
   return Math.round((today0.getTime() - (t.dueTs - 12 * 3600e3)) / 864e5); // dueTs is noon of the due day
 }
+// the meta shows the SHORT form only (owner 2026-09-28): today = "today", overdue = the date ⇄ "Nd late" in one slot
+const dueHtml = t => t.dueState === 'overdue' && t.dueTs ? window.UI.lateFlip(t.dueText, t.dueTs) : esc(t.dueState === 'today' ? 'today' : t.dueText);
 const dueLabel = t => (t.dueState === 'overdue' ? `${t.dueText} \u00B7 ${daysLate(t)}d late` : t.dueState === 'today' ? `${t.dueText} \u00B7 today` : t.dueText);
 const PRIO_NAME = { '!!!': 'high', '!!': 'medium', '!': 'low' };
 const rowLabel = t => [t.title, t.priority && `${PRIO_NAME[t.priority]} priority`, t.dueText && `due ${dueLabel(t)}`, t.active && 'Now'].filter(Boolean).join(', ');
@@ -216,6 +242,35 @@ async function completeWithInk(chk) {
 }
 
 $('task-list').addEventListener('click', onListAction);
+// Expand all / Collapse all (owner 2026-09-28): one toggle above the list; it says what it will do
+const foldable = rows => rows.filter(t => (t.notes || []).length || t.subs.length);
+function foldAllLabel(rows) {
+  const f = foldable(rows), btn = $('btn-fold-all');
+  btn.hidden = !f.length;
+  const anyOpen = f.some(t => !closedRows.has(t.id));
+  btn.dataset.mode = anyOpen ? 'collapse' : 'expand';
+  btn.querySelector('.fold-t').textContent = T(anyOpen ? 'win.fold.collapse' : 'win.fold.expand');
+}
+$('btn-fold-all').addEventListener('click', () => {
+  window.SFX.play('tick');
+  const f = foldable(taskRows());
+  if ($('btn-fold-all').dataset.mode === 'collapse') f.forEach(t => closedRows.add(t.id)); else closedRows.clear();
+  renderList();
+});
+$('task-list').addEventListener('mouseover', e => {
+  const row = e.target.closest('.wrow');
+  if (!row || row === restRow) return;
+  restClear(); restRow = row; // resting starts now; restOn lands after hoverSec
+  const sec = Math.max(0.2, (snap && snap.settings && snap.settings.hoverSec) || 1);
+  restT = setTimeout(() => { if (row.isConnected) restOn(row); }, sec * 1000);
+});
+$('task-list').addEventListener('mouseout', e => {
+  const row = e.target.closest('.wrow');
+  if (row && row === restRow && !row.contains(e.relatedTarget) && !editTabEl().owns(e.relatedTarget)) restClear();
+});
+$('task-list').addEventListener('scroll', () => editTabEl().place());
+// keyboard focus is intent: the focused row rests at once
+$('task-list').addEventListener('focusin', e => { const row = e.target.closest('.wrow'); if (row && row === e.target && row.matches(':focus-visible') && row !== restRow) { restClear(); restOn(row); } });
 $('task-list').addEventListener('keydown', async e => {
   const row = e.target.closest('.wrow');
   if (!row || e.target !== row || e.ctrlKey || e.altKey || e.metaKey) return; // buttons inside keep their native keys
@@ -247,7 +302,7 @@ async function onListAction(e) {
   if (exp) {
     window.SFX.play('tick');
     const id = exp.dataset.exp;
-    openRows.has(id) ? openRows.delete(id) : openRows.add(id);
+    closedRows.has(id) ? closedRows.delete(id) : closedRows.add(id);
     renderList();
     return;
   }

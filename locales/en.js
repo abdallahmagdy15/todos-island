@@ -13,6 +13,7 @@ const STRINGS_EN = {
   'win.search.ph': 'Search…   ( / )',
   'win.search.aria': 'Search tasks',
   'win.search.clear': 'Clear search',
+  'win.fold.collapse': 'Collapse all', 'win.fold.expand': 'Expand all', // one toggle above the task list
   'win.search.clearTitle': 'Clear (Esc)',
   'win.search.none': 'No matches.',
   'win.done.clear': 'Clear all',
@@ -129,6 +130,7 @@ const STRINGS_EN = {
   'isl.btn.completeAria': 'Complete: {t}',
   'isl.btn.editTitle': 'Edit task',
   'isl.btn.editAria': 'Edit: {t}',
+  'etab.label': 'Edit', // the floating corner tab on a rested row (island + tasks window)
   'isl.expand.all': 'Show all {n} tasks',
   'isl.expand.less': 'Show less',
   'isl.hint.star': 'Click a task to set it as Now · ✎ edits',

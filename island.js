@@ -14,12 +14,9 @@ const T = (k, prm) => window.I18N.t(LANG, k, prm);
 function dueHtml(t) {
   if (!t.dueText) return '';
   const cls = t.dueState === 'today' ? 'due today' : t.dueState === 'overdue' ? 'due overdue' : 'due';
-  let label = t.dueState === 'today' ? T('isl.due.today') : t.dueText;
-  if (t.dueState === 'overdue' && t.dueTs) { // overdue never relies on color alone
-    const today0 = new Date(); today0.setHours(0, 0, 0, 0);
-    label += ` \u00B7 ${T('isl.due.late', { n: Math.round((today0.getTime() - (t.dueTs - 12 * 3600e3)) / 864e5) })}`;
-  }
-  return `<span class="${cls}">${esc(label)}</span>`;
+  // overdue never relies on color alone: the date and "Nd late" swap in one slot (UI.lateFlip)
+  if (t.dueState === 'overdue' && t.dueTs) return `<span class="${cls}">${window.UI.lateFlip(t.dueText, t.dueTs)}</span>`;
+  return `<span class="${cls}">${esc(t.dueState === 'today' ? T('isl.due.today') : t.dueText)}</span>`;
 }
 // subtasks: the note's own [ ] / [x] brackets (like the parent task). Open ones always show; done ones fold behind
 // one quiet "[x] N done" line and unfold while the pointer rests on it (owner, 2026-09-27).
@@ -37,7 +34,7 @@ function rowHtml(t) {
   const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs)}</div></div>` : '';
   return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(t.title)}" draggable="true">
     <div class="row-main"><span class="rtitle"><span class="tt">${esc(t.title)}</span></span>${detail}</div>
-    <span class="meta">${subsBadge}${bangHtml(t)}${dueHtml(t)}<button class="redit" data-edit type="button" title="${esc(T('isl.btn.editTitle'))}" aria-label="${esc(T('isl.btn.editAria', { t: t.title }))}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button></span>
+    <span class="meta">${subsBadge}${bangHtml(t)}${dueHtml(t)}</span>
   </div></div></div>`;
 }
 
@@ -134,7 +131,7 @@ function render() {
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
           <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${esc(a.title)}</span></span>
-          <span class="meta">${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button><button class="redit" data-edit type="button" title="${esc(T('isl.btn.editTitle'))}" aria-label="${esc(T('isl.btn.editAria', { t: a.title }))}"><svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg></button></span>
+          <span class="meta">${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
         </div>
         ${subs}
       </div></div></div>`;
@@ -164,8 +161,9 @@ function render() {
   $('body').innerHTML = html;
   if (hoverRowId) { // hover-unfold survives snapshot re-renders (re-applied to the same task)
     const again = $('body').querySelector(`.row[data-id="${CSS.escape(hoverRowId)}"]`);
-    if (again) { again.classList.add('hovered'); hoverRow = again; }
+    if (again) { again.classList.add('hovered'); hoverRow = again; showEdit(again); }
   }
+  if (etab.row && !etab.row.isConnected) etab.hide(); // the rested card/row was re-rendered away
   if (kbdActive) { // keyboard mode survives re-renders: focus returns to the same task (or the first one)
     const navs = [...$('body').querySelectorAll('[data-nav]')];
     const again = navs.find(n => (n.dataset.id || n.dataset.card) === focusedId) || navs[0];
@@ -216,34 +214,44 @@ function showNotice(msg) {
 }
 
 // ---- dwell → unfold → settle: rest on a row; a hairline charges for hoverSec, then the row itself unfolds ----
+// The same rest shows the corner Edit tab (owner pick "D", 2026-09-28) on rows AND the Now card: passing over rows on the
+// way to another one shows nothing, so the tab never flickers across the list.
 let hoverT = null, hoverRow = null;
+const etab = window.UI.editTab($('wrap'), {
+  onEdit: r => editFromIsland(r.dataset.file, r.dataset.id || r.dataset.card),
+  onLeave: () => clearHover()
+});
+const showEdit = r => etab.show(r, T('isl.btn.editAria', { t: r.querySelector('.tt').textContent }));
 function clearHover() {
   clearTimeout(hoverT);
-  $('body').querySelectorAll('.row.hovered, .row.dwelling').forEach(r => r.classList.remove('hovered', 'dwelling'));
+  $('body').querySelectorAll('.hovered, .dwelling').forEach(r => r.classList.remove('hovered', 'dwelling'));
   hoverRow = null;
+  etab.hide();
   scheduleResize(300);
 }
+$('body').addEventListener('scroll', () => etab.place());
 $('body').addEventListener('mouseover', e => {
-  const row = e.target.closest('.row');
+  const row = e.target.closest('.row, .active-card');
   if (!row || row === hoverRow) return;
   clearHover();
   hoverRow = row;
   const sec = Math.max(0.2, (snap && snap.settings.hoverSec) || 1);
-  if (row.querySelector('.rd-wrap') || row.querySelector('.rtitle').scrollHeight > row.querySelector('.rtitle').clientHeight + 1) {
+  if (row.matches('.row') && (row.querySelector('.rd-wrap') || row.querySelector('.rtitle').scrollHeight > row.querySelector('.rtitle').clientHeight + 1)) {
     row.style.setProperty('--dwell', sec + 's');
     requestAnimationFrame(() => row.classList.add('dwelling')); // M3 — the charge is visible, so the unfold never surprises
   }
   hoverT = setTimeout(() => {
     row.classList.remove('dwelling');
     row.classList.add('hovered');
+    showEdit(row);
     scheduleResize(300);
   }, sec * 1000);
 });
 $('body').addEventListener('mouseover', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
 $('body').addEventListener('mouseout', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
 $('body').addEventListener('mouseout', e => {
-  const row = e.target.closest('.row');
-  if (row && hoverRow === row && !row.contains(e.relatedTarget)) clearHover();
+  const row = e.target.closest('.row, .active-card');
+  if (row && hoverRow === row && !row.contains(e.relatedTarget) && !etab.owns(e.relatedTarget)) clearHover();
 });
 
 // drag & drop reorder — same semantics as the main window (drop on a row = insert before it)
@@ -342,6 +350,7 @@ function retract() {
   if (retracting) return;
   retracting = true;
   islandHovered = false; counting = false; // a hidden window never gets its mouseleave
+  clearHover(); // …so the rested row and its Edit tab reset too
   clearTimeout(dismissT);
   const anim = window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
   // backstop: the window must really hide even if the animation stalls, or the next shortcut press only "dismisses"

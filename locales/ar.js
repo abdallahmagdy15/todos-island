@@ -13,6 +13,7 @@ const STRINGS_AR = {
   'win.search.ph': 'ابحث…   ( / )',
   'win.search.aria': 'البحث في المهام',
   'win.search.clear': 'مسح البحث',
+  'win.fold.collapse': 'طي الكل', 'win.fold.expand': 'فتح الكل', // one toggle above the task list
   'win.search.clearTitle': 'مسح (Esc)',
   'win.search.none': 'لا نتائج.',
   'win.done.clear': 'مسح الكل',
@@ -129,6 +130,7 @@ const STRINGS_AR = {
   'isl.btn.completeAria': 'إنجاز: {t}',
   'isl.btn.editTitle': 'تعديل المهمة',
   'isl.btn.editAria': 'تعديل: {t}',
+  'etab.label': 'تعديل', // the floating corner tab on a rested row (island + tasks window)
   'isl.expand.all': 'عرض الكل ({n})',
   'isl.expand.less': 'عرض أقل',
   'isl.hint.star': 'انقر مهمة لتجعلها «الآن» · ✎ للتعديل',

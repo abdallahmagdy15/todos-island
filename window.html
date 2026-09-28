@@ -28,10 +28,13 @@
       <div class="list-pane">
         <div class="list-sheet">
         <div class="err-strip" id="err-strip" hidden role="alert"></div>
+        <div class="list-tools">
         <div class="search-box">
           <input id="search" type="text" data-i18n-ph="win.search.ph" spellcheck="false" autocomplete="off" data-i18n-aria="win.search.aria">
           <span class="search-count" id="search-count" aria-live="polite"></span>
           <button class="search-clear" id="search-clear" type="button" hidden data-i18n-aria="win.search.clear" data-i18n-title="win.search.clearTitle">&times;</button>
+        </div>
+        <button class="btn-soft sm fold-all" id="btn-fold-all" type="button" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></svg><span class="fold-t"></span></button>
         </div>
         <div class="list-head" id="done-head" hidden>
           <h3 class="md-h"><span class="hash">##</span> <span data-i18n="win.tab.done">Done</span> <span class="md-count" id="done-count"></span></h3>

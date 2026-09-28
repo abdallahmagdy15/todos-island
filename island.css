@@ -118,7 +118,7 @@ body.pinned .gl-arc { transform: none !important; transition: none !important; }
 .row.dragging { opacity: 0.45; }
 .row.drop-above { box-shadow: inset 0 2px 0 var(--accent); } /* inset on a row, not the pill — safe */
 
-/* right-hand meta: priority · date · (★) · edit, centered on the title's FIRST line (titles can wrap) */
+/* right-hand meta: priority · date · (★) — edit is the corner tab (UI.editTab), centered on the title's FIRST line (titles can wrap) */
 .meta { flex: none; display: inline-flex; align-items: center; gap: 8px; height: calc(var(--fs-task) * 1.45 + 1px); }
 .active-card .meta { height: calc(var(--fs-task-lg) * 1.4); }
 .bang { flex: none; font-family: var(--font-mono); font-weight: 750; font-size: var(--fs-task); line-height: 1; letter-spacing: -1px; }
@@ -162,17 +162,6 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 }
 .rchk:hover, .rchk.checked { color: var(--accent); }
 .rchk:hover { background: var(--accent-soft); }
-/* the pencil keeps its room at all times and only fades in on hover (round 2 bug: it used to open from width 0 on hover,
-   so the title lost 24px and a long title re-wrapped and jumped — the row and the whole island changed height) */
-.redit {
-  flex: none; width: 24px; height: 24px; margin-block: -3px; margin-inline: -2px -4px; border: 0; border-radius: var(--r-1); overflow: hidden;
-  background: transparent; color: var(--faint); cursor: pointer; line-height: 1;
-  display: inline-flex; align-items: center; justify-content: center;
-  opacity: 0; transition: opacity 160ms ease, color var(--d-1) ease, background var(--d-1) ease;
-}
-.redit .ic { flex: none; width: 13px; height: 13px; }
-.row:hover .redit, .row:focus-within .redit, .active-card:hover .redit, .active-card:focus-within .redit, .redit:focus-visible { opacity: 1; }
-.redit:hover { color: var(--accent); background: var(--accent-soft); }
 
 /* cold-start skeleton — Facebook-style shimmer. Transform-only sweep on a pseudo-element (off the
    main thread), 1.4s linear (constant motion = loading), 180ms stagger per row. Reduced motion:

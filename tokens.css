@@ -197,3 +197,28 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .upd:hover { background: color-mix(in srgb, var(--ok) 22%, transparent); }
 .upd-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ok) 25%, transparent); }
 @keyframes updIn { from { opacity: 0; transform: scale(0.6); filter: blur(3px); } }
+
+/* Corner edit tab (owner pick "D", 2026-09-28; UI.editTab): a small glass "✎ Edit" tab that lifts onto the top-right edge
+   of the row you RESTED on (hoverSec). Floats in the list's host, so it never takes layout width. One per list. */
+.etab {
+  position: absolute; z-index: 6; display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 10px 0 8px;
+  border: 0; border-radius: 11px; cursor: pointer; font-family: inherit; font-size: var(--fs-1); font-weight: 650; line-height: 1;
+  color: var(--muted); background: var(--glass); backdrop-filter: blur(12px) saturate(1.6);
+  box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 4px 12px -4px rgba(20, 30, 70, 0.28);
+  opacity: 0; transform: translateY(5px) scale(0.9); pointer-events: none; -webkit-app-region: no-drag;
+  transition: opacity 150ms ease, transform 240ms var(--ease-spring), color var(--d-1) ease;
+}
+.etab.on { opacity: 1; transform: none; pointer-events: auto; }
+.etab:hover, .etab:focus-visible { color: var(--accent); }
+.etab .ic { flex: none; width: 11px; height: 11px; stroke-width: 2.2; }
+@media (prefers-reduced-motion: reduce) { .etab { transform: none; transition: opacity 120ms ease; } }
+
+/* Overdue flip (owner, 2026-09-28; UI.lateFlip): the due date and "Nd late" share ONE slot and swap every 2 s, so the
+   late hint never widens the meta and eats the title. Both sit in one grid cell = the slot is as wide as the longer one. */
+.flip2 { display: inline-grid; overflow: hidden; vertical-align: top; }
+.flip2 > span { grid-area: 1 / 1; text-align: center; white-space: nowrap; }
+.flip2 .f-a { animation: flipA 4s var(--ease-out) infinite; }
+.flip2 .f-b { animation: flipB 4s var(--ease-out) infinite; }
+@keyframes flipA { 0%, 44% { transform: none; opacity: 1; } 50%, 94% { transform: translateY(-100%); opacity: 0; } 94.01% { transform: translateY(100%); opacity: 0; } 100% { transform: none; opacity: 1; } }
+@keyframes flipB { 0%, 44% { transform: translateY(100%); opacity: 0; } 50%, 94% { transform: none; opacity: 1; } 100% { transform: translateY(-100%); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .flip2 > span { animation: none; } .flip2 .f-a { visibility: hidden; } }

@@ -137,6 +137,49 @@
     return el._undo;
   }
 
+  // Overdue due date (owner, 2026-09-28): the date and its "Nd late" share ONE slot and swap every 2 s (tokens.css .flip2),
+  // so the late hint never costs the title any width. Reduced motion shows the late hint only (the title attr has both).
+  function lateFlip(dateText, dueTs) {
+    const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+    const late = T('isl.due.late', { n: Math.round((today0.getTime() - (dueTs - 12 * 3600e3)) / 864e5) });
+    return `<span class="flip2" title="${esc(dateText + ' · ' + late)}"><span class="f-a">${esc(dateText)}</span><span class="f-b">${esc(late)}</span></span>`;
+  }
+
+  // Corner edit tab (owner pick "D", 2026-09-28): ONE floating "✎ Edit" tab per list. The caller shows it on the row the
+  // pointer has RESTED on (its hoverSec dwell), so passing over rows on the way to another shows nothing. It floats over
+  // the row's top edge, outside the row's own box, so it never takes layout width and never gets clipped by the row.
+  function editTab(host, { onEdit, onLeave }) {
+    const tab = document.createElement('button');
+    tab.type = 'button'; tab.className = 'etab'; tab.tabIndex = -1;
+    tab.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg><span class="etab-t"></span>';
+    host.appendChild(tab);
+    let row = null;
+    const place = () => {
+      if (!row || !row.isConnected) { api.hide(); return; }
+      const h = host.getBoundingClientRect(), b = row.getBoundingClientRect(), rtl = getComputedStyle(host).direction === 'rtl';
+      // a row that isn't laid out yet (or scrolled out of the host) gets no tab — never park it somewhere else
+      if (!b.height || b.bottom < h.top || b.top > h.bottom) { tab.classList.remove('on'); return; }
+      tab.style.top = Math.max(2, b.top - h.top - 11) + 'px';
+      tab.style.right = rtl ? '' : (h.right - b.right + 14) + 'px';
+      tab.style.left = rtl ? (b.left - h.left + 14) + 'px' : '';
+    };
+    const api = {
+      show(r, label) {
+        row = r;
+        tab.querySelector('.etab-t').textContent = T('etab.label');
+        tab.title = label; tab.setAttribute('aria-label', label);
+        tab.classList.add('on'); place();
+      },
+      hide() { row = null; tab.classList.remove('on'); },
+      place,
+      get row() { return row; },
+      owns: el => !!el && el.nodeType === 1 && tab.contains(el)
+    };
+    tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
+    tab.addEventListener('mouseleave', e => { if (row && !row.contains(e.relatedTarget) && onLeave) onLeave(); });
+    return api;
+  }
+
   // the green Update pill (island + tasks window): shown only while a newer release exists; tooltip names the version
   function renderUpdate(btn, update) {
     if (!btn) return;
@@ -163,5 +206,5 @@
     // the last value = tokens.css --sheet, the contrast gate's worst case
     r.style.setProperty('--g-sheet', [1, 0.76, 0.62, 0.5, 0.38][g] ?? 0.5);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, renderUpdate, applyTheme, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, lateFlip, renderUpdate, applyTheme, ACCENTS, BG_THEMES };
 })();
