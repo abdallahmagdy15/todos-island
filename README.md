@@ -6,11 +6,15 @@
 
 ![release](https://img.shields.io/github/v/release/abdallahmagdy15/todos-island) ![platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey) ![license](https://img.shields.io/badge/license-MIT-green)
 
+[![Watch the 36-second film](docs/promo-poster.jpg)](docs/todos-island-promo.mp4)
+
+<p align="center"><a href="docs/todos-island-promo.mp4">▶ Watch the 36-second film</a></p>
+
 ![The island in light and dark](docs/island-hero.png)
 
 ## Why another todo app?
 
-Most todo apps wait for you to open them. If a list drops out of your head the moment it leaves the screen, a waiting app doesn't help. Opening a big window full of tasks is also a distraction of its own.
+You don't forget your tasks because they left your head. You forget them because you went ten levels deep into the details, and the main thing got lost on the way. Most todo apps don't help with that: they wait in a window you have to remember to open, they show you sixty tasks at once, and they're dull enough that you stop looking.
 
 Todos Island turns that around:
 
@@ -18,6 +22,9 @@ Todos Island turns that around:
 - **It keeps the list short.** Most days you work on one to three things. The island puts the task you're doing **now** first and shows only the next few. The full list is one click away.
 - **Your notes stay the source of truth.** Tasks live in ordinary `.md` files that you can open and edit in Obsidian, VS Code, Notepad or anything else. The app reads them and writes back only when you click something.
 - **Time decides what shows.** Work tasks lead during your workday. Personal tasks lead in the evening and on weekends.
+- **Marks, not words.** ★ is what you're on, `!!!` is urgent, `28 Sep` is when it's due, `[ ]` is a subtask. You read it at a glance.
+- **Nice enough to look at.** Glass, themes, light and dark. If the list lives somewhere dull, you stop checking it.
+- **Report your day in one click.** Copy "Done today · Now · Next" for your team chat.
 
 ## The notation
 
