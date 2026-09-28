@@ -10,8 +10,6 @@
 
 <p align="center"><a href="docs/todos-island-promo.mp4">▶ Watch the 36-second film</a></p>
 
-![The island in light and dark](docs/island-hero.png)
-
 ## Why another todo app?
 
 You don't forget your tasks because they left your head. You forget them because you went ten levels deep into the details, and the main thing got lost on the way. Most todo apps don't help with that: they wait in a window you have to remember to open, they show you sixty tasks at once, and they're dull enough that you stop looking.
