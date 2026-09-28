@@ -14,6 +14,7 @@ const STRINGS_AR = {
   'win.search.aria': 'البحث في المهام',
   'win.search.clear': 'مسح البحث',
   'win.fold.collapse': 'طي الكل', 'win.fold.expand': 'فتح الكل', // one toggle above the task list
+  'win.openNote': 'فتح الملف', 'win.openNoteTitle': 'فتح {f} في المحرر', // opens the shown tab's .md file
   'win.search.clearTitle': 'مسح (Esc)',
   'win.search.none': 'لا نتائج.',
   'win.done.clear': 'مسح الكل',
@@ -131,7 +132,9 @@ const STRINGS_AR = {
   'isl.btn.editTitle': 'تعديل المهمة',
   'isl.btn.editAria': 'تعديل: {t}',
   'etab.label': 'تعديل', // the floating corner tab on a rested row (island + tasks window)
-  'isl.expand.all': 'عرض الكل ({n})',
+  'etab.del': 'حذف المهمة', // the trash tab beside Edit (tasks window only)
+  'isl.expand.more': '{n} أخرى', // the island's show-more pill (rest 1 s or click)
+  'isl.expand.rest': '+{n} أخرى في نافذة المهام', // past the island's 10-task cap
   'isl.expand.less': 'عرض أقل',
   'isl.hint.star': 'انقر مهمة لتجعلها «الآن» · ✎ للتعديل',
   'isl.hint.emptyWork': 'لا مهام عمل مفتوحة — قائمة الدوام خالية.',
@@ -154,7 +157,10 @@ const STRINGS_AR = {
   'isl.close.title': 'إخفاء',
   'isl.close.aria': 'إخفاء الجزيرة',
 
-  'ed.title': 'تعديل سريع',
+  'ed.title': 'تعديل المهمة',
+  'side.close': 'إغلاق (Esc)', // the side panel's ✕ (Edit / Share)
+  'ed.sub.del': 'حذف المهمة الفرعية {t}', 'ed.sub.none': 'لا توجد مهام فرعية بعد.',
+  'ed.sub.rename': 'انقر لإعادة التسمية', 'ed.sub.tick': 'تعليم {t} كمنجزة', 'ed.sub.untick': 'إلغاء إنجاز {t}',
   'ed.missing': 'المهمة غير موجودة — ربما أُنجزت أو حُذفت.',
   'ed.task': 'المهمة',
   'ed.task.hint': '— السطر الأول عنوان، وما تحته يصبح وصفًا',
@@ -179,6 +185,7 @@ const STRINGS_AR = {
   'sh.selN': 'تم تحديد {n}',
   'sh.copy': 'نسخ',
   'sh.copied': 'تم النسخ ✓',
+  'sh.none': 'لا شيء للمشاركة — لا توجد مهام.', 'sh.savedFile': 'تم حفظ {f}',
   'sh.export': 'تصدير .md',
   'sh.saved': 'تم الحفظ {f}',
   'sh.sec.now': '★ نشطة الآن',
@@ -186,6 +193,7 @@ const STRINGS_AR = {
   'sh.daily': 'تقدّم اليوم — {d}',
 
   'u.deleted': 'حُذفت',
+  'u.edited': 'تم التعديل', // an edit-panel session or a subtask change (one Undo rolls it back)
   'u.markedNow': 'تمّت وسمها «الآن»',
   'u.clearedNow': 'أُلغي وسم «الآن»',
   'u.moved': 'نُقلت',

@@ -92,6 +92,7 @@
     : u.kind === 'reorder' ? T('u.moved')
     : u.kind === 'clear' ? T('u.cleared')
     : u.kind === 'settings' ? T('u.reset')
+    : u.kind === 'edit' ? T('u.edited')
     : T('u.completed');
   const undoText = u => u.label ? `${undoVerb(u)}: ${u.label}` : undoVerb(u); // a settings reset has no task label
 
@@ -148,35 +149,50 @@
   // Corner edit tab (owner pick "D", 2026-09-28): ONE floating "✎ Edit" tab per list. The caller shows it on the row the
   // pointer has RESTED on (its hoverSec dwell), so passing over rows on the way to another shows nothing. It floats over
   // the row's top edge, outside the row's own box, so it never takes layout width and never gets clipped by the row.
-  function editTab(host, { onEdit, onLeave }) {
+  // onDelete (tasks window only — the island never deletes) adds a trash tab beside Edit, same glass, same rest
+  function editTab(host, { onEdit, onDelete, onLeave }) {
     const tab = document.createElement('button');
     tab.type = 'button'; tab.className = 'etab'; tab.tabIndex = -1;
     tab.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg><span class="etab-t"></span>';
     host.appendChild(tab);
+    let del = null;
+    if (onDelete) {
+      del = document.createElement('button');
+      del.type = 'button'; del.className = 'etab etab-del'; del.tabIndex = -1;
+      del.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
+      host.appendChild(del);
+    }
+    const tabs = del ? [tab, del] : [tab];
     let row = null;
     const place = () => {
       if (!row || !row.isConnected) { api.hide(); return; }
       const h = host.getBoundingClientRect(), b = row.getBoundingClientRect(), rtl = getComputedStyle(host).direction === 'rtl';
       // a row that isn't laid out yet (or scrolled out of the host) gets no tab — never park it somewhere else
-      if (!b.height || b.bottom < h.top || b.top > h.bottom) { tab.classList.remove('on'); return; }
-      tab.style.top = Math.max(2, b.top - h.top - 11) + 'px';
-      tab.style.right = rtl ? '' : (h.right - b.right + 14) + 'px';
-      tab.style.left = rtl ? (b.left - h.left + 14) + 'px' : '';
+      if (!b.height || b.bottom < h.top || b.top > h.bottom) { tabs.forEach(t => t.classList.remove('on')); return; }
+      let edge = rtl ? b.left - h.left + 14 : h.right - b.right + 14;
+      for (const t of tabs) { // Edit sits at the corner; Delete lines up just inside it
+        t.style.top = Math.max(2, b.top - h.top - 11) + 'px';
+        t.style.right = rtl ? '' : edge + 'px';
+        t.style.left = rtl ? edge + 'px' : '';
+        edge += t.offsetWidth + 6;
+      }
     };
     const api = {
       show(r, label) {
         row = r;
         tab.querySelector('.etab-t').textContent = T('etab.label');
         tab.title = label; tab.setAttribute('aria-label', label);
-        tab.classList.add('on'); place();
+        if (del) { const dl = T('etab.del'); del.title = dl; del.setAttribute('aria-label', dl); }
+        tabs.forEach(t => t.classList.add('on')); place();
       },
-      hide() { row = null; tab.classList.remove('on'); },
+      hide() { row = null; tabs.forEach(t => t.classList.remove('on')); },
       place,
       get row() { return row; },
-      owns: el => !!el && el.nodeType === 1 && tab.contains(el)
+      owns: el => !!el && el.nodeType === 1 && tabs.some(t => t.contains(el))
     };
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
-    tab.addEventListener('mouseleave', e => { if (row && !row.contains(e.relatedTarget) && onLeave) onLeave(); });
+    if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
+    tabs.forEach(t => t.addEventListener('mouseleave', e => { if (row && !row.contains(e.relatedTarget) && !api.owns(e.relatedTarget) && onLeave) onLeave(); }));
     return api;
   }
 
@@ -205,6 +221,9 @@
     // the reading panels follow the same Glass steps as the island (Solid · 20 · 35 · 50 · 65 % of the scene through);
     // the last value = tokens.css --sheet, the contrast gate's worst case
     r.style.setProperty('--g-sheet', [1, 0.76, 0.62, 0.5, 0.38][g] ?? 0.5);
+    // the scene behind the window follows the same steps (owner 2026-09-28: "relative to the transparency selected"):
+    // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
+    r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
   window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, lateFlip, renderUpdate, applyTheme, ACCENTS, BG_THEMES };
 })();

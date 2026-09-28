@@ -14,8 +14,7 @@ const MUST_EXIST = [
   'onboard.html', 'onboard.js', 'onboard-preload.js',
   'island.html', 'island.js', 'island-preload.js', 'island.css',
   'window.html', 'window.js', 'window-preload.js', 'window.css',
-  'editor.html', 'editor.js', 'editor.css',
-  'share.html', 'share.js', 'share.css'
+  'panels.js', 'lib/compose.js', 'lib/setup.js', 'lib/update.js', 'lib/icon.js' // Edit + Share are the window's side panel (panels.js) since v1.13
 ];
 
 if (!fs.existsSync(ASAR)) {

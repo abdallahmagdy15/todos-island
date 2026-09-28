@@ -253,7 +253,7 @@ function openWindow(tab) {
   if (!state.onboarded) { openOnboarding(); return; }
   if (mainWin) { mainWin.show(); mainWin.focus(); if (tab) mainWin.webContents.send('show-tab', tab); return; }
   mainWin = new BrowserWindow({
-    width: 800, height: 660, minWidth: 660, minHeight: 540, // narrower by default (owner, v1.11)
+    width: 880, height: 660, minWidth: 660, minHeight: 540, // 880 by default (owner 2026-09-28: "slightly wider" — room for the side panel)
     backgroundColor: theme().bg,
     autoHideMenuBar: true, show: false,
     frame: false, titleBarStyle: 'hidden',
@@ -276,30 +276,22 @@ function openWindow(tab) {
   mainWin.on('closed', () => { mainWin = null; });
 }
 
-let editorWin = null;
-let shareWin = null;
-function openShare() {
-  if (shareWin && !shareWin.isDestroyed()) { shareWin.show(); shareWin.focus(); }
-  else {
-    shareWin = new BrowserWindow({
-      width: 680, height: 680, minWidth: 680, minHeight: 480, // 680 = the footer's actions on ONE row (widest: Arabic, nothing picked = 670)
-      backgroundColor: theme().bg,
-      autoHideMenuBar: true, show: false, parent: mainWin || undefined,
-      frame: false, titleBarStyle: 'hidden',
-      titleBarOverlay: overlay(),
-      webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
-    });
-    shareWin.once('ready-to-show', () => shareWin.show());
-    shareWin.on('closed', () => { shareWin = null; });
-    lockZoom(shareWin.webContents);
-  }
-  shareWin.loadFile('share.html');
+// Edit and Share are the tasks window's side panel (owner 2026-09-28: no popup windows). Callers outside the window
+// (the island's ✎ Edit and Share) open the window and hand it the panel; a window still loading gets it once it's ready.
+function sendPanel(p) {
+  openWindow();
+  if (!mainWin) return; // onboarding not done yet — openWindow showed the wizard instead
+  const wc = mainWin.webContents;
+  if (wc.isLoading()) wc.once('did-finish-load', () => setTimeout(() => wc.send('open-panel', p), 50));
+  else wc.send('open-panel', p);
 }
+const openShare = () => sendPanel({ kind: 'share' });
+const openEditor = (file, id) => sendPanel({ kind: 'edit', file: String(file), id: String(id) });
 ipcMain.handle('open-share', () => openShare());
 ipcMain.handle('export-md', async (_e, text) => {
   const { dialog } = require('electron');
   const d = new Date();
-  const res = await dialog.showSaveDialog(shareWin || mainWin || undefined, {
+  const res = await dialog.showSaveDialog(mainWin || undefined, {
     title: 'Export progress as Markdown',
     defaultPath: path.join(require('os').homedir(), 'Downloads', `progress-${d.getDate()}-${MONTHS[d.getMonth()]}.md`),
     filters: [{ name: 'Markdown', extensions: ['md'] }]
@@ -408,30 +400,13 @@ ipcMain.handle('onboard-close', (_e, then) => {
   if (then === 'open') openWindow();
 });
 
-function openEditor(file, id) {
-  if (editorWin && !editorWin.isDestroyed()) { editorWin.show(); editorWin.focus(); }
-  else {
-    editorWin = new BrowserWindow({
-      width: 480, height: 620, minWidth: 420, minHeight: 500,
-      backgroundColor: theme().bg,
-      autoHideMenuBar: true, show: false, parent: mainWin || undefined,
-      frame: false, titleBarStyle: 'hidden',
-      titleBarOverlay: overlay(),
-      webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
-    });
-    editorWin.once('ready-to-show', () => editorWin.show());
-    editorWin.on('closed', () => { editorWin = null; });
-  }
-  editorWin.loadFile('editor.html', { query: { file: String(file), id: String(id), lang: uiLang() } });
-}
-
 function lockZoom(wc) {
   wc.setZoomFactor(1);
   wc.on('zoom-changed', () => wc.setZoomFactor(1)); // accidental Ctrl+scroll/plus must never wreck the layout
 }
 
 function applyOverlay() { // Light/Dark switched: every open window's caption symbols follow
-  for (const w of [mainWin, editorWin, shareWin, onboardWin]) {
+  for (const w of [mainWin, onboardWin]) {
     if (!w || w.isDestroyed()) continue;
     try { w.setTitleBarOverlay(overlay()); } catch (e) { LOG('OVERLAY-SKIP ' + e.message); }
   }
@@ -522,11 +497,8 @@ ipcMain.handle('toggle-active', (_e, id, file) => {
   sendSnap(); pushUndoToWindow(token);
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
-ipcMain.handle('toggle-subtask', (_e, file, parentId, subTitle) => {
-  const f = fileFor(file);
-  f.toggleSubtask(parentId, subTitle); f.save();
-  sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
-});
+ipcMain.handle('toggle-subtask', (_e, file, parentId, subTitle, session) => subtaskWrite(file, parentId, session, f => f.toggleSubtask(parentId, subTitle)));
+ipcMain.handle('rename-subtask', (_e, file, parentId, subTitle, newTitle, session) => subtaskWrite(file, parentId, session, f => f.renameSubtask(parentId, subTitle, newTitle)));
 function pushUndoToWindow(token) {
   const e = token && undoLog.get(token);
   if (mainWin && e) {
@@ -581,6 +553,8 @@ ipcMain.handle('undo-action', (_e, token) => {
   if (e.kind === 'toggle') {
     const t = f.findById(e.id);
     if (t) { t.active = e.prev; if (e.prevU !== undefined) t.updated = e.prevU; t.dirty = true; f.save(); } // exact rollback, stamp included
+  } else if (e.kind === 'edit') { // the edited task (current title) goes; the block as the panel found it comes back in place
+    f.removeByTitle(e.curTitle); f.insertBlockAt(e.cap.index, e.cap.lines); f.save();
   } else {
     f.restoreBlock(e.cap); f.save(); // complete / delete / reorder all roll back via the captured block
   }
@@ -637,7 +611,7 @@ ipcMain.handle('save-settings', (_e, s) => {
   if (clean.uiLang !== undefined && clean.uiLang !== state.settings.uiLang) {
     // language switch: tray re-labels, every live window re-applies its chrome, island re-renders via snapshot
     rebuildTrayMenu();
-    for (const w of [mainWin, shareWin, editorWin]) if (w && !w.isDestroyed()) w.webContents.send('lang-changed', uiLang());
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('lang-changed', uiLang());
   }
   sendSnap();
   return result;
@@ -652,7 +626,7 @@ function applySettingsSideEffects(prev) {
   applyAppearance();
   if (uiLang() !== resolveLang(prev.uiLang, app.getLocale())) {
     rebuildTrayMenu();
-    for (const w of [mainWin, shareWin, editorWin]) if (w && !w.isDestroyed()) w.webContents.send('lang-changed', uiLang());
+    if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('lang-changed', uiLang());
   }
   sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
@@ -668,8 +642,36 @@ ipcMain.handle('reset-settings', () => {
   return { ok: true };
 });
 ipcMain.handle('open-onboarding', () => openOnboarding()); // Settings button = the tray's "Set up again…": merge-over, never a wipe
+// The side-panel editor saves itself (owner 2026-09-28), so every save carries its panel `session`. The FIRST save of a
+// session captures the task block as it was; each later save re-issues ONE undo bubble holding that same capture, so a
+// single Undo rolls back everything changed since the panel opened (kind 'edit' in undo-action). A no-op save (the
+// formatted block didn't change) writes nothing and shows nothing.
+const editSessions = new Map(); // session → live undo token
+function sessionWrite(f, file, t, session, before) { // after a REAL change: save + (re)issue the session's one undo bubble
+  f.save();
+  const prevTok = editSessions.get(session), prev = prevTok && undoLog.get(prevTok);
+  if (prev) undoLog.delete(prevTok); // the old bubble's token dies; its capture (the task as the session found it) carries over
+  const token = pushUndo({ kind: 'edit', file, cap: prev ? prev.cap : before, curTitle: t.title, label: t.title.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
+  editSessions.set(session, token);
+  pushUndoToWindow(token);
+  sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
+}
+// subtask changes (tick / add / delete / rename) with a session are undoable like edits; callers without a panel
+// (the list's [ ], the island) pass a one-off session per click, so every subtask write gets its own Undo
+function subtaskWrite(file, parentId, session, mutate) {
+  const f = fileFor(file);
+  const t = f.findById(parentId);
+  if (!t) return { ok: false };
+  const before = session ? f.captureBlock(parentId) : null, textBefore = f.text();
+  mutate(f);
+  if (f.text() === textBefore) return { ok: true, changed: false };
+  if (session) sessionWrite(f, file, t, session, before);
+  else { f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed'); }
+  return { ok: true, changed: true };
+}
 ipcMain.handle('update-task', (_e, file, id, patch) => {
   const f = fileFor(file);
+  const before = patch.session ? f.captureBlock(id) : null, textBefore = patch.session ? f.text() : null;
   let due = undefined;
   if (patch.dueText !== undefined) {
     const m = String(patch.dueText || '').match(/^(\d{1,2})\s+([A-Za-z]{3})/);
@@ -683,6 +685,12 @@ ipcMain.handle('update-task', (_e, file, id, patch) => {
   const starToggled = t && patch.active !== undefined && !!patch.active !== !!t.active; // editor's ★ path counts as a star interaction
   f.update(id, { title: patch.title, priority: patch.priority, due, active: patch.active });
   if (patch.desc !== undefined) f.setNotes(id, patch.desc);
+  if (patch.session && t) {
+    const changed = f.text() !== textBefore; // captureBlock holds RAW lines (re-serialized only on save) — compare the real output
+    if (!changed) return { id: f.id(t), changed: false };
+    sessionWrite(f, file, t, patch.session, before);
+    return { id: f.id(t), changed: true };
+  }
   f.save();
   if (starToggled && t) {
     const token = pushUndo({ kind: 'toggle', file, id: f.id(t), prev: !patch.active, label: t.title.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
@@ -701,7 +709,8 @@ ipcMain.handle('add-task', (_e, file, data) => {
   f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: !!t, id: t ? f.id(t) : null };
 });
-ipcMain.handle('add-subtask', (_e, file, parentId, title) => {
+ipcMain.handle('add-subtask', (_e, file, parentId, title, session) => {
+  if (session) return subtaskWrite(file, parentId, session, f => f.addSubtask(parentId, title));
   const f = fileFor(file); f.addSubtask(parentId, title); f.save(); sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
@@ -713,11 +722,7 @@ ipcMain.handle('delete-task', (_e, id, file) => {
   f.save(); sendSnap(); pushUndoToWindow(token);
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
-ipcMain.handle('delete-subtask', (_e, file, parentId, title) => {
-  const f = fileFor(file);
-  f.deleteSubtask(parentId, title); f.save(); sendSnap();
-  if (mainWin) mainWin.webContents.send('tasks-changed');
-});
+ipcMain.handle('delete-subtask', (_e, file, parentId, title, session) => subtaskWrite(file, parentId, session, f => f.deleteSubtask(parentId, title)));
 ipcMain.handle('uncomplete-task', (_e, id, file) => {
   const f = fileFor(file);
   f.uncomplete(id); f.save(); sendSnap();
@@ -804,16 +809,27 @@ else {
           const undoClick = `const b=document.querySelector('#undo-toast [data-undo]'); if(!b) return 'no-toast'; b.click();`;
           await step('force-work-tab', `(async()=>{ document.getElementById('tab-work').click(); await new Promise(r=>setTimeout(r,400)); return document.querySelectorAll('.wrow').length + ' rows'; })()`);
           await step('complete+undo', `(async()=>{ const c=document.querySelector('.wrow .chk'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
-          await step('rest-edit-tab', `(async()=>{ const r=document.querySelector('#task-list .wrow:not(.done)'); if(!r) return 'no-row'; const sec=(snap&&snap.settings.hoverSec)||1; r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,250)); const early=!!document.querySelector('.etab.on')||r.classList.contains('dwelt'); await new Promise(z=>setTimeout(z,sec*1000+300)); const t=!!document.querySelector('.etab.on'); const acts=getComputedStyle(r.querySelector('.wacts')).visibility; r.dispatchEvent(new MouseEvent('mouseout',{bubbles:true,relatedTarget:document.body})); await new Promise(z=>setTimeout(z,250)); const gone=!document.querySelector('.etab.on'); return (early?'SHOWN-TOO-EARLY ':'quiet-pass ')+(t?'tab-after-rest ':'NO-TAB ')+'acts='+acts+(gone?' leave-hides':' TAB-STUCK'); })()`);
-          await step('delete+undo', `(async()=>{ const d=document.querySelector('.wtrash'); if(!d) return 'no-trash'; d.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
+          // tasks window rest (owner 2026-09-28): 200 ms, then Edit + Delete tabs; nothing on a quicker pass
+          await step('rest-edit-tab', `(async()=>{ const r=document.querySelector('#task-list .wrow:not(.done)'); if(!r) return 'no-row'; r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,80)); const early=!!document.querySelector('.etab.on')||r.classList.contains('dwelt'); await new Promise(z=>setTimeout(z,300)); const t=!!document.querySelector('.etab.on:not(.etab-del)'), d=!!document.querySelector('.etab-del.on'); r.dispatchEvent(new MouseEvent('mouseout',{bubbles:true,relatedTarget:document.body})); await new Promise(z=>setTimeout(z,150)); const gone=!document.querySelector('.etab.on'); return (early?'SHOWN-TOO-EARLY ':'quiet-pass ')+(t?'tab-after-rest ':'NO-TAB ')+(d?'del-tab ':'NO-DEL-TAB ')+(gone?'leave-hides':'TAB-STUCK'); })()`);
+          await step('delete+undo', `(async()=>{ const r=document.querySelector('#task-list .wrow:not(.done)'); if(!r) return 'no-row'; r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,350)); const d=document.querySelector('.etab-del.on'); if(!d) return 'no-del-tab'; const n0=document.querySelectorAll('#task-list .wrow').length; d.click(); await new Promise(z=>setTimeout(z,800)); const n1=document.querySelectorAll('#task-list .wrow').length; ${undoClick} await new Promise(z=>setTimeout(z,800)); return 'rows '+n0+'→'+n1+'→'+document.querySelectorAll('#task-list .wrow').length; })()`);
+          // row click folds/unfolds its details; the subtask text opens the editor, its [ ] ticks (owner 2026-09-28)
+          await step('row-click-toggles', `(async()=>{ const r=document.querySelector('#task-list .wrow.has-detail'); if(!r) return 'no-detail-row'; const id=r.dataset.id, o0=r.classList.contains('open'); r.querySelector('.tt').click(); await new Promise(z=>setTimeout(z,300)); const r1=[...document.querySelectorAll('#task-list .wrow')].find(x=>x.dataset.id===id); const o1=r1.classList.contains('open'); r1.querySelector('.tt').click(); await new Promise(z=>setTimeout(z,300)); const o2=[...document.querySelectorAll('#task-list .wrow')].find(x=>x.dataset.id===id).classList.contains('open'); return 'open '+o0+'→'+o1+'→'+o2+(document.querySelector('.wexp')?' OLD-EXPAND-BTN':''); })()`);
+          const panelKind = () => mainWin.webContents.executeJavaScript('window.Panels.kind'); // the side panel that's open (null = none)
+          const closePanel = () => mainWin.webContents.executeJavaScript('window.Panels.close()');
+          LOG('UTEST row-click-opened-editor: ' + ((await panelKind()) ? 'UNEXPECTED' : 'no (correct)'));
+          await step('subtask-text-edits', `(async()=>{ const s=document.querySelector('#task-list .wsubrow'); if(!s) return 'no-subtask'; const was=s.querySelector('.sb').textContent; s.querySelector('.st').click(); await new Promise(z=>setTimeout(z,900)); const again=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); return 'bracket '+was+'→'+(again?again.querySelector('.sb').textContent:'gone'); })()`);
+          LOG('UTEST subtask-text-edits(main): panel=' + (await panelKind()));
+          await closePanel(); await new Promise(z => setTimeout(z, 500));
+          await step('subtask-bracket-ticks', `(async()=>{ const s=document.querySelector('#task-list .wsubrow'); if(!s) return 'no-subtask'; const was=s.querySelector('.sb').textContent; s.querySelector('.sb').click(); await new Promise(z=>setTimeout(z,900)); const again=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); const now=again?again.querySelector('.sb').textContent:'gone'; if(again) again.querySelector('.sb').click(); await new Promise(z=>setTimeout(z,800)); const back=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); return 'bracket '+was+'→'+now+'→'+(back?back.querySelector('.sb').textContent:'gone'); })()`);
+          await step('open-note-btn', `(async()=>{ const b=document.getElementById('btn-open-note'); const onWork=!b.hidden; document.getElementById('tab-done').click(); await new Promise(z=>setTimeout(z,300)); const onDone=!b.hidden; document.getElementById('tab-work').click(); await new Promise(z=>setTimeout(z,300)); return 'work='+(onWork?'shown':'HIDDEN')+' done='+(onDone?'SHOWN':'hidden')+' title='+b.title; })()`);
           const iStep = (name, js) => island.webContents.executeJavaScript(js)
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
           await iStep('island-click-stages+undo', `(async()=>{ const t=document.querySelector('#body .row .rtitle'); if(!t) return 'no-row'; t.dispatchEvent(new MouseEvent('click',{bubbles:true})); await new Promise(r=>setTimeout(r,900)); const bar=document.getElementById('undo-bar'); const b=bar.querySelector('[data-undo]'); if(!b||bar.hidden) return 'NO-WRITE'; const lbl=bar.querySelector('.undo-label').textContent; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok ['+lbl+']'; })()`); // row click = stage as Now (owner 2026-09-25)
-          LOG('UTEST island-click-opened-editor: ' + (editorWin && !editorWin.isDestroyed() ? 'UNEXPECTED' : 'no (correct)'));
+          LOG('UTEST island-click-opened-editor: ' + ((await panelKind()) ? 'UNEXPECTED' : 'no (correct)'));
           // corner Edit tab (owner pick D): nothing on a quick pass; after resting hoverSec the tab lands, and its click hands off to the editor
           await iStep('island-edit-handoff', `(async()=>{ const r0=document.querySelector('#body .row'); if(!r0) return 'no-row'; const sec=(snap&&snap.settings.hoverSec)||1; r0.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,250)); if(document.querySelector('.etab.on')) return 'SHOWN-TOO-EARLY'; await new Promise(z=>setTimeout(z,sec*1000+300)); const t=document.querySelector('.etab.on'); if(!t) return 'NO-TAB-AFTER-REST'; t.click(); await new Promise(z=>setTimeout(z,900)); return 'tab after rest, clicked'; })()`);
-          LOG('UTEST edit-handoff(main): editor=' + !!(editorWin && !editorWin.isDestroyed()) + ' main=' + !!(mainWin && !mainWin.isDestroyed() && mainWin.isVisible()) + ' islandVisible=' + (island ? island.isVisible() : 'n/a'));
-          if (editorWin && !editorWin.isDestroyed()) editorWin.close();
+          LOG('UTEST edit-handoff(main): panel=' + (await panelKind()) + ' main=' + !!(mainWin && !mainWin.isDestroyed() && mainWin.isVisible()) + ' islandVisible=' + (island ? island.isVisible() : 'n/a') + ' windows=' + BrowserWindow.getAllWindows().length);
+          await closePanel(); await new Promise(z => setTimeout(z, 500));
           { // toggle-cycle: the shortcut's exact sequence through the real functions
             showIsland({ focus: true });
             await new Promise(r => setTimeout(r, 500));
@@ -828,9 +844,14 @@ else {
             LOG(`UTEST toggle-cycle: show=${v1} dismissed=${!v2} reshow=${v3}`);
           }
           await iStep('island-share', `(async()=>{ const b=document.getElementById('btn-share'); if(!b) return 'no-btn'; b.click(); await new Promise(r=>setTimeout(r,800)); return 'clicked'; })()`);
-          LOG('UTEST island-share(main): shareOpen=' + !!(shareWin && !shareWin.isDestroyed()) + ' islandVisible=' + (island ? island.isVisible() : 'n/a'));
-          if (shareWin && !shareWin.isDestroyed()) shareWin.close();
+          LOG('UTEST island-share(main): panel=' + (await panelKind()) + ' islandVisible=' + (island ? island.isVisible() : 'n/a'));
+          await closePanel(); await new Promise(z => setTimeout(z, 500));
           await iStep('island-check+undo', `(async()=>{ const r=document.querySelector('#body .row'); if(!r) return 'no-row'; if(r.querySelector('[data-chk]')) return 'row-still-has-chk'; r.focus(); r.dispatchEvent(new KeyboardEvent('keydown',{key:'x',bubbles:true})); await new Promise(r=>setTimeout(r,1200)); const b=document.querySelector('#undo-bar [data-undo]'); if(!b) return 'no-bar'; b.click(); await new Promise(r=>setTimeout(r,900)); return 'ok'; })()`);
+          // more on scroll (owner 2026-09-28, round 2): 5 at first, a wheel-down loads up to 10 + a line to the tasks window; the undo bar never changes the island's height
+          await iStep('island-scroll-more', `(async()=>{ const b=document.getElementById('body'); const n0=b.querySelectorAll('.row').length; const hint=b.classList.contains('has-more'); const pill=!!document.querySelector('.more-pill'); b.dispatchEvent(new WheelEvent('wheel',{deltaY:120,bubbles:true})); await new Promise(z=>setTimeout(z,300)); const n1=b.querySelectorAll('.row').length; const rest=document.querySelector('[data-open-tasks]'); return 'rows '+n0+'→'+n1+(n0<=5?' few':' TOO-MANY')+(n1<=10?' capped':' OVER-CAP')+' fade='+hint+(pill?' OLD-PILL':'')+(rest?' rest-line='+rest.textContent.trim():' no-rest-line'); })()`);
+          await iStep('island-undo-height', `(async()=>{ const h0=document.getElementById('wrap').offsetHeight; const r=document.querySelector('#body .row'); if(!r) return 'no-row'; r.focus(); r.dispatchEvent(new KeyboardEvent('keydown',{key:'x',bubbles:true})); await new Promise(z=>setTimeout(z,1300)); const bar=document.getElementById('undo-bar'); const shown=!bar.hidden; const h1=document.getElementById('wrap').offsetHeight; const b=bar.querySelector('[data-undo]'); if(b) b.click(); await new Promise(z=>setTimeout(z,900)); return 'bar='+shown+' pos='+getComputedStyle(bar).position+' height '+h0+'→'+h1+' (the completed row folds away; the bar adds nothing)'; })()`);
+          showIsland({ focus: false }); await new Promise(z => setTimeout(z, 600));
+          await iStep('island-reshow-few', `(async()=>{ return 'rows='+document.querySelectorAll('#body .row').length; })()`);
           await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           await step('glass-window', `(async()=>{ const h=getComputedStyle(document.querySelector('header')); const t=getComputedStyle(document.getElementById('undo-toast')); return 'glassOn='+document.documentElement.classList.contains('glass-on')+' headerBackdrop='+h.backdropFilter+' toastBackdrop='+t.backdropFilter+' ambient='+getComputedStyle(document.querySelector('.ambient')).display; })()`);
           LOG('UTEST glass-level(main): ' + state.settings.glassLevel);
@@ -860,24 +881,40 @@ else {
             LOG('UTEST rerun-cancel(main): workStill=[' + state.settings.workPath + ']');
           }
           await step('lang-switch',`(async()=>{ document.getElementById('tab-settings').click(); ${wait(600)} const ar=document.querySelector('#lang-seg [data-lang=ar]'); if(!ar) return 'no-seg'; ar.click(); ${wait(1400)} const dir=document.documentElement.dir, hl=document.documentElement.lang; const tabW=document.getElementById('tab-work').textContent.trim(); const lbls=[...document.querySelectorAll('[data-i18n]')].slice(0,3).map(e=>e.textContent.trim()).join('|'); const saveBtn=document.querySelector('[data-i18n="set.h.look"]').textContent; const back=document.querySelector('#lang-seg [data-lang=system]'); back.click(); ${wait(1400)} return 'dir='+dir+' htmlLang='+hl+' tabWork=['+tabW+'] first3=['+lbls+'] lookHead=['+saveBtn+'] backDir='+document.documentElement.dir; })()`);
-          { // quick editor: preview line, ⋯ menu, and a no-change Save must round-trip the note byte-identically
+          { // side-panel editor (owner 2026-09-28): opens inside the window, saves itself, one Undo rolls the session back
+            await step('force-work-tab-2', `(async()=>{ document.getElementById('tab-work').click(); await new Promise(z=>setTimeout(z,300)); return 'ok'; })()`);
             const t0 = snapshot().sections.flatMap(s => s.items).find(t => t.file === 'work');
             const before = fs.readFileSync(state.settings.workPath, 'utf8');
-            openEditor(t0.file, t0.id);
-            await new Promise(r => setTimeout(r, 1500));
-            const eStep = (name, js) => editorWin.webContents.executeJavaScript(js)
-              .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
-            await eStep('editor-preview+menu+save', `(async()=>{ await new Promise(r=>setTimeout(r,300)); const pv=document.getElementById('ed-preview-line').textContent; document.getElementById('ed-more').click(); const menuOpen=!document.getElementById('ed-menu').hidden; document.getElementById('ed-more').click(); document.getElementById('ed-save').click(); await new Promise(r=>setTimeout(r,700)); return 'preview=['+pv+'] menu='+menuOpen+' saved='+!document.getElementById('ed-saved').hidden; })()`);
-            LOG('UTEST editor-save-roundtrip: ' + (fs.readFileSync(state.settings.workPath, 'utf8') === before ? 'byte-identical' : 'CHANGED'));
-            if (editorWin && !editorWin.isDestroyed()) editorWin.close();
+            const q = JSON.stringify;
+            await step('panel-edit-noop', `(async()=>{ window.Panels.edit(${q(t0.file)}, ${q(t0.id)}); await new Promise(z=>setTimeout(z,700)); const open=document.getElementById('side').classList.contains('open'); const pv=document.getElementById('ed-preview-line').textContent; document.getElementById('ed-more').click(); const menu=!document.getElementById('ed-menu').hidden; document.getElementById('ed-more').click(); const save=!!document.getElementById('ed-save'); document.getElementById('side-close').click(); await new Promise(z=>setTimeout(z,700)); return 'open='+open+' preview=['+pv+'] menu='+menu+' saveBtn='+(save?'STILL-THERE':'gone')+' closedByX='+!document.getElementById('side').classList.contains('open'); })()`);
+            LOG('UTEST panel-noop-roundtrip: ' + (fs.readFileSync(state.settings.workPath, 'utf8') === before ? 'byte-identical' : 'CHANGED'));
+            await step('panel-autosave', `(async()=>{ window.Panels.edit(${q(t0.file)}, ${q(t0.id)}); await new Promise(z=>setTimeout(z,700)); const ta=document.getElementById('ed-title'); const lines=ta.value.split('\\n'); lines[0]+=' E2E-auto'; ta.value=lines.join('\\n'); ta.dispatchEvent(new Event('input',{bubbles:true})); await new Promise(z=>setTimeout(z,1500)); const p3=[...document.querySelectorAll('#ed-prio .chip')].find(c=>c.textContent.trim()==='!!!'); if(p3) p3.click(); await new Promise(z=>setTimeout(z,900)); return 'toast='+!document.getElementById('undo-toast').hidden+' saved=['+document.getElementById('ed-saved').textContent+']'; })()`);
+            const mid = fs.readFileSync(state.settings.workPath, 'utf8');
+            LOG('UTEST panel-autosave(note): title=' + mid.includes('E2E-auto') + ' prio=' + /- \[ \][^\n]*!!![^\n]*E2E-auto/.test(mid));
+            await step('panel-undo-session', `(async()=>{ const b=document.querySelector('#undo-toast [data-undo]'); if(!b) return 'no-toast'; b.click(); await new Promise(z=>setTimeout(z,900)); return 'undone'; })()`);
+            LOG('UTEST panel-undo-roundtrip: ' + (fs.readFileSync(state.settings.workPath, 'utf8') === before ? 'byte-identical' : 'CHANGED'));
+            await step('panel-dismiss', `(async()=>{ const side=document.getElementById('side'); const isOpen=()=>side.classList.contains('open'); const out=[]; window.Panels.edit(${q(t0.file)}, ${q(t0.id)}); await new Promise(z=>setTimeout(z,600)); document.querySelector('header .logo').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0})); await new Promise(z=>setTimeout(z,600)); out.push('outside='+(!isOpen()?'closes':'STAYS')); window.Panels.edit(${q(t0.file)}, ${q(t0.id)}); await new Promise(z=>setTimeout(z,600)); document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); await new Promise(z=>setTimeout(z,600)); out.push('esc='+(!isOpen()?'closes':'STAYS')); document.getElementById('btn-share').click(); await new Promise(z=>setTimeout(z,600)); const sh=window.Panels.kind; document.getElementById('side-close').click(); await new Promise(z=>setTimeout(z,600)); out.push('share='+sh+' x='+(!isOpen()?'closes':'STAYS')); return out.join(' '); })()`);
+            // panel subtasks (owner 2026-09-28): [ ] ticks, the text renames in place; ONE Undo rolls back both. The panel floats OVER the list at half the window.
+            const withSubs = snapshot().sections.flatMap(s => s.items).find(t => t.file === 'work' && t.subs.length >= 1);
+            if (withSubs) {
+              const before2 = fs.readFileSync(state.settings.workPath, 'utf8');
+              await step('panel-subtasks', `(async()=>{ const mainW0=document.querySelector('main').getBoundingClientRect().width; window.Panels.edit(${q(withSubs.file)}, ${q(withSubs.id)}); await new Promise(z=>setTimeout(z,800)); const side=document.getElementById('side').getBoundingClientRect(); const mainW1=document.querySelector('main').getBoundingClientRect().width; const li=document.querySelector('#ed-subs li[data-sub]'); if(!li) return 'no-sub'; li.querySelector('.st').click(); await new Promise(z=>setTimeout(z,100)); const inp=document.querySelector('#ed-subs .sub-edit'); if(!inp) return 'NO-RENAME-FIELD'; inp.value='E2E renamed sub'; inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true})); await new Promise(z=>setTimeout(z,900)); const li2=[...document.querySelectorAll('#ed-subs li[data-sub]')].find(x=>x.dataset.sub==='E2E renamed sub'); if(!li2) return 'RENAME-NOT-SHOWN'; const was=li2.querySelector('.sb').textContent; li2.querySelector('[data-subtick]').click(); await new Promise(z=>setTimeout(z,900)); const li3=[...document.querySelectorAll('#ed-subs li[data-sub]')].find(x=>x.dataset.sub==='E2E renamed sub'); return 'half='+(Math.abs(side.width-innerWidth/2)<4?'yes':'NO('+Math.round(side.width)+'/'+innerWidth+')')+' overlay='+(Math.abs(mainW1-mainW0)<2?'yes':'SHRANK')+' renamed=yes tick '+was+'→'+(li3?li3.querySelector('.sb').textContent:'gone')+' toast='+!document.getElementById('undo-toast').hidden; })()`);
+              const mid2 = fs.readFileSync(state.settings.workPath, 'utf8');
+              LOG('UTEST panel-subtasks(note): renamed=' + mid2.includes('E2E renamed sub'));
+              await step('panel-subtasks-undo', `(async()=>{ const b=document.querySelector('#undo-toast [data-undo]'); if(!b) return 'no-toast'; const lbl=document.querySelector('#undo-toast .undo-label').textContent; b.click(); await new Promise(z=>setTimeout(z,900)); window.Panels.close(); await new Promise(z=>setTimeout(z,500)); return 'undone ['+lbl+']'; })()`);
+              LOG('UTEST panel-subtasks-roundtrip: ' + (fs.readFileSync(state.settings.workPath, 'utf8') === before2 ? 'byte-identical' : 'CHANGED'));
+            }
           }
-          await step('open-share',`(async()=>{ document.getElementById('btn-share').click(); await new Promise(r=>setTimeout(r,900)); return 'clicked'; })()`);
-          const shStep = (name, js) => (shareWin && shareWin.webContents.executeJavaScript(js))
-            .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));
+          // the tab lens (owner: "correct, not buggy"): it lands exactly under the active tab, moves on PRESS, and snaps back when a press slides off
+          await step('tab-lens', `(async()=>{ const cur=document.querySelector('.tab-cursor'); const fit=t=>{ const a=cur.getBoundingClientRect(), b=t.getBoundingClientRect(); return Math.abs((a.left+a.width/2)-(b.left+b.width/2))<1.5 && Math.abs(a.width-b.width)<b.width*0.08; }; const out=[]; document.getElementById('tab-personal').click(); await new Promise(z=>setTimeout(z,700)); out.push('personal='+(fit(document.getElementById('tab-personal'))?'fits':'OFF')); const done=document.getElementById('tab-done'); done.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0})); await new Promise(z=>setTimeout(z,700)); out.push('press-moves='+(fit(done)?'yes':'NO')); window.dispatchEvent(new PointerEvent('pointerup',{bubbles:true})); await new Promise(z=>setTimeout(z,700)); out.push('slide-off-snaps-back='+(fit(document.getElementById('tab-personal'))?'yes':'NO')); await refresh(); await new Promise(z=>setTimeout(z,80)); out.push('refresh-no-slide='+(fit(document.getElementById('tab-personal'))?'yes':'NO')); document.getElementById('tab-work').click(); await new Promise(z=>setTimeout(z,700)); out.push('work='+(fit(document.getElementById('tab-work'))?'fits':'OFF')); const a=cur.getBoundingClientRect(), b=document.getElementById('tab-work').getBoundingClientRect(); out.push('vis='+document.visibilityState+' cur='+Math.round(a.left)+'/'+Math.round(a.width)+' tab='+Math.round(b.left)+'/'+Math.round(b.width)); return out.join(' '); })()`);
+          await step('open-share',`(async()=>{ document.getElementById('btn-share').click(); await new Promise(z=>setTimeout(z,900)); return 'panel='+window.Panels.kind+' windows-stay-one'; })()`);
+          LOG('UTEST open-share(main): windows=' + BrowserWindow.getAllWindows().length);
+          const shStep = step;
           await shStep('share-pick+copy-wa', `(async()=>{ const rows=document.querySelectorAll('.sh-row'); if(rows.length<2) return 'need-2-rows:'+rows.length; rows[0].click(); await new Promise(r=>setTimeout(r,150)); rows[rows.length-1].click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return document.querySelectorAll('.sh-row.sel').length + ' selected'; })()`);
           LOG('CLIP-WA: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
-          await shStep('share-fmt-md+copy', `(async()=>{ document.querySelector('.seg-btn[data-fmt=md]').click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return 'ok'; })()`);
+          await shStep('share-fmt-md+copy', `(async()=>{ document.querySelector('#fmt-seg .seg-btn[data-fmt=md]').click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return 'ok'; })()`);
           LOG('CLIP-MD: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
+          await closePanel();
           if (process.env.TODO_ISLAND_USERDATA) { // sandbox only: a vanished note must be admitted honestly, in both surfaces
             const wp = state.settings.workPath;
             fs.renameSync(wp, wp + '.gone');

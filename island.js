@@ -1,5 +1,8 @@
 'use strict';
 let snap = null, expanded = false, pinned = false;
+// few first, more on scroll (owner 2026-09-28, round 2 — the "N more" pill is gone): every appearance lists ISLAND_FEW
+// tasks; scrolling down (wheel, or ↓ past the last row) loads up to ISLAND_CAP; past that, one line to the tasks window.
+const ISLAND_FEW = 5, ISLAND_CAP = 10;
 let dismissT = null;
 let islandHovered = false; // pointer anywhere on the island window → the timer sits FULL, whatever you click
 let counting = false; // a dismiss countdown is running (re-renders never restart or pause it)
@@ -144,20 +147,19 @@ function render() {
     html += `<div class="hint">${esc(T('isl.hint.star')).replace(/\[ \]/g, '<span class="kbd">[ ]</span>')}</div>`;
   }
 
+  // collapsed: ISLAND_FEW tasks in all; expanded (you scrolled): ISLAND_CAP, scrolling inside #body's cap
+  let budget = expanded ? ISLAND_CAP : ISLAND_FEW, shown = 0;
   for (const sec of sections) {
     const rest = sec.items.filter(t => !t.active);
-    const items = expanded ? rest : rest.slice(0, 3);
-    if (!items.length && !expanded) continue;
+    const items = rest.slice(0, budget);
+    budget -= items.length; shown += items.length;
+    if (!items.length) continue;
     html += `<div class="sec"><span class="hash">##</span> ${esc(sec.name === 'Work' ? T('isl.sec.work') : T('isl.sec.personal'))}</div>` + items.map(rowHtml).join('');
   }
-  // one expand control, at the very bottom of the list — standard "show more" pattern
-  const hiddenCount = flat.filter(t => !t.active).length -
-    sections.reduce((n, sec) => n + Math.min(3, sec.items.filter(t => !t.active).length), 0);
-  if (expanded) {
-    html += `<div class="expand-row" id="expand-toggle"><svg class="ic" viewBox="0 0 24 24"><path d="M18 15l-6-6-6 6"/></svg>${T('isl.expand.less')}</div>`;
-  } else if (hiddenCount > 0) {
-    html += `<div class="expand-row" id="expand-toggle">${T('isl.expand.all', { n: flat.length })}<svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></div>`;
-  }
+  // no button: a collapsed list with more behind it fades at its bottom edge (the hint), and scrolling loads the rest
+  const hiddenCount = flat.filter(t => !t.active).length - shown;
+  $('body').classList.toggle('has-more', !expanded && hiddenCount > 0);
+  if (expanded && hiddenCount > 0) html += `<div class="more-rest" data-open-tasks role="button">${esc(T('isl.expand.rest', { n: hiddenCount }))}<svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></div>`;
   $('body').innerHTML = html;
   if (hoverRowId) { // hover-unfold survives snapshot re-renders (re-applied to the same task)
     const again = $('body').querySelector(`.row[data-id="${CSS.escape(hoverRowId)}"]`);
@@ -247,12 +249,21 @@ $('body').addEventListener('mouseover', e => {
     scheduleResize(300);
   }, sec * 1000);
 });
-$('body').addEventListener('mouseover', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
+const SD_OPEN_MS = 1000 + 500; // the done-subtasks fold: 1 s rest + its reveal (island.css .sd-wrap)
+$('body').addEventListener('mouseover', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(SD_OPEN_MS); });
 $('body').addEventListener('mouseout', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
 $('body').addEventListener('mouseout', e => {
   const row = e.target.closest('.row, .active-card');
   if (row && hoverRow === row && !row.contains(e.relatedTarget) && !etab.owns(e.relatedTarget)) clearHover();
 });
+
+// scroll = more: the collapsed list is short enough not to scroll, so a wheel-down on it is the ask
+function showMore() {
+  if (expanded || !$('body').classList.contains('has-more')) return false;
+  expanded = true; render();
+  return true;
+}
+$('body').addEventListener('wheel', e => { if (e.deltaY > 0) showMore(); }, { passive: true });
 
 // drag & drop reorder — same semantics as the main window (drop on a row = insert before it)
 let dragId = null, lastOver = null;
@@ -293,7 +304,7 @@ $('body').addEventListener('dragend', () => {
 
 // clicks never write as a side effect of looking: row = open the editor; explicit [ ] / ☆ / Done / Not now controls write
 document.addEventListener('click', e => {
-  if (e.target.closest('#expand-toggle')) { window.SFX.play('tick'); expanded = !expanded; render(); return; }
+  if (e.target.closest('[data-open-tasks]')) { window.SFX.play('tick'); window.api.openWindow(); retract(); return; }
   if (e.target.closest('[data-open-settings]')) { window.api.openWindow('settings'); return; }
   const sub = e.target.closest('[data-sub]');
   if (sub) { // tick a subtask — works in hover-unfold rows AND in Now cards
@@ -302,7 +313,7 @@ document.addEventListener('click', e => {
     const row = sub.closest('.row');
     const file = row ? row.dataset.file : sub.dataset.file;
     const parent = row ? row.dataset.id : sub.dataset.parent;
-    window.api.toggleSubtask(file, parent, sub.dataset.sub);
+    window.api.toggleSubtask(file, parent, sub.dataset.sub, 'isl' + Date.now()); // a one-off session: every subtask tick gets its own Undo
     return;
   }
   const edit = e.target.closest('[data-edit]');
@@ -365,6 +376,8 @@ function editFromIsland(file, id) {
 }
 window.api.onShown(info => {
   retracting = false;
+  if (expanded) { expanded = false; if (snap) render(); } // each appearance starts with the few (owner 2026-09-28)
+  $('body').scrollTop = 0;
   // hover is only trusted if the island was already up; a fresh pop starts un-hovered and counts down at once
   islandHovered = info.fresh && document.documentElement.matches(':hover');
   counting = false; armDismiss(); // every show: a fresh full countdown (or held full, if the pointer is already on it)
@@ -379,7 +392,9 @@ window.api.onShown(info => {
 // gradient — and every glass layer stays on top: the lens bends it at the edges, the frost (--g-alpha) covers it at
 // the chosen level, the rim, arc and inner shading give it thickness.
 // Painted only when something changes (size, theme, light/dark); nothing runs per frame.
-const GLASS_ALPHA = [1, 0.8, 0.65, 0.5, 0.35]; // Frost (Settings → Glass): 0 = solid · 1–4 = 20/35/50/65 % of the theme shows
+// Softer (owner 2026-09-28): every step frosts thicker than before (was .8/.65/.5/.35) and the picture is desaturated
+// (island.css .gl-bd saturate(--isl-sat)). The clearest step is now .5 — exactly what the contrast gate checks.
+const GLASS_ALPHA = [1, 0.85, 0.75, 0.62, 0.5]; // Frost (Settings → Glass): 0 = solid · 1–4 = 15/25/38/50 % of the theme shows
 const GL_PAD = 16; // the backdrop canvas overhangs the pill so the blur never pulls in transparent edges
 // mesh gradients: four soft color points over a base, as fractions of the pill box ([color, x, y, rx, ry]).
 // Colors are tokens (--bg-<theme>-0..4, light + dark in tokens.css, gated by contrast.js).
@@ -520,7 +535,11 @@ document.addEventListener('keydown', e => {
   if (!el || e.target !== el) return;
   const navs = [...$('body').querySelectorAll('[data-nav]')], i = navs.indexOf(el);
   const k = e.key;
-  if (k === 'ArrowDown' || k === 'ArrowUp') { e.preventDefault(); const n = navs[i + (k === 'ArrowDown' ? 1 : -1)]; if (n) n.focus(); return; }
+  if (k === 'ArrowDown' || k === 'ArrowUp') {
+    e.preventDefault();
+    if (k === 'ArrowDown' && i === navs.length - 1 && showMore()) { const m = [...$('body').querySelectorAll('[data-nav]')]; if (m[i + 1]) m[i + 1].focus(); return; } // ↓ past the last row = scroll for more
+    const n = navs[i + (k === 'ArrowDown' ? 1 : -1)]; if (n) n.focus(); return;
+  }
   const isCard = el.classList.contains('active-card');
   const id = isCard ? el.dataset.card : el.dataset.id, file = el.dataset.file;
   if (k === 'Enter') { e.preventDefault(); editFromIsland(file, id); return; }

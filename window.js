@@ -37,6 +37,10 @@ function renderList() {
   $('done-head').hidden = !isDone;
   $('composer').hidden = isDone; // nothing to add to the Done list
   const hadFocus = $('task-list').contains(document.activeElement);
+  // Open note: the shown tab's own .md in the default editor (owner 2026-09-28); the Done tab mixes both notes, so none
+  const openBtn = $('btn-open-note');
+  openBtn.hidden = isDone;
+  if (!isDone) openBtn.title = T('win.openNoteTitle', { f: (snap.sources || {})[currentTab] || currentTab });
   if (isDone) { renderDone(q); markFresh(); settleFocus(hadFocus); restRestore(); $('btn-fold-all').hidden = true; return; }
   const all = taskRows();
   const rows = all.filter(t => matches(t, q));
@@ -45,17 +49,17 @@ function renderList() {
     const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && !closedRows.has(t.id);
     const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
       ${(t.notes || []).map(n => `<div class="wdesc">${esc(n)}</div>`).join('')}
-      ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span><span class="st">${esc(s.t)}</span></div>`).join('')}
+      ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span><span class="st">${esc(s.t)}</span></div>`).join('')}
     </div></div>` : '';
     return `
-    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}" draggable="true">
+    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
       <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(t.title)}"></button>
       <div class="wrow-main">
         <span class="wtitle"><span class="tt">${esc(t.title)}</span></span>
         ${expandBody}
         ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
       </div>
-      <span class="wmeta"><span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}${hasDetail ? `<button class="wexp ${open ? 'open' : ''}" data-exp="${esc(t.id)}" title="${open ? 'Collapse' : 'Expand'}" aria-label="${open ? 'Collapse task' : 'Expand task'}"><svg class="ic" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>` : ''}<span class="wacts"><button class="wtrash" data-del="${esc(t.id)}" data-file="${t.file}" type="button" title="Delete" aria-label="Delete task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></span>
+      <span class="wmeta"><span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
     </div></div></div>`;
   }).join('') || emptyState(q);
   markFresh();
@@ -63,11 +67,13 @@ function renderList() {
   restRestore();
   foldAllLabel(rows);
 }
-// ---- rest on a row (the island's hoverSec): the corner Edit tab (owner pick "D", 2026-09-28), the row's quiet actions
-// (⌄ expand · delete) and its full title all arrive together. Passing over rows on the way to another shows none of it.
+// ---- rest on a row: the corner Edit + Delete tabs (owner pick "D", 2026-09-28) and the full title arrive together.
+// The tasks window is where you edit, so the rest is short (REST_MS, owner 2026-09-28); the island keeps hoverSec.
+const REST_MS = 200;
 let restRow = null, restT = null, restId = null, restTab = null;
 const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySelector('.list-sheet'), {
-  onEdit: r => window.api.openEditor(r.dataset.file, r.dataset.id),
+  onEdit: r => window.Panels.edit(r.dataset.file, r.dataset.id),
+  onDelete: async r => { window.SFX.play('delete'); restClear(); await window.api.deleteTask(r.dataset.id, r.dataset.file); await refresh(); },
   onLeave: () => restClear()
 }));
 function restClear() {
@@ -160,16 +166,41 @@ function updateTabCounts() {
   $('tab-work').innerHTML = label('work', T('win.tab.work'));
   $('tab-personal').innerHTML = label('personal', T('win.tab.personal'));
   $('tab-done').innerHTML = `${T('win.tab.done')}<span class="cnt">${(snap.done || []).length}</span>`;
-  moveTabCursor();
+  moveTabCursor(false);
 }
-// M6 — the glass lens slides behind the active tab (spring easing lives in CSS: --ease-spring)
-function moveTabCursor() {
-  const cur = document.querySelector('.tab-cursor'), act = document.querySelector('nav .tab.active');
-  if (!cur || !act) return;
+// the liquid lens behind the active tab (owner 2026-09-28: "correct, not buggy"). It answers the PRESS: on pointer-down
+// it moves under the pressed tab and squeezes a touch; the click then commits (showTab), a press that slides off
+// snaps it back. slide = true only for a real tab change — the first placement, a count update, a language or window
+// size change JUMP, so the lens never slides in from the left edge or re-animates on every snapshot.
+let lensTab = null;
+function moveTabCursor(slide = false, to = null) {
+  const cur = document.querySelector('.tab-cursor'), act = to || document.querySelector('nav .tab.active');
+  if (!cur || !act || !act.offsetWidth) return;
+  const jump = !slide || !lensTab;
+  if (jump) cur.classList.add('jump');
   cur.style.width = act.offsetWidth + 'px';
-  cur.style.transform = `translateX(${act.offsetLeft}px)`;
+  cur.style.setProperty('--x', act.offsetLeft + 'px');
+  lensTab = act;
+  if (jump) { void cur.offsetWidth; cur.classList.remove('jump'); }
 }
-window.addEventListener('resize', moveTabCursor);
+window.addEventListener('resize', () => moveTabCursor(false));
+{
+  const nav = document.querySelector('header nav'), cur = document.querySelector('.tab-cursor');
+  nav.addEventListener('pointerdown', e => {
+    const t = e.target.closest('.tab');
+    if (!t || e.button !== 0) return;
+    cur.classList.add('press');
+    moveTabCursor(true, t); // respond on press, not on release
+  });
+  const release = () => {
+    if (!cur.classList.contains('press')) return;
+    cur.classList.remove('press');
+    setTimeout(() => moveTabCursor(true), 0); // after the click (if any) set the active tab — a press that slid off snaps back
+  };
+  window.addEventListener('pointerup', release);
+  window.addEventListener('pointercancel', release);
+  window.addEventListener('blur', release);
+}
 function renderChrome() { // status mark, error strip, status line — the notes-are-the-state layer
   const errs = snap.errors || [];
   const nowCount = snap.sections.flatMap(s => s.items).filter(t => t.active).length;
@@ -260,9 +291,12 @@ $('btn-fold-all').addEventListener('click', () => {
 $('task-list').addEventListener('mouseover', e => {
   const row = e.target.closest('.wrow');
   if (!row || row === restRow) return;
-  restClear(); restRow = row; // resting starts now; restOn lands after hoverSec
-  const sec = Math.max(0.2, (snap && snap.settings && snap.settings.hoverSec) || 1);
-  restT = setTimeout(() => { if (row.isConnected) restOn(row); }, sec * 1000);
+  restClear(); restRow = row; // resting starts now; restOn lands after REST_MS
+  const id = row.dataset.id;
+  restT = setTimeout(() => { // a refresh during the rest re-renders the rows: follow the same task, not the old element
+    const r = row.isConnected ? row : [...document.querySelectorAll('#task-list .wrow')].find(x => x.dataset.id === id);
+    if (r) restOn(r);
+  }, REST_MS);
 });
 $('task-list').addEventListener('mouseout', e => {
   const row = e.target.closest('.wrow');
@@ -284,7 +318,7 @@ $('task-list').addEventListener('keydown', async e => {
   }
   if (k === 'Delete') { e.preventDefault(); focusIndex = i; window.SFX.play('delete'); await window.api.deleteTask(id, file); await refresh(); return; }
   if (done) { if (k === 'r' || k === 'Enter') { e.preventDefault(); window.SFX.play('add'); await window.api.uncomplete(id, file); await refresh(); } return; }
-  if (k === 'Enter') { e.preventDefault(); window.api.openEditor(file, id); return; }
+  if (k === 'Enter') { e.preventDefault(); window.Panels.edit(file, id); return; }
   if (k === ' ' || k === 'x') { e.preventDefault(); focusIndex = i; const chk = row.querySelector('.chk'); if (!chk.classList.contains('checked')) completeWithInk(chk); return; }
   if (k === '*' || k === 's') { e.preventDefault(); window.SFX.play(row.classList.contains('is-now') ? 'starOff' : 'starOn'); await window.api.toggleActive(id, file); await refresh(); return; }
   if (['0', '1', '2', '3'].includes(k)) {
@@ -295,28 +329,36 @@ $('task-list').addEventListener('keydown', async e => {
     await refresh();
   }
 });
+function toggleRow(id) {
+  window.SFX.play('tick');
+  closedRows.has(id) ? closedRows.delete(id) : closedRows.add(id);
+  renderList();
+}
 async function onListAction(e) {
   const chk = e.target.closest('[data-chk]');
   if (chk) { if (!chk.classList.contains('checked')) completeWithInk(chk); return; }
   const exp = e.target.closest('[data-exp]');
-  if (exp) {
-    window.SFX.play('tick');
-    const id = exp.dataset.exp;
-    closedRows.has(id) ? closedRows.delete(id) : closedRows.add(id);
-    renderList();
+  if (exp) { toggleRow(exp.dataset.exp); return; }
+  // subtask: its [ ] bracket ticks; the text opens the task's editor (owner 2026-09-28: the window is for editing)
+  const sub = e.target.closest('[data-sub]');
+  if (sub) {
+    if (e.target.closest('[data-subtick]')) { window.SFX.play('tick'); await window.api.toggleSubtask(sub.dataset.file, sub.dataset.parent, sub.dataset.sub, 'win' + Date.now()); await refresh(); } // a one-off session = its own Undo
+    else window.Panels.edit(sub.dataset.file, sub.dataset.parent);
     return;
   }
-  const sub = e.target.closest('[data-sub]');
-  if (sub) { window.SFX.play('tick'); await window.api.toggleSubtask(sub.dataset.file, sub.dataset.parent, sub.dataset.sub); await refresh(); return; }
   const del = e.target.closest('[data-del]');
   if (del) { window.SFX.play('delete'); await window.api.deleteTask(del.dataset.del, del.dataset.file); await refresh(); return; }
   const res = e.target.closest('[data-restore]');
   if (res) { window.SFX.play('add'); await window.api.uncomplete(res.dataset.restore, res.dataset.file); await refresh(); return; }
+  // row click = open / fold its notes + subtasks (the ⌄ button is gone); a row with nothing to open goes to the editor
   const row = e.target.closest('.wrow');
-  if (row && !row.classList.contains('done')) { window.api.openEditor(row.dataset.file, row.dataset.id); }
+  if (!row || row.classList.contains('done')) return;
+  if (row.classList.contains('has-detail')) { toggleRow(row.dataset.id); return; }
+  window.Panels.edit(row.dataset.file, row.dataset.id);
 }
 
-$('btn-share').addEventListener('click', () => window.api.openShare());
+$('btn-share').addEventListener('click', () => { window.SFX.play('tick'); window.Panels.share(); });
+$('btn-open-note').addEventListener('click', () => { if (currentTab === 'work' || currentTab === 'personal') window.api.openNote(currentTab); });
 $('btn-update').addEventListener('click', () => window.api.openUpdate());
 $('btn-rerun-setup').addEventListener('click', () => { window.SFX.play('tick'); window.api.openOnboard(); }); // the wizard merges over current settings — cancel changes nothing
 $('btn-reset-settings').addEventListener('click', async () => { // settings only: note files are never created, deleted, or modified
@@ -456,7 +498,7 @@ function showTab(tab) {
   localStorage.setItem('ti-tab', tab); // remember where you left off
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   $('tab-' + tab).classList.add('active');
-  moveTabCursor();
+  moveTabCursor(true);
   $('view-tasks').hidden = false; $('view-settings').hidden = true;
   renderList();
 }
@@ -604,7 +646,7 @@ async function loadSettings() {
 $('tab-settings').addEventListener('click', async () => {
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
   $('tab-settings').classList.add('active');
-  moveTabCursor();
+  moveTabCursor(true);
   $('view-tasks').hidden = true; $('view-settings').hidden = false;
   await saveChain; await loadSettings(); // a save still in flight lands first, then the form shows what is stored
 });

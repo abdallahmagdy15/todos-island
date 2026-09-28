@@ -35,6 +35,7 @@
           <button class="search-clear" id="search-clear" type="button" hidden data-i18n-aria="win.search.clear" data-i18n-title="win.search.clearTitle">&times;</button>
         </div>
         <button class="btn-soft sm fold-all" id="btn-fold-all" type="button" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></svg><span class="fold-t"></span></button>
+        <button class="btn-soft sm open-note" id="btn-open-note" type="button" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span data-i18n="win.openNote">Open note</span></button>
         </div>
         <div class="list-head" id="done-head" hidden>
           <h3 class="md-h"><span class="hash">##</span> <span data-i18n="win.tab.done">Done</span> <span class="md-count" id="done-count"></span></h3>
@@ -123,10 +124,10 @@
           <div class="sctl">
             <div class="steps" id="glass-steps" role="radiogroup" aria-labelledby="glass-lbl">
               <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.glass.solid">Solid</button>
-              <button class="step" type="button" role="radio" data-glass="1">20%</button>
-              <button class="step" type="button" role="radio" data-glass="2">35%</button>
-              <button class="step" type="button" role="radio" data-glass="3">50%</button>
-              <button class="step" type="button" role="radio" data-glass="4">65%</button>
+              <button class="step" type="button" role="radio" data-glass="1">15%</button>
+              <button class="step" type="button" role="radio" data-glass="2">25%</button>
+              <button class="step" type="button" role="radio" data-glass="3">38%</button>
+              <button class="step" type="button" role="radio" data-glass="4">50%</button>
             </div>
           </div>
         </div>
@@ -294,6 +295,78 @@
     <div class="kp-row"><kbd>?</kbd><span data-i18n="keys.list">this list</span></div>
   </div>
 
+  <!-- side panel (owner 2026-09-28): Edit and Share open HERE, never in a new window. Slides in from the end edge;
+       ✕, Esc or a click outside closes it. panels.js -->
+  <aside class="side" id="side" aria-hidden="true" role="dialog" aria-labelledby="side-title">
+    <div class="side-head">
+      <span class="mark" id="ed-mark" aria-hidden="true"></span>
+      <h2 class="side-title" id="side-title"></h2>
+      <span id="ed-badge" class="badge" hidden></span>
+      <button class="hdr-btn side-x" id="side-close" type="button" data-i18n-title="side.close" data-i18n-aria="side.close"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="side-body" id="side-edit" hidden>
+      <div class="side-scroll">
+        <p class="empty" id="ed-missing" hidden data-i18n="ed.missing">Task not found — it may have been completed or removed.</p>
+        <div id="ed-form">
+          <div class="field"><label for="ed-title"><span data-i18n="ed.task">Task</span> <span class="label-hint" data-i18n="ed.task.hint">— first line is the title, lines below become its description</span></label>
+            <textarea id="ed-title" rows="1" spellcheck="false"></textarea>
+          </div>
+          <div class="field"><label data-i18n="win.lbl.priority">Priority</label>
+            <div class="chips" id="ed-prio" aria-label="Priority"></div>
+          </div>
+          <div class="field"><label data-i18n="ed.now">Now</label>
+            <button class="chip" id="ed-active" type="button" aria-pressed="false" data-i18n="ed.now.chip">&#9733; Working on it</button>
+          </div>
+          <div class="field"><label data-i18n="win.lbl.due">Due</label>
+            <div class="chips" id="ed-due" aria-label="Due date"></div>
+          </div>
+          <div class="field"><label for="ed-sub" data-i18n="ed.sub">Subtasks</label>
+            <ul class="subs-list" id="ed-subs"></ul>
+            <div class="addsub"><input type="text" id="ed-sub" data-i18n-ph="ed.sub.ph"><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button></div>
+          </div>
+        </div>
+      </div>
+      <div class="side-foot" id="ed-foot">
+        <div class="ed-preview"><span class="pv-label" data-i18n="win.pv.label">will write</span><code id="ed-preview-line"></code></div>
+        <div class="ed-actions">
+          <div class="menu-wrap">
+            <button class="btn-soft btn-icon" id="ed-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="ed-menu" data-i18n-title="ed.more" data-i18n-aria="ed.more.aria">
+              <svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
+            </button>
+            <div class="menu" id="ed-menu" role="menu" hidden>
+              <button role="menuitem" id="ed-up" type="button" data-i18n="ed.up">Move up</button>
+              <button role="menuitem" id="ed-down" type="button" data-i18n="ed.down">Move down</button>
+              <hr>
+              <button role="menuitem" id="ed-delete" class="danger" type="button" data-i18n="ed.del">Delete task</button>
+            </div>
+          </div>
+          <span class="saved" id="ed-saved" role="status" aria-live="polite"></span>
+          <button class="btn-soft" id="ed-complete" type="button">
+            <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="ed.complete">Complete</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="side-body" id="side-share" hidden>
+      <div class="sh-tools">
+        <div class="seg" id="fmt-seg">
+          <button class="seg-btn sel" data-fmt="wa" type="button">WhatsApp</button>
+          <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
+        </div>
+        <button id="sel-all" class="btn-text" type="button" data-i18n="sh.all">Select all</button>
+        <button id="sel-clear" class="btn-text" type="button" data-i18n="sh.clear">Clear</button>
+      </div>
+      <div class="side-scroll" id="share-list"></div>
+      <div class="side-foot">
+        <div class="sh-status"><span class="sel-hint" id="sel-hint" data-i18n="sh.selHint">Select tasks to share</span><span id="share-note" class="note-inline" role="status"></span></div>
+        <div class="ed-actions">
+          <button id="btn-export" class="btn-soft" type="button" disabled data-i18n="sh.export">Export .md</button>
+          <button id="btn-copy" class="btn-accent" type="button" disabled data-i18n="sh.copy">Copy</button>
+        </div>
+      </div>
+    </div>
+  </aside>
+
   <div id="undo-toast" class="toast" hidden role="status" aria-live="polite"></div>
   <div id="notice" class="notice" hidden role="status" aria-live="polite"></div>
   <script src="sfx.js"></script>
@@ -302,6 +375,7 @@
 <script src="locales/ar.js"></script>
 <script src="lib/i18n.js"></script>
 <script src="ui-shared.js"></script>
+  <script src="panels.js"></script>
   <script src="window.js"></script>
 </body>
 </html>

@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const APP = __dirname + '/..';
 
-const WINDOWS = ['window.html', 'island.html', 'editor.html', 'share.html', 'onboard.html'];
+const WINDOWS = ['window.html', 'island.html', 'onboard.html']; // Edit + Share are window.html's side panel (v1.13)
 // classes added at runtime by JS (states, animation hooks) — no static rule expected
 const ALLOW = new Set([
   'active', 'sel', 'checked', 'hovered', 'pinned', 'expanded', 'striking', 'flash', 'invalid',

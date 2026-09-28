@@ -95,17 +95,23 @@ function saturate(c, s) {
 function themeVars(vars) {
   const v = { ...vars, 'frost-min': `rgba(${resolve(vars, 'g-base')}, 0.5)` };
   const paper = parseColor(resolve(vars, 'paper')), sceneA = +resolve(vars, 'scene-a');
-  const sceneSat = +resolve(vars, 'scene-sat'), glassSat = +resolve(vars, 'glass-sat');
+  const sceneSat = +resolve(vars, 'scene-sat'), glassSat = +resolve(vars, 'glass-sat'), islSat = +resolve(vars, 'isl-sat');
   for (const t of BG_THEMES) for (let i = 0; i <= 4; i++) {
-    const point = saturate(parseColor(resolve(vars, `bg-${t}-${i}`)), sceneSat);
-    v[`scene-${t}-${i}`] = hex(saturate(over({ ...point, a: sceneA }, paper), glassSat)); // what a panel frosts
+    const raw = parseColor(resolve(vars, `bg-${t}-${i}`)), point = saturate(raw, sceneSat);
+    const bare = over({ ...point, a: sceneA }, paper);
+    v[`bare-${t}-${i}`] = hex(bare); // the scene as the window shows it — text sits right on it (no containers, v1.13)
+    v[`scene-${t}-${i}`] = hex(saturate(bare, glassSat)); // what the composer / side panel frosts
+    v[`isl-${t}-${i}`] = hex(saturate(raw, islSat)); // the island's softened picture
   }
   return v;
 }
 const THEME_CHECKS = [];
 for (const t of BG_THEMES) {
-  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'p2', 'p3']) THEME_CHECKS.push([fg, `frost-min over bg-${t}-${i}`, 4.5, true]);
-  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'glass-p2', 'glass-p3', 'glass-ok']) for (const sfc of ['sheet', 'chrome-min']) THEME_CHECKS.push([fg, `${sfc} over scene-${t}-${i}`, 4.5, true]);
+  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'p2', 'p3']) THEME_CHECKS.push([fg, `frost-min over isl-${t}-${i}`, 4.5, true]);
+  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'glass-p2', 'glass-p3', 'glass-ok']) {
+    for (const sfc of ['sheet', 'chrome-min']) THEME_CHECKS.push([fg, `${sfc} over scene-${t}-${i}`, 4.5, true]);
+    THEME_CHECKS.push([fg, `bare-${t}-${i}`, 4.5, true]); // no containers: list text, headings and the status line sit on the scene itself
+  }
 }
 
 let fails = 0, total = 0;

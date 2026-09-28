@@ -2,7 +2,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   onSnapshot: cb => ipcRenderer.on('snapshot', (_e, d) => cb(d)),
   toggleActive: (id, file) => ipcRenderer.invoke('toggle-active', id, file),
-  toggleSubtask: (file, parentId, title) => ipcRenderer.invoke('toggle-subtask', file, parentId, title),
+  toggleSubtask: (file, parentId, title, session) => ipcRenderer.invoke('toggle-subtask', file, parentId, title, session),
   complete: (id, file) => ipcRenderer.invoke('complete', id, file),
   undoAction: token => ipcRenderer.invoke('undo-action', token),
   undoExpire: token => ipcRenderer.invoke('undo-expire', token),

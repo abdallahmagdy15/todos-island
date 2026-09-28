@@ -1,4 +1,4 @@
-/* window.css — tasks window (editor.html + share.html load it too). Colors, sizes, radii, motion: tokens.css only. */
+/* window.css — tasks window (and the onboarding window's controls). Colors, sizes, radii, motion: tokens.css only. */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 [hidden] { display: none !important; }
 
@@ -36,11 +36,18 @@ nav { position: relative; margin-inline-start: auto; -webkit-app-region: no-drag
 .tab.active { color: var(--ink); }
 .tab .cnt { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); margin-inline-start: 5px; }
 .tab .cnt.bad { color: var(--p3); font-weight: 700; }
-/* M6: the raised glass lens (tokens.css — THE selected style) slides behind the active tab on a spring (one soft overshoot) */
+/* the liquid lens (tokens.css — THE selected style) behind the active tab (owner 2026-09-28: "correct, not buggy"):
+   it moves on pointer-DOWN to the pressed tab and squeezes a touch while held; position springs (--ease-spring, a tiny
+   overshoot), width is critically damped (a springy width read as wobble); first placement and count/label changes jump
+   (no slide in from the left edge, no re-animation on every snapshot). window.js moveTabCursor. */
 .tab-cursor {
   position: absolute; left: 0; top: 3px; bottom: 3px; width: 80px; border-radius: calc(var(--r-2) - 1px); pointer-events: none; z-index: 0;
-  transition: transform 560ms var(--ease-spring), width 560ms var(--ease-spring);
+  transform: translateX(var(--x, 0px)) scale(var(--s, 1));
+  transition: transform 460ms var(--ease-spring), width 300ms var(--ease-out);
 }
+.tab-cursor.press { --s: 0.94; transition: transform 460ms var(--ease-spring), width 300ms var(--ease-out); }
+.tab-cursor.jump { transition: none; }
+.tab:active:not(:disabled) { transform: none; filter: none; } /* the lens answers the press, not the label */
 .hdr-btn { -webkit-app-region: no-drag; margin-inline-start: var(--s-2); width: 32px; height: 32px; flex: none; }
 .hdr-btn .ic { width: 16px; height: 16px; }
 
@@ -66,15 +73,18 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
   padding: 9px 12px; margin-bottom: 2px; border-radius: var(--r-3); cursor: pointer;
   transition: background var(--d-1) ease, box-shadow var(--d-1) ease;
 }
-.wrow:hover { background: var(--sheen), var(--ctl); box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), 0 3px 10px -7px var(--drop); }
+.wrow:hover { background: var(--hover); } /* flat: rows are content, not controls (owner 2026-09-28: no containers) */
 .wrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; } /* inside: the fold clips outside */
 .wrow.dragging { opacity: 0.45; }
 .wrow.drop-above::before {
   content: ''; position: absolute; top: 0; left: 10px; right: 10px; height: 2px;
   background: var(--accent); border-radius: 1px;
 }
-/* the Now task wears the island's Now card */
-.wrow.is-now { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-border), inset 0 1px 0 var(--spec); margin-bottom: 6px; }
+/* the Now (staged) task (owner 2026-09-28): a FLAT whisper of the accent inside; the gloss lives on the rim only — a bright
+   top edge, a faint tinted ring, a bounce line at the bottom, a soft drop. A filled gradient read as "bumpy". */
+.wrow.is-now, .wrow.is-now:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); margin-bottom: 6px;
+  box-shadow: inset 0 1px 0 var(--lq-rim), inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent), inset 0 -1px 0 var(--lq-bounce),
+    0 1px 1px var(--lq-drop), 0 6px 14px -10px var(--lq-drop); }
 .wrow.is-now .wtitle { font-weight: 650; }
 .wrow-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .wrow .chk { /* the note's own [ ] — a 24px hit area; ticks to [x] while the ink strike runs */
@@ -120,23 +130,24 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .wdue.today { color: var(--accent); background: var(--accent-soft); }
 .wdue.overdue { color: var(--p3); background: color-mix(in srgb, var(--p3) 10%, transparent); }
 
-/* row actions: quiet glass icons (expand · delete) — edit is the corner tab */
-.wexp, .wtrash { width: 26px; height: 26px; flex: none; }
-/* ⌄ is always on screen and a bigger target (owner 2026-09-28: most rows get opened) — only delete waits for the rest */
-.wexp { width: 30px; height: 30px; margin: -3px -2px; }
+/* Done rows keep a quiet trash icon; open rows delete through the corner tab group (UI.editTab onDelete) */
+.wtrash { width: 26px; height: 26px; flex: none; }
+.wtrash .ic { width: 14px; height: 14px; stroke-width: 2; }
+/* the row itself opens and folds its details (owner 2026-09-28: no ⌄ button) */
+.wrow.has-detail { cursor: pointer; }
 .wsub[data-exp] { cursor: pointer; } .wsub[data-exp]:hover { color: var(--accent); }
-.wexp .ic, .wtrash .ic { width: 14px; height: 14px; stroke-width: 2; }
-.wexp .ic { transition: transform var(--d-2) var(--ease-out); }
-.wexp.open .ic { transform: rotate(180deg); }
 .wexp-body { display: grid; grid-template-rows: 1fr; animation: unfold var(--d-2) var(--ease-out) both; }
 .wexp-inner { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
 .wexp-inner > :first-child { margin-top: 6px; }
 @keyframes unfold { from { grid-template-rows: 0fr; opacity: 0; } to { grid-template-rows: 1fr; opacity: 1; } }
 .wdesc { font-size: var(--fs-2); color: var(--muted); line-height: 1.5; white-space: pre-wrap; }
-.wsubrow { font-size: var(--fs-2); color: var(--muted); cursor: pointer; padding: 2px 4px; margin: 0 -4px; border-radius: var(--r-1); display: flex; gap: 8px; align-items: baseline; }
+.wsubrow { font-size: calc(var(--fs-task) * 0.94); color: var(--muted); cursor: pointer; padding: 2px 4px; margin: 0 -4px; border-radius: var(--r-1); display: flex; gap: 8px; align-items: baseline; }
 .wsubrow:hover { color: var(--ink); background: var(--hover); }
-.wsubrow .sb { flex: none; font-family: var(--font-mono); font-weight: 700; color: var(--faint); letter-spacing: -0.5px; }
-.wsubrow:hover .sb { color: var(--accent); }
+.wsubrow .sb { flex: none; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--faint); letter-spacing: -0.5px; }
+.wsubrow:hover .sb { color: var(--muted); }
+/* subtask: only the [ ] ticks (it lights on its own hover); the text opens the editor (owner 2026-09-28) */
+.wsubrow .sb { cursor: pointer; border-radius: var(--r-1); }
+.wsubrow .sb:hover { color: var(--accent); background: var(--accent-soft); }
 .wsubrow.done .st { color: var(--faint); text-decoration: line-through; }
 
 /* M5 fresh ink: a just-added / just-restored row settles in with a fading highlight (opacity only) */
@@ -168,16 +179,16 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
   -webkit-backdrop-filter: blur(10px) saturate(1.8) brightness(1.05); backdrop-filter: blur(10px) saturate(1.8) brightness(1.05);
   box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), inset 0 -1px 0 var(--spec-bounce), inset 0 -9px 12px -11px var(--inner-shade),
     0 0 0 1px var(--ctl-line), 0 1px 1px var(--drop), 0 4px 10px -6px var(--drop);
-  transition: background var(--d-1) ease, box-shadow var(--d-1) ease, color var(--d-1) ease, transform var(--d-1) var(--ease-out);
+  transition: background var(--d-1) ease, box-shadow var(--d-1) ease, color var(--d-1) ease, filter var(--d-1) ease, transform var(--d-gel) var(--ease-gel);
 }
 .btn-soft:hover, .chip:hover, .recorder:hover, .addsub button:hover { --c: var(--ctl-hover); }
 /* quiet = icon/text actions inside bars and rows: no glass at rest, the same clear piece appears on hover */
-.hdr-btn, .wexp, .wtrash, .search-clear, .btn-text, .undo-btn, .st-keys {
+.hdr-btn, .wtrash, .search-clear, .btn-text, .undo-btn, .st-keys {
   display: inline-flex; align-items: center; justify-content: center;
   border: 0; border-radius: var(--r-2); background: transparent; color: var(--muted); cursor: pointer; font-family: inherit;
-  transition: background var(--d-1) ease, box-shadow var(--d-1) ease, color var(--d-1) ease, transform var(--d-1) var(--ease-out);
+  transition: background var(--d-1) ease, box-shadow var(--d-1) ease, color var(--d-1) ease, filter var(--d-1) ease, transform var(--d-gel) var(--ease-gel);
 }
-.hdr-btn:hover, .wexp:hover, .wtrash:hover, .search-clear:hover, .btn-text:hover, .undo-btn:hover, .st-keys:hover, .st-keys[aria-expanded="true"] {
+.hdr-btn:hover, .wtrash:hover, .search-clear:hover, .btn-text:hover, .undo-btn:hover, .st-keys:hover, .st-keys[aria-expanded="true"] {
   color: var(--ink); background: var(--sheen), var(--ctl-hover);
   box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), inset 0 -9px 12px -11px var(--inner-shade), 0 0 0 1px var(--ctl-line), 0 4px 10px -6px var(--drop);
 }
@@ -189,7 +200,7 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 80%, var(--gel-hi)), var(--accent) 60%);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 70%, #000 12%), inset 0 1px 0 var(--gel-hi),
     inset 0 -10px 14px -10px rgba(0, 0, 0, 0.28), 0 1px 1px var(--drop), 0 6px 14px -8px color-mix(in srgb, var(--accent) 70%, transparent);
-  transition: filter var(--d-1) ease, box-shadow var(--d-1) ease, transform var(--d-1) var(--ease-out);
+  transition: filter var(--d-1) ease, box-shadow var(--d-1) ease, transform var(--d-gel) var(--ease-gel);
 }
 .btn-accent:hover { filter: brightness(1.07) saturate(1.05); }
 /* sizes: md 32 px · sm 26 px, one radius, one icon size per size */
@@ -211,12 +222,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
 #search, .new-task textarea, .settings-card input[type=text],
 .settings-card select, .addsub input, #ed-title {
   color: var(--ink); border: 0; border-radius: var(--r-2); font-family: inherit; font-size: var(--fs-3);
-  background: rgba(var(--g-base), var(--well-a));
-  box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1px var(--rule), inset 0 -1px 0 var(--spec-bounce);
-  transition: box-shadow var(--d-1) ease;
+  background: var(--field); caret-color: var(--accent);
+  box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1px var(--rule), inset 0 -1px 0 var(--spec-bounce), 0 0 0 0 var(--accent-soft);
+  transition: box-shadow 200ms var(--ease-out), background 200ms ease; /* critically damped: focus never bounces */
 }
 #search:focus, .new-task textarea:focus, .settings-card input:focus, .settings-card select:focus, .addsub input:focus, #ed-title:focus {
-  outline: none; box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--accent-soft);
+  outline: none; background: color-mix(in srgb, var(--field) 55%, rgba(var(--sheet-rgb), 0.45));
+  box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1.5px var(--accent), inset 0 -1px 0 var(--spec-bounce), 0 0 0 3px var(--accent-soft);
 }
 input.invalid, textarea.invalid {
   box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1.5px var(--danger), 0 0 0 3px color-mix(in srgb, var(--danger) 15%, transparent) !important;
@@ -227,8 +239,8 @@ input.invalid, textarea.invalid {
 /* search + Expand all / Collapse all share one row above the list */
 .list-tools { display: flex; align-items: center; gap: var(--s-2); margin: var(--s-3) var(--s-3) 0; }
 .search-box { position: relative; display: flex; flex: 1; min-width: 0; }
-.list-tools .fold-all { flex: none; height: 34px; } /* same height as the search field beside it */
-.fold-all .ic { width: 14px; height: 14px; stroke-width: 2; }
+.list-tools .fold-all, .list-tools .open-note { flex: none; height: 34px; white-space: nowrap; } /* same height as the search field beside it */
+.fold-all .ic, .open-note .ic { width: 14px; height: 14px; stroke-width: 2; }
 .fold-t { white-space: nowrap; }
 #search { flex: 1; min-width: 0; height: 34px; padding-block: 0; padding-inline: 13px 84px; }
 .search-count {
@@ -238,11 +250,14 @@ input.invalid, textarea.invalid {
 .search-clear { position: absolute; inset-inline-end: 4px; top: 4px; width: 26px; height: 26px; font-size: var(--fs-4); line-height: 1; }
 
 /* ---- composer (add-task): chips route + typed notation + "will write" preview ---- */
+/* the add-task section is the window's ONE container (owner 2026-09-28): flat — a plain fill + a hairline, no gloss */
 .new-task {
   flex: none; display: flex; flex-direction: column; gap: var(--s-2);
-  padding: var(--s-3); border-top: 1px solid var(--rule-soft); background: var(--head);
+  margin: var(--s-2) var(--s-3) var(--s-3); padding: var(--s-3); border-radius: calc(var(--r-3) + 2px);
+  background: var(--card); box-shadow: inset 0 0 0 1px var(--rule-soft);
 }
 .new-task textarea { width: 100%; min-height: 42px; max-height: 212px; overflow-y: auto; resize: none; padding: 10px 13px; line-height: 1.5; }
+.new-task textarea::placeholder { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } /* a narrowed list (side panel open) must not wrap the hint inside a one-line field */
 .new-task-controls { display: flex; align-items: center; gap: var(--s-2); row-gap: var(--s-2); flex-wrap: wrap; }
 .ctl-label { font-size: var(--fs-1); font-weight: 650; color: var(--faint); margin-inline-start: var(--s-1); }
 .ctl-label:first-child { margin-inline-start: 0; }
@@ -274,10 +289,11 @@ input.invalid, textarea.invalid {
 .md-h.mt { margin-top: var(--s-6); }
 h2.md-h { margin-bottom: var(--s-1); }
 
-/* ---- settings: each group is its own glass card; the save bar is a glass bar that never scrolls away ---- */
-#view-settings { height: 100%; overflow-y: auto; padding: var(--s-3) var(--s-3) 0; }
-.settings-card { width: 100%; max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--s-3); }
-.sgroup { background: var(--card); border: 1px solid var(--rule-soft); border-radius: var(--r-3); padding: var(--s-3) var(--s-5) var(--s-2); }
+/* ---- settings: no cards (owner 2026-09-28) — plain sections with a heading, split by a hairline ---- */
+#view-settings { height: 100%; overflow-y: auto; padding: var(--s-2) var(--s-5) var(--s-5); }
+.settings-card { width: 100%; max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; }
+.sgroup { padding: var(--s-4) 0 var(--s-2); }
+.sgroup + .sgroup { border-top: 1px solid var(--rule-soft); }
 .sgroup > .md-h:first-child { margin-top: 0; }
 .srow {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-5);
@@ -399,7 +415,7 @@ kbd {
 .field { margin-bottom: 18px; }
 .field > label { display: block; font-size: var(--fs-2); color: var(--muted); margin-bottom: 7px; font-weight: 650; }
 .subs-list { list-style: none; margin-bottom: 9px; }
-.subs-list li { padding: 7px 0; color: var(--muted); font-size: var(--fs-3); border-bottom: 1px solid var(--rule-soft); }
+.subs-list li { padding: 5px 0; color: var(--muted); font-size: calc(var(--fs-task) * 0.94); border-bottom: 1px solid var(--rule-soft); }
 .subs-list li .sb { flex: none; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--faint); letter-spacing: -0.5px; }
 .subs-list li .st { flex: 1; min-width: 0; }
 .subs-list li.done .st { color: var(--faint); text-decoration: line-through; }
@@ -424,43 +440,25 @@ kbd {
 }
 
 
-/* ---- the scene (Settings → Glass > 0): the island's own theme, painted still and a little more vivid behind the window
-   (tokens.css --scene at --scene-a, saturate(--scene-sat)). Everything floats on it as thin liquid glass (round 2, owner:
-   "more transparent and glassy"): the header and status line are rounded glass bars, the reading sheet, the composer
-   and each settings group are glass panels that saturate what they frost (--glass-sat). Text on glass uses the island's
-   stronger greys; every pair is gated by npm run contrast (it models both saturations). ---- */
-.ambient { display: none; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--scene); opacity: var(--scene-a); filter: saturate(var(--scene-sat)); }
+/* ---- the scene (Settings → Glass > 0): the island's theme, painted still and CALM behind the window (tokens.css --scene
+   at --scene-a, saturate(--scene-sat); owner 2026-09-28: "subtle"). NO containers (owner 2026-09-28): the header, the
+   list, the status line and the settings sit flat on the scene, split by hairlines. The only container is the add-task
+   section, and it is flat frost (no gloss). Glossy liquid is only on what you touch or what is chosen (controls, the
+   selected lens, the Now row's rim, the accent gel). Text sits right on the scene, so it uses the island's stronger greys;
+   npm run contrast checks every text color over every scene point (bare-*) as well as over the composer's frost. ---- */
+.ambient { display: none; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--scene); opacity: calc(var(--scene-a) * var(--scene-k, 1)); filter: saturate(var(--scene-sat)); }
 .glass-on .ambient { display: block; }
 .glass-on body { background: var(--paper); /* canvas under the scene */
-  --muted: var(--island-muted); --faint: var(--island-faint); /* text on glass: the island's stronger greys + glass hues */
+  --muted: var(--island-muted); --faint: var(--island-faint); /* text on the scene: the island's stronger greys + glass hues */
   --p3: var(--glass-p3); --p2: var(--glass-p2); --ok: var(--glass-ok); --danger: var(--glass-p3); --danger-deep: var(--glass-p3); }
-.glass-on #view-tasks .list-pane { background: transparent; padding: var(--s-2) var(--s-2) 0; gap: var(--s-2); }
-/* panels: one recipe — thin frost, light rim, specular top line + arc, bounce line, deep inner shade, hairline, a soft lift */
-.glass-on header, .glass-on .statusline, .glass-on body > footer, .glass-on .list-sheet, .glass-on .new-task, .glass-on .sgroup,
-.glass-on #ed-main, .glass-on #share-list {
-  border: 0; border-radius: calc(var(--r-3) + 2px);
-  -webkit-backdrop-filter: blur(28px) saturate(var(--glass-sat)); backdrop-filter: blur(28px) saturate(var(--glass-sat));
-  box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), inset 0 -1px 0 var(--spec-bounce), inset 0 22px 26px -26px var(--spec-glow),
-    inset 0 -28px 36px -32px var(--inner-shade), 0 0 0 1px var(--ctl-line), 0 14px 34px -22px var(--drop);
-}
-.glass-on .list-sheet, .glass-on .sgroup, .glass-on #ed-main, .glass-on #share-list { background: rgba(var(--sheet-rgb), var(--g-sheet, 0.5)); }
-.glass-on header, .glass-on .statusline, .glass-on body > footer, .glass-on .new-task {
-  background: rgba(var(--g-base), var(--g-chrome, 0.5)); }
-/* header + status line float like the panels (a rounded bar with a margin). The header ends before the native window
-   controls and shares their height (main.js overlay(): 50 px — 6 + 38 + 6), so the caption buttons center on it. */
-.glass-on header { height: 38px; padding: 0 6px 0 14px;
-  margin: 6px calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 140px)) + 6px) 0 8px; }
-.glass-on .statusline { margin: 0 8px 8px; }
-.glass-on body > footer { margin: var(--s-2) 8px 8px; }
-/* the list panel fits its tasks: the composer sits right under the last one; a long list scrolls inside the panel */
-.glass-on .list-sheet, .glass-on #task-list { flex: 0 1 auto; min-height: 0; }
-.glass-on .new-task { margin: auto 0 var(--s-2); } /* the composer stays pinned at the bottom (owner); the list panel above fits its tasks */
-.glass-on #view-settings { background: transparent; }
+.glass-on header, .glass-on .statusline, .glass-on #view-tasks .list-pane { background: transparent; }
+.glass-on .new-task { background: rgba(var(--sheet-rgb), var(--g-sheet, 0.5));
+  -webkit-backdrop-filter: blur(24px) saturate(var(--glass-sat)); backdrop-filter: blur(24px) saturate(var(--glass-sat)); }
+.glass-on .new-task { margin-top: auto; } /* pinned at the bottom (owner); the list above scrolls */
+.glass-on .toast, .glass-on .notice { --card: rgba(var(--sheet-rgb), 0.9); }
 @media (prefers-reduced-transparency: reduce) {
   .glass-on .ambient { display: none; }
-  .glass-on header, .glass-on .statusline, .glass-on body > footer, .glass-on .new-task, .glass-on .list-sheet, .glass-on .sgroup,
-  .glass-on #ed-main, .glass-on #share-list {
-    background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass-on .new-task, .glass-on .side { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
 /* Glass steps (Glass, Label size, Task size): the same clear track as tabs and .seg (tokens.css); the steps before the
@@ -522,6 +520,101 @@ header .upd { margin-inline-start: var(--s-3); }
 .sgroup > .adv-toggle { margin-top: 0; border-top: 0; padding: 2px 0 8px; }
 .sgroup > .adv-toggle[aria-expanded="true"] { border-bottom: 1px solid var(--rule-soft); }
 
-/* editor + share windows: the same scene; their content sits on one glass panel (recipe above), header/footer as glass bars */
-.glass-on #ed-main, .glass-on #share-list { margin: var(--s-2) 8px 0; }
-.glass-on #ed-main { margin-bottom: 8px; } /* the editor has no footer bar: its panel keeps the window's gutter */
+
+/* ==== side panel (owner 2026-09-28): Edit and Share live INSIDE the window, never in a new one ====
+   Enters from the end edge and leaves the same way; it MATERIALIZES (the frost arrives with the slide). It takes HALF
+   the window and floats OVER the list like a side sheet (owner 2026-09-28: never split or shrink the window); no dim.
+   Critically damped (no bounce on a big surface). ✕, Esc or a click outside closes it (panels.js). */
+:root { --side-w: max(340px, 50vw); }
+.side {
+  position: fixed; top: 50px; bottom: 0; inset-inline-end: 0; z-index: 40; width: var(--side-w);
+  display: flex; flex-direction: column; background: var(--card);
+  box-shadow: -1px 0 0 var(--rule), -24px 0 48px -20px var(--drop);
+  transform: translateX(104%); opacity: 0.4; visibility: hidden;
+  transition: transform 460ms var(--ease-out), opacity 260ms ease, visibility 0s linear 460ms;
+}
+[dir="rtl"] .side { transform: translateX(-104%); box-shadow: 1px 0 0 var(--rule), 18px 0 40px -24px var(--drop); }
+.side.open, [dir="rtl"] .side.open { transform: none; opacity: 1; visibility: visible; transition: transform 460ms var(--ease-out), opacity 200ms ease, visibility 0s; }
+.glass-on .side { background: rgba(var(--sheet-rgb), 0.9); -webkit-backdrop-filter: blur(0px); backdrop-filter: blur(0px);
+  transition: transform 460ms var(--ease-out), opacity 260ms ease, backdrop-filter 360ms ease, visibility 0s linear 460ms; }
+.glass-on .side.open { -webkit-backdrop-filter: blur(30px) saturate(var(--glass-sat)); backdrop-filter: blur(30px) saturate(var(--glass-sat));
+  transition: transform 460ms var(--ease-out), opacity 200ms ease, backdrop-filter 360ms ease, visibility 0s; }
+/* its contents follow the surface in a short stagger */
+.side-head, .side-body > * { transition: opacity 220ms ease, transform 360ms var(--ease-out); }
+.side:not(.open) .side-head, .side:not(.open) .side-body > * { opacity: 0; transform: translateX(12px); }
+.side.open .side-body > :nth-child(2) { transition-delay: 40ms; } .side.open .side-body > :nth-child(n+3) { transition-delay: 70ms; }
+@media (prefers-reduced-motion: reduce) {
+  .side, [dir="rtl"] .side { transform: none; } .side:not(.open) .side-head, .side:not(.open) .side-body > * { transform: none; }
+}
+.side-head { flex: none; display: flex; align-items: center; gap: var(--s-2); padding: 10px 10px 10px var(--s-4); border-bottom: 1px solid var(--rule-soft); }
+.side-title { font-size: var(--fs-4); font-weight: 650; }
+.side-x { margin-inline-start: auto; width: 30px; height: 30px; }
+.side-x .ic { width: 15px; height: 15px; }
+.side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s-4); }
+.side-foot { flex: none; display: flex; flex-direction: column; gap: var(--s-2); padding: 12px var(--s-4) 14px; border-top: 1px solid var(--rule-soft); }
+.badge { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); background: var(--chip); border-radius: var(--r-1); padding: 2px 7px; }
+
+/* editor pieces */
+.label-hint { font-weight: 400; color: var(--faint); font-size: var(--fs-1); }
+#ed-title { width: 100%; min-height: 44px; max-height: 212px; overflow-y: auto; resize: none; line-height: 1.55; padding: 10px 13px; }
+#ed-active.sel { color: var(--accent); }
+.ed-preview { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
+.ed-preview code { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ed-preview code.bad { color: var(--danger); }
+.pv-label { flex: none; font-size: var(--fs-1); color: var(--faint); }
+.ed-actions { display: flex; align-items: center; gap: var(--s-2); }
+.saved.bad { color: var(--danger); }
+.saved:not(:empty) { animation: fstatIn var(--d-1) var(--ease-out) both; }
+#ed-saved { margin-inline-start: auto; }
+.menu-wrap { position: relative; }
+.menu {
+  position: absolute; inset-inline-start: 0; bottom: calc(100% + 6px); z-index: 10; min-width: 160px;
+  display: flex; flex-direction: column; padding: 4px;
+  background: var(--card); border: 1px solid var(--rule); border-radius: var(--r-3); box-shadow: var(--shadow);
+  animation: menuIn var(--d-1) var(--ease-out) both;
+}
+@keyframes menuIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.menu button { border: 0; background: transparent; color: var(--ink); text-align: start; cursor: pointer; font-family: inherit; font-size: var(--fs-3); padding: 8px 10px; border-radius: var(--r-2); }
+.menu button:hover, .menu button:focus-visible { background: var(--hover); outline: none; }
+.menu button.danger { color: var(--danger); }
+.menu hr { border: 0; border-top: 1px solid var(--rule-soft); margin: 4px 2px; }
+/* a panel subtask: [ ] ticks · the text renames (a field in place) · × deletes */
+.subs-list li { display: flex; align-items: center; gap: 6px; }
+.subs-list li .sb { border: 0; background: transparent; cursor: pointer; padding: 3px 4px; border-radius: var(--r-1); transition: color var(--d-1) ease, background var(--d-1) ease; }
+.subs-list li .sb:hover { color: var(--accent); background: var(--accent-soft); }
+.subs-list li .st { cursor: text; padding: 3px 6px; margin-inline-start: -2px; border-radius: var(--r-1); transition: background var(--d-1) ease; }
+.subs-list li .st:hover { background: var(--hover); color: var(--ink); }
+.sub-edit { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 0; border-radius: var(--r-1); font: inherit; color: var(--ink);
+  background: var(--field); caret-color: var(--accent); box-shadow: inset 0 1px 2px var(--inner-shade), inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--accent-soft); outline: none; }
+.subs-list li.none-yet { cursor: default; color: var(--faint); }
+.sub-del {
+  margin-inline-start: auto; flex: none; width: 24px; height: 24px; border: 0; border-radius: var(--r-1); background: transparent; color: var(--faint);
+  font-family: inherit; font-size: var(--fs-4); line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background var(--d-1) ease, color var(--d-1) ease;
+}
+.sub-del:hover { background: var(--hover); color: var(--p3); }
+
+/* share pieces */
+.sh-tools { flex: none; display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; padding: var(--s-3) var(--s-4) 0; }
+.sh-tools .seg { margin-inline-end: auto; }
+#share-list { padding-top: var(--s-2); }
+.sh-sec { display: flex; align-items: baseline; gap: 6px; padding: 12px 2px 6px; font-size: var(--fs-2); font-weight: 650; color: var(--muted); }
+.sh-sec .hash, .sh-sec .cnt { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
+.sh-sec::after { content: ""; flex: 1; height: 1px; background: var(--rule-soft); align-self: center; }
+.sh-row { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin: 1px 0; border-radius: var(--r-3); cursor: pointer; transition: background var(--d-1) ease, box-shadow var(--d-1) ease; }
+.sh-row:hover { background: var(--hover); }
+/* a picked row = the chosen liquid lens (light tint) with the note's own [x]; unpicked = [ ] */
+.sh-row.sel { background: linear-gradient(180deg, var(--lq-top), color-mix(in srgb, var(--accent) 9%, var(--lq-mid)) 52%, color-mix(in srgb, var(--accent) 13%, var(--lq-bot)));
+  box-shadow: inset 0 0 0 1px var(--lq-rim), inset 0 1px 0 var(--lq-rim), inset 0 -1px 0 var(--lq-bounce), 0 1px 1px var(--lq-drop); }
+.sh-chk { flex: none; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; letter-spacing: -0.5px; color: var(--faint); }
+.sh-chk::before { content: "[ ]"; }
+.sh-row.sel .sh-chk { color: var(--accent); }
+.sh-row.sel .sh-chk::before { content: "[x]"; }
+.sh-row .shtitle { flex: 1; min-width: 0; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.sh-row .tag { flex: none; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); background: var(--chip); border-radius: var(--r-1); padding: 2px 6px; }
+.sh-row .star { flex: none; color: var(--accent); font-size: var(--fs-3); }
+.sh-status { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
+.sel-hint { font-size: var(--fs-2); color: var(--faint); white-space: nowrap; }
+.note-inline { font-size: var(--fs-2); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+#btn-export { margin-inline-start: auto; }

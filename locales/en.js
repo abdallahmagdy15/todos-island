@@ -14,6 +14,7 @@ const STRINGS_EN = {
   'win.search.aria': 'Search tasks',
   'win.search.clear': 'Clear search',
   'win.fold.collapse': 'Collapse all', 'win.fold.expand': 'Expand all', // one toggle above the task list
+  'win.openNote': 'Open note', 'win.openNoteTitle': 'Open {f} in your editor', // opens the shown tab's .md file
   'win.search.clearTitle': 'Clear (Esc)',
   'win.search.none': 'No matches.',
   'win.done.clear': 'Clear all',
@@ -131,7 +132,9 @@ const STRINGS_EN = {
   'isl.btn.editTitle': 'Edit task',
   'isl.btn.editAria': 'Edit: {t}',
   'etab.label': 'Edit', // the floating corner tab on a rested row (island + tasks window)
-  'isl.expand.all': 'Show all {n} tasks',
+  'etab.del': 'Delete task', // the trash tab beside Edit (tasks window only)
+  'isl.expand.more': '{n} more', // the island's show-more pill (rest 1 s or click)
+  'isl.expand.rest': '+{n} more in the tasks window', // past the island's 10-task cap
   'isl.expand.less': 'Show less',
   'isl.hint.star': 'Click a task to set it as Now · ✎ edits',
   'isl.hint.emptyWork': 'No open work tasks — the workday list is clear.',
@@ -154,7 +157,10 @@ const STRINGS_EN = {
   'isl.close.title': 'Hide',
   'isl.close.aria': 'Hide island',
 
-  'ed.title': 'Quick edit',
+  'ed.title': 'Edit task',
+  'side.close': 'Close (Esc)', // the side panel's ✕ (Edit / Share)
+  'ed.sub.del': 'Delete subtask {t}', 'ed.sub.none': 'No subtasks yet.',
+  'ed.sub.rename': 'Click to rename', 'ed.sub.tick': 'Mark {t} done', 'ed.sub.untick': 'Mark {t} not done',
   'ed.missing': 'Task not found — it may have been completed or removed.',
   'ed.task': 'Task',
   'ed.task.hint': '— first line is the title, lines below become its description',
@@ -179,6 +185,7 @@ const STRINGS_EN = {
   'sh.selN': '{n} selected',
   'sh.copy': 'Copy',
   'sh.copied': 'Copied ✓',
+  'sh.none': 'Nothing to share — no tasks found.', 'sh.savedFile': 'Saved {f}',
   'sh.export': 'Export .md',
   'sh.saved': 'saved {f}',
   'sh.sec.now': '★ Active now',
@@ -186,6 +193,7 @@ const STRINGS_EN = {
   'sh.daily': 'Daily progress — {d}',
 
   'u.deleted': 'Deleted',
+  'u.edited': 'Edited', // an edit-panel session or a subtask change (one Undo rolls it back)
   'u.markedNow': 'Marked Now',
   'u.clearedNow': 'Cleared Now',
   'u.moved': 'Moved',
