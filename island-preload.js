@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('api', {
   openShare: () => ipcRenderer.invoke('open-share'),
   openUpdate: () => ipcRenderer.invoke('open-update'),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
+  copyText: text => ipcRenderer.invoke('copy-text', text), // the quick Copy tab
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
   reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
   hide: () => ipcRenderer.send('hide-island'),
