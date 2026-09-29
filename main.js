@@ -323,15 +323,15 @@ ipcMain.handle('export-md', async (_e, text) => {
   return { ok: true, path: res.filePath };
 });
 
-// a new note in the v2.1 format — 'wx' so an existing file is NEVER overwritten (throws EEXIST instead)
+// a new note in the v3 format — 'wx' so an existing file is NEVER overwritten (throws EEXIST instead)
 function createNote(p, isWork) {
   const today = `${new Date().getDate()} ${MONTHS[new Date().getMonth()]}`;
   const lines = [
     `# ${isWork ? 'Work Tasks' : 'Personal Todos'}`, '',
-    '> Format: `- [ ] * !! 24 Sep — Task title` — `*` active, `!` priority, `D Mon` due (all optional, any order).',
+    '> Format: `- [ ] /now !! 24 Sep -- Task title` — `/now` = working on it now, `!` priority, `D Mon` due (all optional, any order).',
     `> ${isWork ? 'Done tasks move under ## Done.' : 'Tick tasks when done.'} Edit freely — the app reads whatever you write.`, '',
     ...(isWork ? ['## Open', ''] : []),
-    `- [ ] ${isWork ? '! ' : ''}${today} — My first ${isWork ? 'work task' : 'todo'}`, '',
+    `- [ ] ${isWork ? '! ' : ''}${today} -- My first ${isWork ? 'work task' : 'todo'}`, '',
     ...(isWork ? ['## Done', ''] : []),
     ''
   ];

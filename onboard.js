@@ -80,7 +80,7 @@ const pillUp = () => pill.classList.add('up');
 
 // 1 · welcome — a note line types itself, lights up, and becomes the island
 function lineSegs() {
-  return [['- [ ] '], ['*', 'tk-now'], [' '], ['!!', 'tk-p2'], [' '], [today(), 'tk-due'], [' — '], [T('ob.demo.task'), 'tk-t']];
+  return [['- [ ] '], ['/now', 'tk-now'], [' '], ['!!', 'tk-p2'], [' '], [today(), 'tk-due'], [' -- '], [T('ob.demo.task'), 'tk-t']];
 }
 function renderLine(el, segs, upto = Infinity) {
   let left = upto, html = '';
@@ -138,7 +138,7 @@ function shortStat(note) {
 }
 function renderFiles() {
   const lines = {
-    work: ['- [ ] * !! ' + today() + ' — ' + T('ob.demo.task'), '- [ ] ! ' + T('ob.demo.task2')],
+    work: ['- [ ] /now !! ' + today() + ' -- ' + T('ob.demo.task'), '- [ ] ! ' + T('ob.demo.task2')],
     personal: ['- [ ] ! ' + T('ob.demo.task3'), '- [ ] ' + T('ob.demo.task4')]
   };
   document.querySelectorAll('.file').forEach(f => {

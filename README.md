@@ -29,7 +29,7 @@ Todos Island turns that around:
 To set priority, a due date or the task you're on, just type it at the start of the line:
 
 ```markdown
-- [ ] * !! 26 Sep — Send the weekly report
+- [ ] /now !! 26 Sep -- Send the weekly report
 	client wants the numbers split by region
 	- [x] Pull the numbers
 	- [ ] Write the summary
@@ -39,13 +39,16 @@ To set priority, a due date or the task you're on, just type it at the start of 
 
 | Token | Meaning |
 |---|---|
-| `*` | **Now**: what you're working on (you can mark several) |
+| `/now` | **Now**: what you're working on (you can mark several) |
+| `--` | separates the marks from the title |
 | `!` `!!` `!!!` | priority: low, medium, high |
 | `26 Sep` | due date (the year is worked out for you) |
-| indented `- [ ]` | a subtask; `- [ ] !! call Sam` gives it a priority too (subtasks take `!` `!!` `!!!` only) |
+| indented `- [ ]` | a subtask; `- [ ] !! -- call Sam` gives it a priority too (subtasks take `!` `!!` `!!!` only) |
 | indented plain text | a description |
 
 When the app writes a task, it adds a small hidden stamp at the end of the line, such as `<!-- c:2026-09-27T14:05 u:2026-09-27T15:10 -->`. It records when the task was created and last changed. Obsidian and other markdown viewers hide it. The app uses it to order your list: soonest due date first, then priority, then most recently changed. Done tasks show newest first. You never need to type it.
+
+Older notes that use `*` for Now and the wide dash `—` as the separator still read exactly the same. The app writes the new style (`/now`, `--`) only on the lines it changes.
 
 The tokens can go in any order, and all of them are optional. The app's own editor and quick-add box accept the same tokens, so what you type in the app is exactly what lands in your note.
 
