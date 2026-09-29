@@ -82,6 +82,8 @@ const STRINGS_EN = {
   'set.glass.solid': 'Solid',
   'set.autostart': 'Start with Windows',
   'set.autostart.hint': 'quiet boot — no popup',
+  'set.capture': 'Hide from screen sharing',
+  'set.capture.hint': 'the island still shows on your screen, never in Teams, OBS or screenshots',
   'set.undo': 'Undo window',
   'set.undo.hint': 'seconds · 5–120',
   'set.shortcut': 'Show-island shortcut',
@@ -223,6 +225,7 @@ const STRINGS_EN = {
 
   // first-run setup (onboard.html)
   'tray.setup': "Set up again…",
+  'tray.capture': "Hide from screen sharing",
   'ob.title': "Welcome to Todo Island",
   'ob.w.h': "Your notes, gently on top.",
   'ob.w.sub': "Todo Island reads the plain markdown todo notes you already keep, and drops a small island from the top of your screen, so the next task finds you.",

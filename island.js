@@ -52,7 +52,7 @@ const bar = () => { // the glass's own top highlight is the clock (owner pick 'D
   }
   return dismissBar;
 };
-const dismissMs = () => ((snap && snap.settings.dismissSec) || 10) * 1000;
+const dismissMs = () => ((snap && snap.settings.dismissSec) || 7) * 1000;
 function scheduleDismiss(ms) {
   clearTimeout(dismissT);
   bar().start(ms);
