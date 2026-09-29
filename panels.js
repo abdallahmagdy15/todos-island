@@ -5,7 +5,7 @@
 // typed text after a short pause or when you leave the field. The "will write" line still shows the exact note line,
 // and one Undo (the window's toast) rolls back everything changed since the panel opened (main.js 'edit' undo kind).
 (() => {
-  const { esc, parseDueText, MONTHS } = window.UI;
+  const { esc, bangCls, parseDueText, MONTHS } = window.UI;
   const $ = id => document.getElementById(id);
   let LANG = 'en';
   const T = (k, prm) => window.I18N.t(LANG, k, prm);
@@ -91,7 +91,7 @@
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
     $('ed-subs').innerHTML = t.subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: x.t }))}">${x.done ? '[x]' : '[ ]'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${esc(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: x.t }))}">&times;</button></li>`).join('')
+      `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: x.t }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: x.t, p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${esc(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: x.t }))}">&times;</button></li>`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
   }
   function paintActive() {
@@ -135,7 +135,10 @@
     const r = await updatePreview();
     if (!r || !r.ok) { flashSaved(T('ed.noTitle'), true); return; } // never save an empty title — the line says why
     const res = await window.api.updateTask(FILE, ID, { title: r.title, priority: r.priority, active: r.active, desc: r.desc, dueText: r.dueText, session });
-    if (res && res.id) ID = res.id; // the id follows title/priority/due — adopt it or the panel loses the task
+    if (res && res.id && res.id !== ID) { // the id follows title/priority/due — adopt it or the panel loses the task
+      window.dispatchEvent(new CustomEvent('task-id', { detail: { from: ID, to: res.id } })); // the list keeps the row in place
+      ID = res.id;
+    }
     if (res && res.changed) flashSaved(T('set.save.saved'));
   }
   function flashSaved(text, bad = false) {
@@ -158,6 +161,10 @@
     if (e.target.closest('.st')) { startSubEdit(li); return; }
     await saveNow();
     if (e.target.closest('.sub-del')) { window.SFX.play('delete'); await window.api.deleteSubtask(FILE, ID, li.dataset.sub, session); }
+    else if (e.target.closest('[data-subprio]')) { // one click steps the importance: none → ! → !! → !!! → none (owner 2026-09-29)
+      const next = { '': '!', '!': '!!', '!!': '!!!', '!!!': null }[li.dataset.p || ''];
+      window.SFX.play('tick'); await window.api.subtaskPriority(FILE, ID, li.dataset.sub, next, session);
+    }
     else if (e.target.closest('[data-subtick]')) { window.SFX.play('tick'); await window.api.toggleSubtask(FILE, ID, li.dataset.sub, session); }
     else return;
     load(false);
@@ -254,11 +261,13 @@
   function sections() {
     const work = (shSnap.sections.find(s => s.name === 'Work') || { items: [] }).items;
     const personal = (shSnap.sections.find(s => s.name === 'Personal') || { items: [] }).items;
-    const flat = [...work, ...personal];
+    // Share lists the latest-updated first (owner 2026-09-29): the task's own u stamp, newest on top
+    const byUpdate = arr => [...arr].sort((a, b) => (b.updatedTs || 0) - (a.updatedTs || 0));
+    const flat = byUpdate([...work, ...personal]);
     return [
       { name: T('isl.sec.now'), items: flat.filter(t => t.active) },
-      { name: T('isl.sec.work'), items: work.filter(t => !t.active) },
-      { name: T('isl.sec.personal'), items: personal.filter(t => !t.active) },
+      { name: T('isl.sec.work'), items: byUpdate(work.filter(t => !t.active)) },
+      { name: T('isl.sec.personal'), items: byUpdate(personal.filter(t => !t.active)) },
       { name: T('sh.sec.done'), items: (shSnap.done || []).map(d => ({ ...d, isDone: true })) }
     ].filter(s => s.items.length);
   }

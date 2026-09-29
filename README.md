@@ -42,7 +42,7 @@ To set priority, a due date or the task you're on, just type it at the start of 
 | `*` | **Now**: what you're working on (you can mark several) |
 | `!` `!!` `!!!` | priority: low, medium, high |
 | `26 Sep` | due date (the year is worked out for you) |
-| indented `- [ ]` | a subtask |
+| indented `- [ ]` | a subtask; `- [ ] !! call Sam` gives it a priority too (subtasks take `!` `!!` `!!!` only) |
 | indented plain text | a description |
 
 When the app writes a task, it adds a small hidden stamp at the end of the line, such as `<!-- c:2026-09-27T14:05 u:2026-09-27T15:10 -->`. It records when the task was created and last changed. Obsidian and other markdown viewers hide it. The app uses it to order your list: soonest due date first, then priority, then most recently changed. Done tasks show newest first. You never need to type it.
@@ -54,7 +54,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 - **The island.** It drops in on two schedules: one interval for your workday and one for evenings and weekends, each with its own on/off switch. Nothing pops between midnight and the start of your day. Weekends (Saturday + Sunday, or Friday + Saturday, following your Windows region or your pick) run the evening schedule.
   - Click a task to make it Now; click its ★ to set it back (Not now).
   - Tick `[ ]` to complete it. Hover a task for its edit pencil; **+** in the top bar adds a task in the tasks window.
-  - Done subtasks tuck away behind one line; open ones always show.
+  - Open subtasks always show, most important first; done ones tuck away behind one line.
   - Pin the island to keep it on screen.
   - Press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> to show or hide it.
 - **Glass themes.** The island is frosted glass over a soft picture you choose in *Settings → Look → Theme*: **Mist**, **Dusk**, **Lagoon**, **Bloom** or **Dune**.

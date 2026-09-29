@@ -132,7 +132,7 @@ function snapshot() {
     dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
       dueTs: t.due ? resolveDue(t.due) : null,
       notes: f.notesOf(t).map(n => n.replace(/\*\*/g, '')),
-      subs: f.subtasksOf(t).map(s => ({ t: s.title.replace(/\*\*/g, ''), done: s.checked })),
+      subs: f.subtasksOf(t).map(s => ({ t: s.title.replace(/\*\*/g, ''), done: s.checked, p: s.priority || null })),
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
@@ -263,7 +263,12 @@ function applyCaptureHide() {
 function openWindow(tab) {
   if (typeof tab !== 'string') tab = null; // tray/menu callers pass event objects
   if (!state.onboarded) { openOnboarding(); return; }
-  if (mainWin) { mainWin.show(); mainWin.focus(); if (tab) mainWin.webContents.send('show-tab', tab); return; }
+  if (mainWin) {
+    mainWin.show(); mainWin.focus();
+    mainWin.webContents.send('window-opened'); // opening it again sorts it again (owner 2026-09-29); while open, rows stay put
+    if (tab) mainWin.webContents.send('show-tab', tab);
+    return;
+  }
   mainWin = new BrowserWindow({
     width: 880, height: 660, minWidth: 660, minHeight: 540, // 880 by default (owner 2026-09-28: "slightly wider" — room for the side panel)
     backgroundColor: theme().bg,
@@ -285,6 +290,7 @@ function openWindow(tab) {
     }, 2500));
   }
   mainWin.on('render-process-gone', (_e, d) => LOG('WIN-GONE: ' + d.reason));
+  mainWin.on('restore', () => mainWin.webContents.send('window-opened')); // un-minimized = opened again
   mainWin.on('closed', () => { mainWin = null; });
 }
 
@@ -515,6 +521,7 @@ ipcMain.handle('toggle-active', (_e, id, file) => {
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
 ipcMain.handle('toggle-subtask', (_e, file, parentId, subTitle, session) => subtaskWrite(file, parentId, session, f => f.toggleSubtask(parentId, subTitle)));
+ipcMain.handle('subtask-priority', (_e, file, parentId, subTitle, p, session) => subtaskWrite(file, parentId, session, f => f.setSubtaskPriority(parentId, subTitle, p)));
 ipcMain.handle('rename-subtask', (_e, file, parentId, subTitle, newTitle, session) => subtaskWrite(file, parentId, session, f => f.renameSubtask(parentId, subTitle, newTitle)));
 function pushUndoToWindow(token) {
   const e = token && undoLog.get(token);
@@ -834,6 +841,9 @@ else {
           await step('delete+undo', `(async()=>{ const r=document.querySelector('#task-list .wrow:not(.done)'); if(!r) return 'no-row'; r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,350)); const d=document.querySelector('.etab-del.on'); if(!d) return 'no-del-tab'; const n0=document.querySelectorAll('#task-list .wrow').length; d.click(); await new Promise(z=>setTimeout(z,800)); const n1=document.querySelectorAll('#task-list .wrow').length; ${undoClick} await new Promise(z=>setTimeout(z,800)); return 'rows '+n0+'→'+n1+'→'+document.querySelectorAll('#task-list .wrow').length; })()`);
           // row click folds/unfolds its details; the subtask text opens the editor, its [ ] ticks (owner 2026-09-28)
           await step('row-click-toggles', `(async()=>{ const r=document.querySelector('#task-list .wrow.has-detail'); if(!r) return 'no-detail-row'; const id=r.dataset.id, o0=r.classList.contains('open'); r.querySelector('.tt').click(); await new Promise(z=>setTimeout(z,300)); const r1=[...document.querySelectorAll('#task-list .wrow')].find(x=>x.dataset.id===id); const o1=r1.classList.contains('open'); r1.querySelector('.tt').click(); await new Promise(z=>setTimeout(z,300)); const o2=[...document.querySelectorAll('#task-list .wrow')].find(x=>x.dataset.id===id).classList.contains('open'); return 'open '+o0+'→'+o1+'→'+o2+(document.querySelector('.wexp')?' OLD-EXPAND-BTN':''); })()`);
+          // owner 2026-09-29: the ☆ tab stages Now and the row STAYS where it is (order frozen while open); the side panel's
+          // frost takes the clicks meant for the list. Both undone/closed after.
+          await step('star-tab-stays+frost', `(async()=>{ const rows=[...document.querySelectorAll('#task-list .wrow:not(.is-now)')]; const r=rows[rows.length-1]; if(!r) return 'no-row'; const id=r.dataset.id, i0=[...document.querySelectorAll('#task-list .wrow')].indexOf(r); r.scrollIntoView({block:'center'}); r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,400)); const st=document.querySelector('.etab-star.on'); if(!st) return 'no-star-tab'; st.click(); await new Promise(z=>setTimeout(z,900)); const all=[...document.querySelectorAll('#task-list .wrow')]; const r1=all.find(x=>x.dataset.id===id); const out='idx '+i0+'→'+all.indexOf(r1)+' now='+r1.classList.contains('is-now'); await window.api.toggleActive(id, r1.dataset.file); await new Promise(z=>setTimeout(z,600)); document.getElementById('btn-share').click(); await new Promise(z=>setTimeout(z,700)); const b=r1.getBoundingClientRect(); const hit=document.elementFromPoint(b.left+20,b.top+b.height/2); const frost=hit&&hit.id; window.Panels.close(); await new Promise(z=>setTimeout(z,500)); return out+' hitUnderPanel='+frost; })()`);
           const panelKind = () => mainWin.webContents.executeJavaScript('window.Panels.kind'); // the side panel that's open (null = none)
           const closePanel = () => mainWin.webContents.executeJavaScript('window.Panels.close()');
           LOG('UTEST row-click-opened-editor: ' + ((await panelKind()) ? 'UNEXPECTED' : 'no (correct)'));
@@ -929,7 +939,7 @@ else {
             await step('panel-undo-session', `(async()=>{ const b=document.querySelector('#undo-toast [data-undo]'); if(!b) return 'no-toast'; b.click(); await new Promise(z=>setTimeout(z,900)); return 'undone'; })()`);
             LOG('UTEST panel-undo-roundtrip: ' + (fs.readFileSync(state.settings.workPath, 'utf8') === before ? 'byte-identical' : 'CHANGED'));
             await step('panel-dismiss', `(async()=>{ const side=document.getElementById('side'); const isOpen=()=>side.classList.contains('open'); const out=[]; window.Panels.edit(${q(t0.file)}, ${q(t0.id)}); await new Promise(z=>setTimeout(z,600)); document.querySelector('header .logo').dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,button:0})); await new Promise(z=>setTimeout(z,600)); out.push('outside='+(!isOpen()?'closes':'STAYS')); window.Panels.edit(${q(t0.file)}, ${q(t0.id)}); await new Promise(z=>setTimeout(z,600)); document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); await new Promise(z=>setTimeout(z,600)); out.push('esc='+(!isOpen()?'closes':'STAYS')); document.getElementById('btn-share').click(); await new Promise(z=>setTimeout(z,600)); const sh=window.Panels.kind; document.getElementById('side-close').click(); await new Promise(z=>setTimeout(z,600)); out.push('share='+sh+' x='+(!isOpen()?'closes':'STAYS')); return out.join(' '); })()`);
-            // panel subtasks (owner 2026-09-28): [ ] ticks, the text renames in place; ONE Undo rolls back both. The panel floats OVER the list at half the window.
+            // panel subtasks (owner 2026-09-28): [ ] ticks, the text renames in place; ONE Undo rolls back both. The panel floats OVER the list at 70 % of the window.
             const withSubs = snapshot().sections.flatMap(s => s.items).find(t => t.file === 'work' && t.subs.length >= 1);
             if (withSubs) {
               const before2 = fs.readFileSync(state.settings.workPath, 'utf8');

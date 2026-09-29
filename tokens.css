@@ -266,6 +266,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   font-size: var(--fs-1); font-weight: 600; color: var(--faint); }
 /* tasks window only: the trash tab beside Edit (the island never deletes) */
 .etab-del { padding: 0 8px; }
+.etab-star { padding: 0 7px; font-size: 13px; }
+.etab-star:hover, .etab-star:focus-visible, .etab-star.now { color: var(--accent); }
 .etab-del:hover, .etab-del:focus-visible { color: var(--danger); }
 @media (prefers-reduced-motion: reduce) { .etab { transform: none; transition: opacity 120ms ease; } }
 
@@ -278,3 +280,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @keyframes flipA { 0%, 44% { transform: none; opacity: 1; } 50%, 94% { transform: translateY(-100%); opacity: 0; } 94.01% { transform: translateY(100%); opacity: 0; } 100% { transform: none; opacity: 1; } }
 @keyframes flipB { 0%, 44% { transform: translateY(100%); opacity: 0; } 50%, 94% { transform: none; opacity: 1; } 100% { transform: translateY(-100%); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .flip2 > span { animation: none; } .flip2 .f-a { visibility: hidden; } }
+
+/* a subtask's priority (owner 2026-09-29): the note's own bangs, at the subtask's text size, before its title */
+.bang.sbang { font-size: 1em; line-height: inherit; }

@@ -135,6 +135,8 @@ const STRINGS_AR = {
   'isl.btn.editAria': 'تعديل: {t}',
   'etab.label': 'تعديل', // the floating corner tab on a rested row (island + tasks window)
   'etab.del': 'حذف المهمة', // the trash tab beside Edit (tasks window only)
+  'etab.now': 'الآن',
+  'etab.notNow': 'ليس الآن',
   'isl.expand.more': '{n} أخرى', // the island's show-more pill (rest 1 s or click)
   'isl.expand.rest': '+{n} أخرى في نافذة المهام', // past the island's 10-task cap
   'isl.expand.less': 'عرض أقل',
@@ -163,6 +165,7 @@ const STRINGS_AR = {
   'tw.aria': 'اختر وقتًا', 'tw.hours': 'الساعات', 'tw.minutes': 'الدقائق', // the time wheel (Settings, setup)
   'side.close': 'إغلاق (Esc)', // the side panel's ✕ (Edit / Share)
   'ed.sub.del': 'حذف المهمة الفرعية {t}', 'ed.sub.none': 'لا توجد مهام فرعية بعد.',
+  'ed.sub.prio': 'الأهمية: انقر للتبديل ! ← !! ← !!! ← بلا', 'ed.sub.prioAria': 'أولوية {t}: {p}',
   'ed.sub.rename': 'انقر لإعادة التسمية', 'ed.sub.tick': 'تعليم {t} كمنجزة', 'ed.sub.untick': 'إلغاء إنجاز {t}',
   'ed.missing': 'المهمة غير موجودة — ربما أُنجزت أو حُذفت.',
   'ed.task': 'المهمة',

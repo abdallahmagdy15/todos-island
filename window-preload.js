@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('api', {
   addTask: (file, data) => ipcRenderer.invoke('add-task', file, data),
   addSubtask: (file, parentId, title, session) => ipcRenderer.invoke('add-subtask', file, parentId, title, session),
   toggleSubtask: (file, parentId, title, session) => ipcRenderer.invoke('toggle-subtask', file, parentId, title, session),
+  subtaskPriority: (file, parentId, title, p, session) => ipcRenderer.invoke('subtask-priority', file, parentId, title, p, session),
   renameSubtask: (file, parentId, title, newTitle, session) => ipcRenderer.invoke('rename-subtask', file, parentId, title, newTitle, session),
   complete: (id, file) => ipcRenderer.invoke('complete', id, file),
   deleteTask: (id, file) => ipcRenderer.invoke('delete-task', id, file),
@@ -24,6 +25,7 @@ contextBridge.exposeInMainWorld('api', {
   openUpdate: () => ipcRenderer.invoke('open-update'),
   exportMd: text => ipcRenderer.invoke('export-md', text),
   copyText: text => ipcRenderer.invoke('copy-text', text),
+  onWindowOpened: cb => ipcRenderer.on('window-opened', () => cb()), // opened / brought forward / restored → sort again
   onTasksChanged: cb => ipcRenderer.on('tasks-changed', () => cb()),
   onShowUndo: cb => ipcRenderer.on('show-undo', (_e, d) => cb(d)),
   onLangChanged: cb => ipcRenderer.on('lang-changed', (_e, lang) => cb(lang)),
