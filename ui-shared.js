@@ -166,9 +166,11 @@
     if (onStar) {
       star = document.createElement('button');
       star.type = 'button'; star.className = 'etab etab-star'; star.tabIndex = -1;
+      star.innerHTML = '<span class="etab-g" aria-hidden="true"></span><span class="etab-t"></span>';
       host.appendChild(star);
     }
-    const tabs = [tab, star, del].filter(Boolean);
+    // placed from the row's corner inward, so on screen they read ☆ Now · ✎ Edit · 🗑 (owner 2026-09-29: Now first)
+    const tabs = [del, tab, star].filter(Boolean);
     let row = null;
     const place = () => {
       if (!row || !row.isConnected) { api.hide(); return; }
@@ -176,7 +178,7 @@
       // a row that isn't laid out yet (or scrolled out of the host) gets no tab — never park it somewhere else
       if (!b.height || b.bottom < h.top || b.top > h.bottom) { tabs.forEach(t => t.classList.remove('on')); return; }
       let edge = rtl ? b.left - h.left + 14 : h.right - b.right + 14;
-      for (const t of tabs) { // Edit sits at the corner; Delete lines up just inside it
+      for (const t of tabs) { // the first sits at the corner; the rest line up just inside it
         t.style.top = Math.max(2, b.top - h.top - 11) + 'px';
         t.style.right = rtl ? '' : edge + 'px';
         t.style.left = rtl ? edge + 'px' : '';
@@ -196,9 +198,9 @@
       place,
       setNow(now) {
         if (!star) return;
-        star.textContent = now ? '\u2605' : '\u2606';
+        star.querySelector('.etab-g').textContent = now ? '\u2605' : '\u2606';
+        star.querySelector('.etab-t').textContent = T(now ? 'etab.notNow' : 'etab.now');
         star.classList.toggle('now', now);
-        const sl = T(now ? 'etab.notNow' : 'etab.now'); star.title = sl; star.setAttribute('aria-label', sl);
       },
       get row() { return row; },
       owns: el => !!el && el.nodeType === 1 && tabs.some(t => t.contains(el))

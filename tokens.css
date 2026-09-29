@@ -266,7 +266,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   font-size: var(--fs-1); font-weight: 600; color: var(--faint); }
 /* tasks window only: the trash tab beside Edit (the island never deletes) */
 .etab-del { padding: 0 8px; }
-.etab-star { padding: 0 7px; font-size: 13px; }
+.etab-star .etab-g { font-size: 12px; line-height: 1; }
 .etab-star:hover, .etab-star:focus-visible, .etab-star.now { color: var(--accent); }
 .etab-del:hover, .etab-del:focus-visible { color: var(--danger); }
 @media (prefers-reduced-motion: reduce) { .etab { transform: none; transition: opacity 120ms ease; } }
