@@ -283,3 +283,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 
 /* a subtask's priority (owner 2026-09-29): the note's own bangs, at the subtask's text size, before its title */
 .bang.sbang { font-size: 1em; line-height: inherit; }
+
+/* formatting pop-up (owner 2026-09-29; UI.fmtBar): a small solid bar over selected text — B · I · S · U. Solid fill, no
+   backdrop-filter (the pop-in perf rule); above the side panel and its frost. */
+.fmtbar {
+  position: fixed; z-index: 90; display: flex; gap: 2px; padding: 3px; border-radius: 10px;
+  background: color-mix(in srgb, var(--pill-bg) 96%, transparent);
+  box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 6px 18px -6px rgba(20, 30, 70, 0.35);
+  animation: fmtIn 140ms var(--ease-out) both;
+}
+.fmtbar button {
+  width: 28px; height: 26px; border: 0; border-radius: 7px; background: transparent; cursor: pointer;
+  font-family: inherit; font-size: 13px; color: var(--ink); line-height: 1;
+}
+.fmtbar button:hover { background: var(--hover); color: var(--accent); }
+.fmtbar b { font-weight: 800; } .fmtbar i { font-style: italic; font-family: Georgia, serif; }
+@keyframes fmtIn { from { opacity: 0; transform: translateY(3px) scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .fmtbar { animation: none; } }

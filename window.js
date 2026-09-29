@@ -1,7 +1,7 @@
 'use strict';
 let snap = null, currentTab = 'work';
 
-const { esc, bangCls } = window.UI;
+const { esc, bangCls, inline, plain } = window.UI;
 const $ = id => document.getElementById(id);
 
 function taskRows() {
@@ -67,22 +67,22 @@ function renderDone(q) { // Done tab: both files, restore or delete (both undoab
   $('done-count').textContent = all.length ? `· ${all.length}` : '';
   $('btn-clear-done').hidden = !all.length;
   patchList(items.map(d => ({ key: 'd:' + d.file + ':' + d.id, html: `
-    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(d.title)}">
-      <div class="wrow-main"><span class="wtitle"><span class="tt">${esc(d.title)}</span></span></div>
+    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(plain(d.title))}">
+      <div class="wrow-main"><span class="wtitle"><span class="tt">${inline(d.title)}</span></span></div>
       <span class="wmeta"><span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></span>
     </div></div></div>` })).concat(items.length ? [] : [{ key: 'empty', html: `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>` }]));
 }
 function rowHtml(t) {
   const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (!closedRows.has(t.id) || t.id === peekId);
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
-    ${(t.notes || []).map(n => `<div class="wdesc">${esc(n)}</div>`).join('')}
-    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${esc(s.t)}</span></div>`).join('')}
+    ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
+    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span></div>`).join('')}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
-    <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(t.title)}"></button>
+    <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(plain(t.title))}"></button>
     <div class="wrow-main">
-      <span class="wtitle"><span class="tt">${esc(t.title)}</span></span>
+      <span class="wtitle"><span class="tt">${inline(t.title)}</span></span>
       ${expandBody}
       ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
     </div>
@@ -151,7 +151,7 @@ function daysLate(t) {
 const dueHtml = t => t.dueState === 'overdue' && t.dueTs ? window.UI.lateFlip(t.dueText, t.dueTs) : esc(t.dueState === 'today' ? 'today' : t.dueText);
 const dueLabel = t => (t.dueState === 'overdue' ? `${t.dueText} \u00B7 ${daysLate(t)}d late` : t.dueState === 'today' ? `${t.dueText} \u00B7 today` : t.dueText);
 const PRIO_NAME = { '!!!': 'high', '!!': 'medium', '!': 'low' };
-const rowLabel = t => [t.title, t.priority && `${PRIO_NAME[t.priority]} priority`, t.dueText && `due ${dueLabel(t)}`, t.active && 'Now'].filter(Boolean).join(', ');
+const rowLabel = t => [plain(t.title), t.priority && `${PRIO_NAME[t.priority]} priority`, t.dueText && `due ${dueLabel(t)}`, t.active && 'Now'].filter(Boolean).join(', ');
 
 // roving focus: ONE tab stop for the whole list; arrows move inside it
 let focusId = null;
@@ -544,6 +544,7 @@ $('new-title').addEventListener('input', () => {
   $('new-title').classList.remove('invalid'); composerHint('');
   clearTimeout(pvT); pvT = setTimeout(updatePreview, 80);
 });
+window.UI.fmtBar($('new-title')); // select text → B · I · S · U, or Ctrl+B / I / U / Shift+X (owner 2026-09-29)
 $('new-title').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('btn-add').click(); } // Enter adds, Shift+Enter newlines
 });

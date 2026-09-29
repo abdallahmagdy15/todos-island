@@ -127,20 +127,20 @@ const nextFireAt = () => scheduleNext(schedSettings(), state.lastShown, Date.now
 const RANK = { '!!!': 3, '!!': 2, '!': 1 };
 function snapshot() {
   const collect = (f, group) => f.topTasks().filter(t => !t.checked).map(t => ({
-    id: f.id(t), file: group, title: t.title.replace(/\*\*/g, ''),
+    id: f.id(t), file: group, title: t.title, // raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, active: !!t.active,
     dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
       dueTs: t.due ? resolveDue(t.due) : null,
-      notes: f.notesOf(t).map(n => n.replace(/\*\*/g, '')),
-      subs: f.subtasksOf(t).map(s => ({ t: s.title.replace(/\*\*/g, ''), done: s.checked, p: s.priority || null })),
+      notes: f.notesOf(t),
+      subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null })), // t = the note's title = the address
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
       lines: f.blockLines(t) // Share → Markdown: the block as the note has it, stamp stripped
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
-    id: f.id(t), file: group, title: t.title.replace(/\*\*/g, ''),
+    id: f.id(t), file: group, title: t.title, // raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
-    notes: f.notesOf(t).map(n => n.replace(/\*\*/g, '')),
-    subs: f.subtasksOf(t).map(s => ({ t: s.title.replace(/\*\*/g, ''), done: s.checked, p: s.priority || null })),
+    notes: f.notesOf(t),
+    subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null })), // t = the note's title = the address
     lines: f.blockLines(t),
     created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
   }));

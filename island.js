@@ -8,7 +8,7 @@ let islandHovered = false; // pointer anywhere on the island window → the time
 let counting = false; // a dismiss countdown is running (re-renders never restart or pause it)
 let animating = 0, pendingSnap = null; // a snapshot arriving mid-animation waits — re-rendering would kill the moving row
 
-const { esc, bangCls } = window.UI;
+const { esc, bangCls, inline, plain } = window.UI;
 const $ = id => document.getElementById(id);
 let LANG = 'en';
 window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback — apply once at load, not only on a language change
@@ -26,7 +26,7 @@ function dueHtml(t) {
 const RANK_SUB = { '!!!': 3, '!!': 2, '!': 1 };
 const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : '';
 function subsHtml(subs, attrs = '') {
-  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${esc(s.t)}</span></div>`;
+  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span></div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
   const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
   const fold = done.length ? `<div class="subs-done"><div class="sd-sum">${esc(T('isl.sub.doneN', { n: done.length }))}</div><div class="sd-wrap"><div class="sd-in">${done.map(one).join('')}</div></div></div>` : '';
@@ -36,10 +36,10 @@ function subsHtml(subs, attrs = '') {
 const bangHtml = t => t.priority ? `<span class="bang ${bangCls(t.priority)}">${esc(t.priority)}</span>` : '';
 function rowHtml(t) {
   const subsBadge = t.subs.length ? `<span class="row-sub">${T('isl.sub.badge', { a: t.subs.filter(s => !s.done).length, b: t.subs.length })}</span>` : '';
-  const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${esc(n)}</div>`).join('');
+  const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${inline(n)}</div>`).join('');
   const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs)}</div></div>` : '';
-  return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(t.title)}" draggable="true">
-    <div class="row-main"><span class="rtitle"><span class="tt">${esc(t.title)}</span></span>${detail}</div>
+  return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" draggable="true">
+    <div class="row-main"><span class="rtitle"><span class="tt">${inline(t.title)}</span></span>${detail}</div>
     <span class="meta">${subsBadge}${bangHtml(t)}${dueHtml(t)}</span>
   </div></div></div>`;
 }
@@ -136,7 +136,7 @@ function render() {
       html += `<div class="fold"><div class="fold-in"><div class="active-card rim" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
-          <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${esc(a.title)}</span></span>
+          <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${inline(a.title)}</span></span>
           <span class="meta">${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
         </div>
         ${subs}

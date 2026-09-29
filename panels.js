@@ -5,7 +5,7 @@
 // typed text after a short pause or when you leave the field. The "will write" line still shows the exact note line,
 // and one Undo (the window's toast) rolls back everything changed since the panel opened (main.js 'edit' undo kind).
 (() => {
-  const { esc, bangCls, parseDueText, MONTHS } = window.UI;
+  const { esc, bangCls, inline, plain, parseDueText, MONTHS } = window.UI;
   const $ = id => document.getElementById(id);
   let LANG = 'en';
   const T = (k, prm) => window.I18N.t(LANG, k, prm);
@@ -91,7 +91,7 @@
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
     $('ed-subs').innerHTML = t.subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: x.t }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: x.t, p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${esc(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: x.t }))}">&times;</button></li>`).join('')
+      `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
   }
   function paintActive() {
@@ -146,6 +146,7 @@
     el.textContent = text; el.classList.toggle('bad', bad);
     clearTimeout(savedT); savedT = setTimeout(() => { el.textContent = ''; }, 1600);
   }
+  window.UI.fmtBar($('ed-title')); window.UI.fmtBar($('ed-sub')); // the formatting pop-up + shortcuts
   $('ed-title').addEventListener('input', () => { autoGrow($('ed-title')); schedulePreview(); queueSave(700); });
   $('ed-title').addEventListener('blur', () => { if (dirty) saveNow(); });
   $('ed-active').addEventListener('click', () => {
@@ -177,6 +178,7 @@
     input.type = 'text'; input.className = 'sub-edit'; input.value = old; input.spellcheck = false;
     input.setAttribute('aria-label', T('ed.sub.rename'));
     st.replaceWith(input);
+    window.UI.fmtBar(input);
     subEditing = old;
     input.focus(); input.select();
     let done = false;
@@ -291,7 +293,7 @@
     const subs = t.subs || [];
     return `<div class="sh-row ${sel.has(keyOf(t)) ? 'sel' : ''}" data-key="${esc(keyOf(t))}">
       <span class="sh-chk" aria-hidden="true"></span>
-      <span class="shtitle">${esc(t.title)}</span>
+      <span class="shtitle">${inline(t.title)}</span>
       ${subs.length ? `<span class="tag">${subs.filter(s => s.done).length}/${subs.length}</span>` : ''}
       ${t.dueText ? `<span class="tag">${esc(t.dueText)}</span>` : ''}
     </div>`;

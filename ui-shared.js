@@ -140,6 +140,94 @@
 
   // Overdue due date (owner, 2026-09-28): the date and its "Nd late" share ONE slot and swap every 2 s (tokens.css .flip2),
   // so the late hint never costs the title any width. Reduced motion shows the late hint only (the title attr has both).
+  // ---- inline formatting (owner 2026-09-29) — the note keeps plain Markdown: **bold** · _italic_ (or *italic*) ·
+  // ~~strike~~ · <u>underline</u> (Markdown has no underline; Obsidian and GitHub render the tag). The lists and the island
+  // SHOW it; aria labels and other plain-text spots use plain().
+  const EDGE = '(^|[\\s(\\[{"\'])', END = '(?=$|[\\s).,!?:;\\]}"\'])';
+  const RX_EM_U = new RegExp(EDGE + '_(?!\\s)(.+?)(?<!\\s)_' + END, 'g'); // _x_ only as a whole word — snake_case stays
+  const RX_EM_S = new RegExp(EDGE + '\\*(?![\\s*])(.+?)(?<![\\s*])\\*' + END, 'g');
+  function inline(text) {
+    return esc(text)
+      .replace(/\*\*(?!\s)(.+?)(?<!\s)\*\*/g, '<strong>$1</strong>')
+      .replace(/~~(?!\s)(.+?)(?<!\s)~~/g, '<s>$1</s>')
+      .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, '<u>$1</u>')
+      .replace(RX_EM_U, '$1<em>$2</em>')
+      .replace(RX_EM_S, '$1<em>$2</em>');
+  }
+  const plain = text => String(text || '')
+    .replace(/\*\*(?!\s)(.+?)(?<!\s)\*\*/g, '$1').replace(/~~(?!\s)(.+?)(?<!\s)~~/g, '$1').replace(/<u>(.+?)<\/u>/g, '$1')
+    .replace(RX_EM_U, '$1$2').replace(RX_EM_S, '$1$2');
+
+  // The formatting pop-up: select text in a task field → a small bar (B · I · S · U) above the selection; the same
+  // marks on Ctrl+B / Ctrl+I / Ctrl+U / Ctrl+Shift+X. A mark toggles: applying it again removes it. Every change fires
+  // 'input', so previews, autosave and auto-grow follow as if typed.
+  const MARKS = { b: ['**', '**'], i: ['_', '_'], s: ['~~', '~~'], u: ['<u>', '</u>'] };
+  function toggleMark(el, k) {
+    const [open, close] = MARKS[k];
+    let a = el.selectionStart, b = el.selectionEnd;
+    const v = el.value;
+    while (a < b && /\s/.test(v[a])) a++; // a mark hugs the words, never the spaces around them
+    while (b > a && /\s/.test(v[b - 1])) b--;
+    if (a === b) return false;
+    const sel = v.slice(a, b);
+    if (sel.length >= open.length + close.length && sel.startsWith(open) && sel.endsWith(close)) {
+      const inner = sel.slice(open.length, sel.length - close.length);
+      el.setRangeText(inner, a, b, 'select');
+    } else if (v.slice(a - open.length, a) === open && v.slice(b, b + close.length) === close) {
+      el.setRangeText(sel, a - open.length, b + close.length, 'select');
+    } else {
+      el.setRangeText(open + sel + close, a, b, 'end');
+      el.setSelectionRange(a + open.length, b + open.length);
+    }
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  }
+  let bar = null, barFor = null;
+  function fmtBarEl() {
+    if (bar) return bar;
+    bar = document.createElement('div');
+    bar.className = 'fmtbar'; bar.setAttribute('role', 'toolbar'); bar.hidden = true;
+    bar.innerHTML = [['b', '<b>B</b>'], ['i', '<i>I</i>'], ['s', '<s>S</s>'], ['u', '<u>U</u>']]
+      .map(([k, g]) => `<button type="button" data-mark="${k}" tabindex="-1">${g}</button>`).join('');
+    bar.addEventListener('pointerdown', e => e.preventDefault()); // keep the field's focus and selection
+    bar.addEventListener('click', e => { const b = e.target.closest('[data-mark]'); if (b && barFor) { toggleMark(barFor, b.dataset.mark); place(barFor); } });
+    document.body.appendChild(bar);
+    return bar;
+  }
+  let lastPt = null;
+  function place(el, pt) {
+    const b = fmtBarEl();
+    if (document.activeElement !== el || el.selectionStart === el.selectionEnd) { b.hidden = true; return; }
+    barFor = el;
+    const labels = { b: T('fmt.bold'), i: T('fmt.italic'), s: T('fmt.strike'), u: T('fmt.underline') };
+    b.querySelectorAll('[data-mark]').forEach(x => { x.title = labels[x.dataset.mark]; x.setAttribute('aria-label', labels[x.dataset.mark]); });
+    b.hidden = false;
+    const r = el.getBoundingClientRect(), w = b.offsetWidth, h = b.offsetHeight;
+    const p = pt || lastPt;
+    let x = p && p.el === el ? p.x - w / 2 : r.left + 12;
+    let y = p && p.el === el ? p.y - h - 12 : r.top - h - 6;
+    if (y < 4) y = (p && p.el === el ? p.y : r.bottom) + 14; // no room above → below
+    b.style.left = Math.max(6, Math.min(x, innerWidth - w - 6)) + 'px';
+    b.style.top = y + 'px';
+  }
+  function fmtBar(el) {
+    if (!el || el._fmt) return;
+    el._fmt = true;
+    el.addEventListener('keydown', e => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      const mark = !e.shiftKey && k === 'b' ? 'b' : !e.shiftKey && k === 'i' ? 'i' : !e.shiftKey && k === 'u' ? 'u' : e.shiftKey && k === 'x' ? 's' : null;
+      if (!mark) return;
+      e.preventDefault();
+      if (toggleMark(el, mark)) place(el);
+    });
+    el.addEventListener('pointerup', e => { lastPt = { el, x: e.clientX, y: e.clientY }; setTimeout(() => place(el, lastPt), 0); });
+    el.addEventListener('keyup', e => { if (e.shiftKey || e.key === 'Shift' || (e.ctrlKey && e.key.toLowerCase() === 'a')) { lastPt = null; place(el); } else if (!e.ctrlKey) fmtBarEl().hidden = true; });
+    el.addEventListener('input', () => { if (el.selectionStart === el.selectionEnd) fmtBarEl().hidden = true; });
+    el.addEventListener('blur', () => { if (barFor === el) fmtBarEl().hidden = true; });
+    el.addEventListener('scroll', () => { if (barFor === el) fmtBarEl().hidden = true; });
+  }
+
   function lateFlip(dateText, dueTs) {
     const today0 = new Date(); today0.setHours(0, 0, 0, 0);
     const late = T('isl.due.late', { n: Math.round((today0.getTime() - (dueTs - 12 * 3600e3)) / 864e5) });
@@ -314,5 +402,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();
