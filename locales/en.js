@@ -135,6 +135,8 @@ const STRINGS_EN = {
   'isl.btn.editAria': 'Edit: {t}',
   'etab.label': 'Edit', // the floating corner tab on a rested row (island + tasks window)
   'etab.del': 'Delete task', // the trash tab beside Edit (tasks window only)
+  'etab.now': 'Now', // the ☆ tab beside Edit (tasks window): stage this task as Now
+  'etab.notNow': 'Not now',
   'isl.expand.more': '{n} more', // the island's show-more pill (rest 1 s or click)
   'isl.expand.rest': '+{n} more in the tasks window', // past the island's 10-task cap
   'isl.expand.less': 'Show less',
@@ -163,6 +165,7 @@ const STRINGS_EN = {
   'tw.aria': 'Pick a time', 'tw.hours': 'Hours', 'tw.minutes': 'Minutes', // the time wheel (Settings, setup)
   'side.close': 'Close (Esc)', // the side panel's ✕ (Edit / Share)
   'ed.sub.del': 'Delete subtask {t}', 'ed.sub.none': 'No subtasks yet.',
+  'ed.sub.prio': 'Importance: click to step ! → !! → !!! → none', 'ed.sub.prioAria': 'Priority of {t}: {p}',
   'ed.sub.rename': 'Click to rename', 'ed.sub.tick': 'Mark {t} done', 'ed.sub.untick': 'Mark {t} not done',
   'ed.missing': 'Task not found — it may have been completed or removed.',
   'ed.task': 'Task',

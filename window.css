@@ -523,10 +523,20 @@ header .upd { margin-inline-start: var(--s-3); }
 
 
 /* ==== side panel (owner 2026-09-28): Edit and Share live INSIDE the window, never in a new one ====
-   Enters from the end edge and leaves the same way; it MATERIALIZES (the frost arrives with the slide). It takes HALF
-   the window and floats OVER the list like a side sheet (owner 2026-09-28: never split or shrink the window); no dim.
+   Enters from the end edge and leaves the same way; it MATERIALIZES (the frost arrives with the slide). It takes 70 %
+   of the window (owner 2026-09-29; was half) and floats OVER the list like a side sheet (never split or shrink the window).
    Critically damped (no bounce on a big surface). ✕, Esc or a click outside closes it (panels.js). */
-:root { --side-w: max(340px, 50vw); }
+:root { --side-w: max(340px, 70vw); }
+/* the frost behind it (owner 2026-09-29: "so I don't misclick a task while I only want to dismiss the panel"): whatever
+   view is under the panel fades behind a light frost and takes no clicks; a click on it only closes the panel.
+   The header stays live (Share toggles the panel, tabs switch). */
+.side-scrim {
+  position: fixed; top: 50px; bottom: 0; inset-inline: 0; z-index: 39;
+  background: rgba(var(--sheet-rgb), 0.34); -webkit-backdrop-filter: blur(5px) saturate(0.85); backdrop-filter: blur(5px) saturate(0.85);
+  opacity: 0; visibility: hidden; transition: opacity 260ms ease, visibility 0s linear 260ms;
+}
+body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacity 260ms ease, visibility 0s; }
+@media (prefers-reduced-transparency: reduce) { .side-scrim { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(var(--sheet-rgb), 0.7); } }
 .side {
   position: fixed; top: 50px; bottom: 0; inset-inline-end: 0; z-index: 40; width: var(--side-w);
   display: flex; flex-direction: column; background: var(--card);
@@ -584,6 +594,14 @@ header .upd { margin-inline-start: var(--s-3); }
 .subs-list li { display: flex; align-items: center; gap: 6px; }
 .subs-list li .sb { border: 0; background: transparent; cursor: pointer; padding: 3px 4px; border-radius: var(--r-1); transition: color var(--d-1) ease, background var(--d-1) ease; }
 .subs-list li .sb:hover { color: var(--accent); background: var(--accent-soft); }
+/* a subtask's importance (owner 2026-09-29): its bangs as ONE button that steps none → ! → !! → !!! → none; a fixed
+   3-character slot so the title never jumps; with no priority a faint "!" shows where a click adds one */
+.subs-list li .sbp { flex: none; width: 3.2ch; border: 0; background: transparent; cursor: pointer; padding: 3px 0; border-radius: var(--r-1);
+  font-family: var(--font-mono); font-weight: 750; font-size: var(--fs-2); letter-spacing: -1px; text-align: center; color: var(--faint);
+  transition: color var(--d-1) ease, background var(--d-1) ease, opacity var(--d-1) ease; }
+.subs-list li .sbp:hover { background: var(--hover); }
+.subs-list li .sbp.none { opacity: 0.35; } .subs-list li:hover .sbp.none, .subs-list li .sbp.none:focus-visible { opacity: 0.8; }
+.subs-list li .sbp.p3 { color: var(--p3); } .subs-list li .sbp.p2 { color: var(--p2); } .subs-list li .sbp.p1 { color: var(--p1); }
 .subs-list li .st { cursor: text; padding: 3px 6px; margin-inline-start: -2px; border-radius: var(--r-1); transition: background var(--d-1) ease; }
 .subs-list li .st:hover { background: var(--hover); color: var(--ink); }
 .sub-edit { flex: 1; min-width: 0; height: 30px; padding: 0 8px; border: 0; border-radius: var(--r-1); font: inherit; color: var(--ink);

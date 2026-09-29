@@ -150,7 +150,7 @@
   // pointer has RESTED on (its hoverSec dwell), so passing over rows on the way to another shows nothing. It floats over
   // the row's top edge, outside the row's own box, so it never takes layout width and never gets clipped by the row.
   // onDelete (tasks window only — the island never deletes) adds a trash tab beside Edit, same glass, same rest
-  function editTab(host, { onEdit, onDelete, onLeave }) {
+  function editTab(host, { onEdit, onStar, onDelete, onLeave }) {
     const tab = document.createElement('button');
     tab.type = 'button'; tab.className = 'etab'; tab.tabIndex = -1;
     tab.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg><span class="etab-t"></span>';
@@ -162,7 +162,15 @@
       del.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
       host.appendChild(del);
     }
-    const tabs = del ? [tab, del] : [tab];
+    let star = null; // quick Now (owner 2026-09-29): ☆ stages the rested task as Now in one click, ★ = Not now
+    if (onStar) {
+      star = document.createElement('button');
+      star.type = 'button'; star.className = 'etab etab-star'; star.tabIndex = -1;
+      star.innerHTML = '<span class="etab-g" aria-hidden="true"></span><span class="etab-t"></span>';
+      host.appendChild(star);
+    }
+    // placed from the row's corner inward, so on screen they read ☆ Now · ✎ Edit · 🗑 (owner 2026-09-29: Now first)
+    const tabs = [del, tab, star].filter(Boolean);
     let row = null;
     const place = () => {
       if (!row || !row.isConnected) { api.hide(); return; }
@@ -170,7 +178,7 @@
       // a row that isn't laid out yet (or scrolled out of the host) gets no tab — never park it somewhere else
       if (!b.height || b.bottom < h.top || b.top > h.bottom) { tabs.forEach(t => t.classList.remove('on')); return; }
       let edge = rtl ? b.left - h.left + 14 : h.right - b.right + 14;
-      for (const t of tabs) { // Edit sits at the corner; Delete lines up just inside it
+      for (const t of tabs) { // the first sits at the corner; the rest line up just inside it
         t.style.top = Math.max(2, b.top - h.top - 11) + 'px';
         t.style.right = rtl ? '' : edge + 'px';
         t.style.left = rtl ? edge + 'px' : '';
@@ -183,15 +191,23 @@
         tab.querySelector('.etab-t').textContent = T('etab.label');
         tab.title = label; tab.setAttribute('aria-label', label);
         if (del) { const dl = T('etab.del'); del.title = dl; del.setAttribute('aria-label', dl); }
+        if (star) api.setNow(r.classList.contains('is-now'));
         tabs.forEach(t => t.classList.add('on')); place();
       },
       hide() { row = null; tabs.forEach(t => t.classList.remove('on')); },
       place,
+      setNow(now) {
+        if (!star) return;
+        star.querySelector('.etab-g').textContent = now ? '\u2605' : '\u2606';
+        star.querySelector('.etab-t').textContent = T(now ? 'etab.notNow' : 'etab.now');
+        star.classList.toggle('now', now);
+      },
       get row() { return row; },
       owns: el => !!el && el.nodeType === 1 && tabs.some(t => t.contains(el))
     };
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
     if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
+    if (star) star.addEventListener('click', e => { e.stopPropagation(); if (row) onStar(row); });
     tabs.forEach(t => t.addEventListener('mouseleave', e => { if (row && !row.contains(e.relatedTarget) && !api.owns(e.relatedTarget) && onLeave) onLeave(); }));
     return api;
   }

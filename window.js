@@ -7,7 +7,49 @@ const $ = id => document.getElementById(id);
 function taskRows() {
   if (!snap) return [];
   const sec = snap.sections.find(s => (currentTab === 'work' ? s.name === 'Work' : s.name === 'Personal'));
-  return sec ? sec.items : [];
+  return sec ? ordered(sec.items, currentTab) : [];
+}
+// ORDER STAYS PUT (owner 2026-09-29): the list is sorted (Now → due → priority → last edit) when the window OPENS
+// (a fresh window, the tray / island bringing it forward, or un-minimizing). While it stays open, edits, Now, subtask
+// ticks and folding never move a row. A new task slots in after its neighbour in the fresh sort; a gone one drops out.
+const order = { work: null, personal: null }; // ids in their frozen order, per tab
+function resort() { order.work = null; order.personal = null; }
+function ordered(items, tab) {
+  const known = order[tab];
+  if (!known) { order[tab] = items.map(t => t.id); return items; }
+  const pos = new Map(known.map((id, i) => [id, i]));
+  const out = items.filter(t => pos.has(t.id)).sort((a, b) => pos.get(a.id) - pos.get(b.id));
+  items.forEach((t, i) => {
+    if (pos.has(t.id)) return;
+    let at = 0; // new (or renamed without notice): right after the task that precedes it in the fresh sort
+    for (let k = i - 1; k >= 0; k--) { const j = out.indexOf(items[k]); if (j !== -1) { at = j + 1; break; } }
+    out.splice(at, 0, t);
+  });
+  order[tab] = out.map(t => t.id);
+  return out;
+}
+// a task's id follows its title/priority/due — an edit renames it in place (panels.js / the 0–3 keys announce it)
+function renameId(from, to) {
+  if (!from || !to || from === to) return;
+  for (const k of ['work', 'personal']) if (order[k]) order[k] = order[k].includes(to) ? order[k].filter(i => i !== from) : order[k].map(i => (i === from ? to : i));
+  if (closedRows.delete(from)) closedRows.add(to);
+  if (focusId === from) focusId = to;
+  if (restId === from) restId = to;
+}
+window.addEventListener('task-id', e => renameId(e.detail.from, e.detail.to));
+window.api.onWindowOpened(() => { resort(); refresh(); });
+
+// the list is patched per row (owner 2026-09-29: "everything in place while I'm editing"): a refresh, a Now toggle or a
+// fold only replaces the rows whose markup changed, so focus, hover and scroll stay where they are.
+function patchList(parts) { // parts = [{ key, html }], each html ONE root element
+  const list = $('task-list'), cur = [...list.children];
+  const make = p => { const tpl = document.createElement('template'); tpl.innerHTML = p.html.trim(); const n = tpl.content.firstElementChild; n.dataset.key = p.key; n._html = p.html; return n; };
+  if (cur.length !== parts.length || cur.some((el, i) => el.dataset.key !== parts[i].key)) {
+    const byKey = new Map(cur.map(el => [el.dataset.key, el]));
+    list.replaceChildren(...parts.map(p => { const old = byKey.get(p.key); return old && old._html === p.html ? old : make(p); }));
+    return;
+  }
+  cur.forEach((el, i) => { if (el._html !== parts[i].html) el.replaceWith(make(parts[i])); });
 }
 
 const closedRows = new Set(); // rows with details are OPEN by default (owner 2026-09-28); these were folded — survives refreshes
@@ -24,11 +66,28 @@ function renderDone(q) { // Done tab: both files, restore or delete (both undoab
   const items = all.filter(d => !q || d.title.toLowerCase().includes(q));
   $('done-count').textContent = all.length ? `· ${all.length}` : '';
   $('btn-clear-done').hidden = !all.length;
-  $('task-list').innerHTML = items.map(d => `
+  patchList(items.map(d => ({ key: 'd:' + d.file + ':' + d.id, html: `
     <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(d.title)}">
       <div class="wrow-main"><span class="wtitle"><span class="tt">${esc(d.title)}</span></span></div>
       <span class="wmeta"><span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></span>
-    </div></div></div>`).join('') || `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>`;
+    </div></div></div>` })).concat(items.length ? [] : [{ key: 'empty', html: `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>` }]));
+}
+function rowHtml(t) {
+  const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (!closedRows.has(t.id) || t.id === peekId);
+  const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
+    ${(t.notes || []).map(n => `<div class="wdesc">${esc(n)}</div>`).join('')}
+    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${esc(s.t)}</span></div>`).join('')}
+  </div></div>` : '';
+  return `
+  <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
+    <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(t.title)}"></button>
+    <div class="wrow-main">
+      <span class="wtitle"><span class="tt">${esc(t.title)}</span></span>
+      ${expandBody}
+      ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
+    </div>
+    <span class="wmeta"><span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
+  </div></div></div>`;
 }
 function renderList() {
   if (!snap) return; // first snapshot not in yet (tab restore runs before refresh resolves)
@@ -45,23 +104,7 @@ function renderList() {
   const all = taskRows();
   const rows = all.filter(t => matches(t, q));
   $('search-count').textContent = q ? `${rows.length} / ${all.length}` : '';
-  $('task-list').innerHTML = rows.map(t => {
-    const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && !closedRows.has(t.id);
-    const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
-      ${(t.notes || []).map(n => `<div class="wdesc">${esc(n)}</div>`).join('')}
-      ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span><span class="st">${esc(s.t)}</span></div>`).join('')}
-    </div></div>` : '';
-    return `
-    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
-      <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(t.title)}"></button>
-      <div class="wrow-main">
-        <span class="wtitle"><span class="tt">${esc(t.title)}</span></span>
-        ${expandBody}
-        ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
-      </div>
-      <span class="wmeta"><span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
-    </div></div></div>`;
-  }).join('') || emptyState(q);
+  patchList(rows.length ? rows.map(t => ({ key: currentTab + ':' + t.id, html: rowHtml(t) })) : [{ key: 'empty', html: emptyState(q) }]);
   markFresh();
   settleFocus(hadFocus);
   restRestore();
@@ -73,17 +116,24 @@ const REST_MS = 200;
 let restRow = null, restT = null, restId = null, restTab = null;
 const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySelector('.list-sheet'), {
   onEdit: r => window.Panels.edit(r.dataset.file, r.dataset.id),
+  onStar: r => toggleNow(r.dataset.id, r.dataset.file, r),
   onDelete: async r => { window.SFX.play('delete'); restClear(); await window.api.deleteTask(r.dataset.id, r.dataset.file); await refresh(); },
   onLeave: () => restClear()
 }));
+// resting on a FOLDED row also peeks it open (owner 2026-09-29): its notes + subtasks show with the tabs, and fold back
+// when the pointer leaves. A click while peeking pins it open.
+let peekId = null, noPeekId = null;
 function restClear() {
   clearTimeout(restT);
+  noPeekId = null;
+  if (peekId) { const id = peekId; peekId = null; if (closedRows.has(id)) rowInPlace(id); }
   document.querySelectorAll('.wrow.dwelt').forEach(r => r.classList.remove('dwelt'));
   restRow = null; restId = null;
   editTabEl().hide();
 }
 function restOn(row) {
   row.classList.add('dwelt'); restRow = row; restId = row.dataset.id;
+  if (row.classList.contains('has-detail') && !row.classList.contains('open') && !peekId && restId !== noPeekId && row.matches(':hover')) { peekId = restId; rowInPlace(restId); }
   if (!row.classList.contains('done')) editTabEl().show(row, T('isl.btn.editAria', { t: row.querySelector('.tt').textContent }));
 }
 function restRestore() { // a re-render keeps the rested task (same id) rested
@@ -320,19 +370,43 @@ $('task-list').addEventListener('keydown', async e => {
   if (done) { if (k === 'r' || k === 'Enter') { e.preventDefault(); window.SFX.play('add'); await window.api.uncomplete(id, file); await refresh(); } return; }
   if (k === 'Enter') { e.preventDefault(); window.Panels.edit(file, id); return; }
   if (k === ' ' || k === 'x') { e.preventDefault(); focusIndex = i; const chk = row.querySelector('.chk'); if (!chk.classList.contains('checked')) completeWithInk(chk); return; }
-  if (k === '*' || k === 's') { e.preventDefault(); window.SFX.play(row.classList.contains('is-now') ? 'starOff' : 'starOn'); await window.api.toggleActive(id, file); await refresh(); return; }
+  if (k === '*' || k === 's') { e.preventDefault(); await toggleNow(id, file, row); return; }
   if (['0', '1', '2', '3'].includes(k)) {
     e.preventDefault();
     const res = await window.api.updateTask(file, id, { priority: ['', '!', '!!', '!!!'][+k] || null });
-    if (res && res.id) focusId = res.id; // id changes with priority — keep focus on the same task
+    if (res && res.id) renameId(id, res.id); // id changes with priority — keep its place and focus
     window.SFX.play('tick');
     await refresh();
   }
 });
-function toggleRow(id) {
+function toggleRow(id) { // a click pins a row open / folded
   window.SFX.play('tick');
   closedRows.has(id) ? closedRows.delete(id) : closedRows.add(id);
-  renderList();
+  if (peekId === id) peekId = null; // the peek became a pin (or a fold)
+  noPeekId = closedRows.has(id) ? id : null; // folded by hand: no peek until the pointer leaves it
+  rowInPlace(id);
+}
+// fold / unfold IN PLACE: the row element stays (focus, hover and the Edit tab stay with it)
+function rowInPlace(id) {
+  const t = taskRows().find(x => x.id === id);
+  const fold = [...$('task-list').children].find(el => el.dataset.key === currentTab + ':' + id);
+  const row = fold && fold.querySelector('.wrow');
+  if (!t || !row) { renderList(); return; }
+  const html = rowHtml(t), tpl = document.createElement('template');
+  tpl.innerHTML = html.trim();
+  const fresh = tpl.content.querySelector('.wrow');
+  const keep = ['dwelt', 'fresh'].filter(c => row.classList.contains(c));
+  row.className = fresh.className; row.classList.add(...keep);
+  row.setAttribute('aria-expanded', fresh.getAttribute('aria-expanded'));
+  row.querySelector('.wrow-main').replaceWith(fresh.querySelector('.wrow-main'));
+  fold._html = html; // the next refresh sees this row as already current
+  foldAllLabel(taskRows().filter(x => matches(x, $('search').value.trim().toLowerCase())));
+  editTabEl().place();
+}
+async function toggleNow(id, file, row) { // the ☆ tab and the * / s keys: the row stays where it is (the order is frozen)
+  window.SFX.play(row && row.classList.contains('is-now') ? 'starOff' : 'starOn');
+  await window.api.toggleActive(id, file);
+  await refresh();
 }
 async function onListAction(e) {
   const chk = e.target.closest('[data-chk]');

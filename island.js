@@ -23,9 +23,12 @@ function dueHtml(t) {
 }
 // subtasks: the note's own [ ] / [x] brackets (like the parent task). Open ones always show; done ones fold behind
 // one quiet "[x] N done" line and unfold while the pointer rests on it (owner, 2026-09-27).
+const RANK_SUB = { '!!!': 3, '!!': 2, '!': 1 };
+const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : '';
 function subsHtml(subs, attrs = '') {
-  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span><span class="st">${esc(s.t)}</span></div>`;
-  const open = subs.filter(x => !x.done), done = subs.filter(x => x.done);
+  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${esc(s.t)}</span></div>`;
+  // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
+  const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
   const fold = done.length ? `<div class="subs-done"><div class="sd-sum">${esc(T('isl.sub.doneN', { n: done.length }))}</div><div class="sd-wrap"><div class="sd-in">${done.map(one).join('')}</div></div></div>` : '';
   return open.map(one).join('') + fold;
 }
