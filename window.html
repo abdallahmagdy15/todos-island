@@ -351,19 +351,40 @@
       </div>
     </div>
     <div class="side-body" id="side-share" hidden>
+      <!-- Share (owner 2026-09-29): Work · Personal pages, each with Open (Now + open) and Done lists. ONE selection
+           across all of them; the foot counts it and builds one message (Work block, then Personal). panels.js -->
       <div class="sh-tools">
-        <div class="seg" id="fmt-seg">
-          <button class="seg-btn sel" data-fmt="wa" type="button">WhatsApp</button>
-          <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
+        <div class="seg" id="sh-page" role="radiogroup">
+          <button class="seg-btn sel" data-page="work" type="button" role="radio"><span data-i18n="win.tab.work">Work</span><span class="cnt"></span></button>
+          <button class="seg-btn" data-page="personal" type="button" role="radio"><span data-i18n="win.tab.personal">Personal</span><span class="cnt"></span></button>
+        </div>
+        <div class="seg" id="sh-sub" role="radiogroup">
+          <button class="seg-btn sel" data-sub="open" type="button" role="radio"><span data-i18n="sh.open">Open</span><span class="cnt"></span></button>
+          <button class="seg-btn" data-sub="done" type="button" role="radio"><span data-i18n="sh.sec.done">Done</span><span class="cnt"></span></button>
+        </div>
+      </div>
+      <div class="sh-tools">
+        <div class="search-box sh-search">
+          <input id="sh-search" type="text" spellcheck="false" autocomplete="off" data-i18n-ph="sh.search.ph" data-i18n-aria="sh.search.ph">
+          <button class="search-clear" id="sh-search-clear" type="button" hidden data-i18n-aria="win.search.clear">&times;</button>
         </div>
         <button id="sel-all" class="btn-text" type="button" data-i18n="sh.all">Select all</button>
         <button id="sel-clear" class="btn-text" type="button" data-i18n="sh.clear">Clear</button>
       </div>
       <div class="side-scroll" id="share-list"></div>
       <div class="side-foot">
-        <div class="sh-status"><span class="sel-hint" id="sel-hint" data-i18n="sh.selHint">Select tasks to share</span><span id="share-note" class="note-inline" role="status"></span></div>
+        <div class="sh-opts">
+          <div class="seg" id="fmt-seg">
+            <button class="seg-btn sel" data-fmt="wa" type="button">WhatsApp</button>
+            <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
+          </div>
+          <button class="chip" id="sh-prio" type="button" aria-pressed="false"><span class="opt-g">!!</span><span data-i18n="sh.opt.prio">Priority</span></button>
+          <button class="chip" id="sh-dates" type="button" aria-pressed="false"><span class="opt-g">28 Sep</span><span data-i18n="sh.opt.dates">Dates</span></button>
+        </div>
+        <div class="sh-status"><span class="sel-hint" id="sel-hint" data-i18n="sh.selHint">Select tasks to share</span><button id="sel-clear-all" class="btn-text" type="button" hidden data-i18n="sh.clearAll">Clear all</button><span id="share-note" class="note-inline" role="status"></span></div>
         <div class="ed-actions">
           <button id="btn-export" class="btn-soft" type="button" disabled data-i18n="sh.export">Export .md</button>
+          <button id="btn-wa" class="btn-soft" type="button" disabled data-i18n="sh.wa">WhatsApp</button>
           <button id="btn-copy" class="btn-accent" type="button" disabled data-i18n="sh.copy">Copy</button>
         </div>
       </div>
@@ -378,6 +399,7 @@
 <script src="locales/ar.js"></script>
 <script src="lib/i18n.js"></script>
 <script src="ui-shared.js"></script>
+<script src="lib/share.js"></script>
   <script src="panels.js"></script>
   <script src="window.js"></script>
 </body>

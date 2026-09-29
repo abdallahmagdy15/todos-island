@@ -133,11 +133,15 @@ function snapshot() {
       dueTs: t.due ? resolveDue(t.due) : null,
       notes: f.notesOf(t).map(n => n.replace(/\*\*/g, '')),
       subs: f.subtasksOf(t).map(s => ({ t: s.title.replace(/\*\*/g, ''), done: s.checked, p: s.priority || null })),
-      created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
+      created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
+      lines: f.blockLines(t) // Share → Markdown: the block as the note has it, stamp stripped
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
     id: f.id(t), file: group, title: t.title.replace(/\*\*/g, ''),
-    dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
+    priority: t.priority, dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
+    notes: f.notesOf(t).map(n => n.replace(/\*\*/g, '')),
+    subs: f.subtasksOf(t).map(s => ({ t: s.title.replace(/\*\*/g, ''), done: s.checked, p: s.priority || null })),
+    lines: f.blockLines(t),
     created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
   }));
   const safe = (group, path) => {
@@ -795,6 +799,21 @@ ipcMain.handle('clear-done-all', () => {
   if (mainWin) mainWin.webContents.send('tasks-changed');
   return n;
 });
+// Share → WhatsApp (owner 2026-09-29): the installed app first (whatsapp://send → its contact / group picker), else
+// WhatsApp Web (wa.me). Only these two URL shapes are ever opened; the text is also on the clipboard (a very long
+// message can be cut by the link, pasting always works).
+ipcMain.handle('open-whatsapp', async (_e, text) => {
+  const body = String(text || '');
+  await clipboard.writeText(body);
+  if (SANDBOX || process.env.TODO_ISLAND_UNDO_TEST) { LOG('WHATSAPP-SANDBOX chars=' + body.length); return { ok: true, via: 'sandbox' }; } // tests never open apps
+  const q = encodeURIComponent(body);
+  // Windows answers an unknown protocol with a "find an app" prompt instead of an error — ask first who handles it
+  const hasApp = !!app.getApplicationNameForProtocol('whatsapp://');
+  try {
+    await shell.openExternal((hasApp ? 'whatsapp://send?text=' : 'https://wa.me/?text=') + q);
+    return { ok: true, via: hasApp ? 'app' : 'web' };
+  } catch (e) { LOG('WHATSAPP-FAIL ' + e.message); return { ok: false }; }
+});
 ipcMain.handle('copy-text', async (_e, text) => { await clipboard.writeText(String(text || '')); return true; }); // Electron 44 clipboard is async — await so the invoke resolves after the write
 ipcMain.handle('open-note', (_e, file) => {
   shell.openPath(file === 'work' ? state.settings.workPath : state.settings.personalPath);
@@ -958,6 +977,8 @@ else {
           await shStep('share-pick+copy-wa', `(async()=>{ const rows=document.querySelectorAll('.sh-row'); if(rows.length<2) return 'need-2-rows:'+rows.length; rows[0].click(); await new Promise(r=>setTimeout(r,150)); rows[rows.length-1].click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return document.querySelectorAll('.sh-row.sel').length + ' selected'; })()`);
           LOG('CLIP-WA: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
           await shStep('share-fmt-md+copy', `(async()=>{ document.querySelector('#fmt-seg .seg-btn[data-fmt=md]').click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return 'ok'; })()`);
+          // Share pages (owner 2026-09-29): pick on Work/Open, switch to Work/Done, pick there → ONE selection, one message
+          await shStep('share-pages-one-selection', `(async()=>{ const w=ms=>new Promise(r=>setTimeout(r,ms)); document.getElementById('sel-clear-all').click(); await w(150); const pg=document.querySelector('#sh-page [data-page=work]'); if(pg) pg.click(); document.querySelector('#sh-sub [data-sub=open]').click(); await w(200); const o=document.querySelector('#share-list .sh-row'); if(!o) return 'no-open-row'; o.click(); document.querySelector('#sh-sub [data-sub=done]').click(); await w(200); const d=document.querySelector('#share-list .sh-row'); if(d) d.click(); await w(100); const hint=document.getElementById('sel-hint').textContent; const subCnt=[...document.querySelectorAll('#sh-sub .cnt')].map(c=>c.textContent).join('/'); document.querySelector('#fmt-seg [data-fmt=wa]').click(); document.getElementById('btn-wa').click(); await w(500); document.querySelector('#sh-sub [data-sub=open]').click(); return 'hint=['+hint+'] openDone='+subCnt+' doneRow='+!!d; })()`);
           LOG('CLIP-MD: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
           await closePanel();
           if (process.env.TODO_ISLAND_USERDATA) { // sandbox only: a vanished note must be admitted honestly, in both surfaces

@@ -619,6 +619,22 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 .sh-tools .seg { margin-inline-end: auto; }
 #share-list { padding-top: var(--s-2); }
 .sh-sec { display: flex; align-items: baseline; gap: 6px; padding: 12px 2px 6px; font-size: var(--fs-2); font-weight: 650; color: var(--muted); }
+/* Share (owner 2026-09-29): page + list segments, a search, foldable Now / Open headers, WhatsApp options in the foot */
+button.sh-sec { width: 100%; border: 0; background: transparent; cursor: pointer; font-family: inherit; text-align: start; border-radius: var(--r-1); }
+button.sh-sec:hover { color: var(--ink); }
+.sh-sec .chev { flex: none; align-self: center; width: 13px; height: 13px; stroke-width: 2.2; transition: transform var(--d-2) var(--ease-out); }
+.sh-sec[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+[dir="rtl"] .sh-sec[aria-expanded="false"] .chev { transform: rotate(90deg); }
+.sh-tools .seg-btn .cnt { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 650; color: var(--accent); margin-inline-start: 5px; }
+.sh-tools .seg-btn .cnt:empty { display: none; }
+.sh-search #sh-search { flex: 1; min-width: 0; height: 30px; padding-block: 0; padding-inline: 12px 34px; }
+.sh-search .search-clear { top: 2px; }
+.sh-opts { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
+.sh-opts .seg { margin-inline-end: auto; }
+.sh-opts .chip { gap: 6px; }
+#sel-clear-all { flex: none; white-space: nowrap; }
+.sh-opts .opt-g { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
+.sh-opts .chip.sel .opt-g { color: var(--accent); }
 .sh-sec .hash, .sh-sec .cnt { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
 .sh-sec::after { content: ""; flex: 1; height: 1px; background: var(--rule-soft); align-self: center; }
 .sh-row { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin: 1px 0; border-radius: var(--r-3); cursor: pointer; transition: background var(--d-1) ease, box-shadow var(--d-1) ease; }

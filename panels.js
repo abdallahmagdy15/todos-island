@@ -248,98 +248,154 @@
   });
 
   // ---------- share ----------
-  let shSnap = null, fmt = 'wa';
-  const sel = new Set();
+  // Owner 2026-09-29: a page per note (Work · Personal), each with Open (Now + open, two foldable sections) and Done
+  // lists — never mixed. ONE selection across every page and list; the foot counts it and builds ONE message
+  // (lib/share.js: a Work block, then a Personal block). A search filters the list you're on (picks elsewhere stay).
+  // Long lists render a first batch and load more as you scroll.
+  let shSnap = null, fmt = 'wa', page = 'work', sub = 'open', query = '', withPrio = false, withDates = false;
+  const sel = new Set(); // keys: 'o:<id>' open, 'd:<id>' done — picks survive page switches while the app runs
+  const folded = { now: false, open: false };
+  const STEP = 30;
+  let limit = STEP;
+  try { // per-viewer conveniences only
+    const saved = JSON.parse(localStorage.getItem('share.opts') || '{}');
+    if (saved.fmt === 'wa' || saved.fmt === 'md') fmt = saved.fmt;
+    withPrio = !!saved.prio; withDates = !!saved.dates;
+  } catch (e) {}
+  const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify({ fmt, prio: withPrio, dates: withDates })); } catch (e) {} };
+
   async function share() {
     if (kind === 'share') { close(); return; } // the Share button toggles its panel
     if (kind === 'edit') await saveNow();
     show('share');
     shSnap = await window.api.getSnapshot();
     if (shSnap && shSnap.lang && shSnap.lang !== LANG) setLang(shSnap.lang);
-    renderShare();
+    limit = STEP; $('share-list').scrollTop = 0;
+    paintControls(); renderShare();
   }
-  function sections() {
-    const work = (shSnap.sections.find(s => s.name === 'Work') || { items: [] }).items;
-    const personal = (shSnap.sections.find(s => s.name === 'Personal') || { items: [] }).items;
-    // Share lists the latest-updated first (owner 2026-09-29): the task's own u stamp, newest on top
-    const byUpdate = arr => [...arr].sort((a, b) => (b.updatedTs || 0) - (a.updatedTs || 0));
-    const flat = byUpdate([...work, ...personal]);
-    return [
-      { name: T('isl.sec.now'), items: flat.filter(t => t.active) },
-      { name: T('isl.sec.work'), items: byUpdate(work.filter(t => !t.active)) },
-      { name: T('isl.sec.personal'), items: byUpdate(personal.filter(t => !t.active)) },
-      { name: T('sh.sec.done'), items: (shSnap.done || []).map(d => ({ ...d, isDone: true })) }
-    ].filter(s => s.items.length);
+  const notesOn = () => { const m = (shSnap && shSnap.settings.mode) || 'both'; return m === 'both' ? ['work', 'personal'] : [m]; };
+  const byUpdate = arr => [...arr].sort((a, b) => (b.updatedTs || 0) - (a.updatedTs || 0)); // latest-updated first
+  const keyOf = t => (t.isDone ? 'd:' : 'o:') + t.id;
+  function lists(tag) {
+    const sec = shSnap.sections.find(s => s.name === (tag === 'work' ? 'Work' : 'Personal'));
+    const items = sec ? sec.items : [];
+    return {
+      now: byUpdate(items.filter(t => t.active)),
+      open: byUpdate(items.filter(t => !t.active)),
+      done: (shSnap.done || []).filter(d => d.file === tag).map(d => ({ ...d, isDone: true })) // newest done first (snapshot)
+    };
+  }
+  const hit = t => !query || [t.title, ...(t.notes || []), ...(t.subs || []).map(s => s.t)].some(x => String(x).toLowerCase().includes(query));
+  const pickedIn = arr => arr.filter(t => sel.has(keyOf(t))).length;
+  function rowHtml(t) {
+    const subs = t.subs || [];
+    return `<div class="sh-row ${sel.has(keyOf(t)) ? 'sel' : ''}" data-key="${esc(keyOf(t))}">
+      <span class="sh-chk" aria-hidden="true"></span>
+      <span class="shtitle">${esc(t.title)}</span>
+      ${subs.length ? `<span class="tag">${subs.filter(s => s.done).length}/${subs.length}</span>` : ''}
+      ${t.dueText ? `<span class="tag">${esc(t.dueText)}</span>` : ''}
+    </div>`;
   }
   function renderShare() {
     if (!shSnap) return;
-    $('share-list').innerHTML = sections().map(sec => `
-      <div class="sh-sec"><span class="hash">##</span> ${esc(sec.name)} <span class="cnt">${sec.items.length}</span></div>
-      ${sec.items.map(t => `
-        <div class="sh-row ${sel.has(t.id) ? 'sel' : ''}" data-id="${esc(t.id)}">
-          <span class="sh-chk" aria-hidden="true"></span>
-          ${t.active ? '<span class="star">★</span>' : ''}
-          <span class="shtitle">${esc(t.title)}</span>
-          ${t.isDone ? `<span class="tag">${t.file === 'work' ? 'work' : 'personal'}</span>` : ''}
-          ${t.dueText ? `<span class="tag">${esc(t.dueText)}</span>` : ''}
-        </div>`).join('')}
-    `).join('') || `<p class="empty">${esc(T('sh.none'))}</p>`;
+    const on = notesOn();
+    if (!on.includes(page)) page = on[0];
+    const L = lists(page);
+    let budget = limit, more = false;
+    const take = arr => { const out = arr.slice(0, Math.max(0, budget)); budget -= out.length; if (out.length < arr.length) more = true; return out; };
+    let html = '';
+    if (sub === 'open') {
+      for (const [k, label] of [['now', T('sh.sec.nowOpen')], ['open', T('sh.open')]]) {
+        const arr = L[k].filter(hit);
+        if (!arr.length) continue;
+        html += `<button class="sh-sec" type="button" data-fold="${k}" aria-expanded="${!folded[k]}"><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span class="hash">##</span> ${esc(label)} <span class="cnt">${arr.length}</span></button>`;
+        if (!folded[k]) html += take(arr).map(rowHtml).join('');
+      }
+    } else {
+      html = take(L.done.filter(hit)).map(rowHtml).join('');
+    }
+    $('share-list').innerHTML = html || `<p class="empty">${esc(T(query ? 'win.search.none' : sub === 'done' ? 'sh.none.done' : 'sh.none'))}</p>`;
+    $('share-list').dataset.more = more ? '1' : '';
     syncShare();
   }
-  function syncShare() { // zero selection: the buttons say so instead of silently doing nothing
-    const n = [...sel].filter(id => sections().some(s => s.items.some(t => t.id === id))).length;
-    $('btn-copy').disabled = !n; $('btn-export').disabled = !n;
+  function paintControls() {
+    const on = notesOn();
+    $('sh-page').hidden = on.length < 2; // a one-note setup has no page switch
+    $('sh-page').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.page === page; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
+    $('sh-sub').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.sub === sub; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
+    $('fmt-seg').querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('sel', x.dataset.fmt === fmt));
+    for (const [id, v] of [['sh-prio', withPrio], ['sh-dates', withDates]]) { $(id).classList.toggle('sel', v); $(id).setAttribute('aria-pressed', v); $(id).hidden = fmt !== 'wa'; } // Markdown is the note as written
+  }
+  function syncShare() { // counts on every page / list + the total; zero selection: the buttons say so
+    const on = notesOn(), all = {};
+    for (const tag of on) { const L = lists(tag); all[tag] = { open: pickedIn(L.now) + pickedIn(L.open), done: pickedIn(L.done) }; }
+    const n = on.reduce((a, tag) => a + all[tag].open + all[tag].done, 0);
+    const cnt = (el, v) => { el.querySelector('.cnt').textContent = v ? String(v) : ''; };
+    $('sh-page').querySelectorAll('.seg-btn').forEach(b => cnt(b, all[b.dataset.page] ? all[b.dataset.page].open + all[b.dataset.page].done : 0));
+    $('sh-sub').querySelectorAll('.seg-btn').forEach(b => cnt(b, all[page] ? all[page][b.dataset.sub] : 0));
+    $('btn-copy').disabled = !n; $('btn-export').disabled = !n; $('btn-wa').disabled = !n;
     $('sel-hint').textContent = n ? T('sh.selN', { n }) : T('sh.selHint');
+    $('sel-clear-all').hidden = !n;
   }
-  const picked = () => sections().flatMap(s => s.items).filter(t => sel.has(t.id));
   function buildText(k) {
-    const ts = picked();
     const today = `${new Date().getDate()} ${MONTHS[new Date().getMonth()]}`;
-    const done = ts.filter(t => t.isDone), open = ts.filter(t => !t.isDone);
-    const active = open.filter(t => t.active), todo = open.filter(t => !t.active);
-    if (k === 'md') {
-      const part = (arr, mark) => arr.map(t => `- [${mark}] ${t.active ? '* ' : ''}${t.title}`).join('\n');
-      return [
-        `## ${T('sh.daily', { d: today })}`, '',
-        done.length ? `**Done**\n${part(done, 'x')}` : '',
-        active.length ? `**In progress**\n${part(active, ' ')}` : '',
-        todo.length ? `**To do**\n${part(todo, ' ')}` : ''
-      ].filter(Boolean).join('\n\n') + '\n';
-    }
-    const waPart = (arr, icon) => arr.map(t => `${icon} ${t.title}`).join('\n');
-    return [
-      `*${T('sh.daily', { d: today })}*`, '',
-      done.length ? `✅ *Done*\n${waPart(done, '✅')}` : '',
-      active.length ? `🔄 *In progress*\n${waPart(active, '🔄')}` : '',
-      todo.length ? `⏳ *To do*\n${waPart(todo, '•')}` : ''
-    ].filter(Boolean).join('\n\n');
+    const groups = notesOn().map(tag => {
+      const L = lists(tag), p = arr => arr.filter(t => sel.has(keyOf(t)));
+      return { name: T(tag === 'work' ? 'win.tab.work' : 'win.tab.personal'), done: p(L.done), now: p(L.now), open: p(L.open) };
+    });
+    return window.ShareText.buildShare({ groups, fmt: k, withPrio, withDates, date: today,
+      labels: { done: T('sh.wa.done'), now: T('sh.wa.now'), next: T('sh.wa.next') } });
   }
+  const picked = () => notesOn().some(tag => { const L = lists(tag); return pickedIn(L.now) + pickedIn(L.open) + pickedIn(L.done); });
   $('share-list').addEventListener('click', e => {
+    const f = e.target.closest('[data-fold]');
+    if (f) { folded[f.dataset.fold] = !folded[f.dataset.fold]; window.SFX.play('tick'); renderShare(); return; }
     const row = e.target.closest('.sh-row');
     if (!row) return;
-    const id = row.dataset.id;
-    sel.has(id) ? sel.delete(id) : sel.add(id);
-    row.classList.toggle('sel', sel.has(id)); // the row's [ ] / [x] is drawn from .sel
+    const k = row.dataset.key;
+    sel.has(k) ? sel.delete(k) : sel.add(k);
+    row.classList.toggle('sel', sel.has(k)); // the row's [ ] / [x] is drawn from .sel
     syncShare();
   });
-  $('sel-all').addEventListener('click', () => { for (const t of sections().flatMap(s => s.items)) sel.add(t.id); renderShare(); });
-  $('sel-clear').addEventListener('click', () => { sel.clear(); renderShare(); });
+  $('share-list').addEventListener('scroll', () => { // more on scroll (owner 2026-09-29)
+    const el = $('share-list');
+    if (el.dataset.more && el.scrollTop + el.clientHeight > el.scrollHeight - 120) { limit += STEP; renderShare(); }
+  });
+  const reList = () => { limit = STEP; $('share-list').scrollTop = 0; paintControls(); renderShare(); };
+  $('sh-page').addEventListener('click', e => { const b = e.target.closest('.seg-btn'); if (!b || b.dataset.page === page) return; page = b.dataset.page; window.SFX.play('tick'); reList(); });
+  $('sh-sub').addEventListener('click', e => { const b = e.target.closest('.seg-btn'); if (!b || b.dataset.sub === sub) return; sub = b.dataset.sub; window.SFX.play('tick'); reList(); });
+  $('sh-search').addEventListener('input', () => { query = $('sh-search').value.trim().toLowerCase(); $('sh-search-clear').hidden = !query; limit = STEP; renderShare(); });
+  $('sh-search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('sh-search').value) { e.stopPropagation(); $('sh-search-clear').click(); } });
+  $('sh-search-clear').addEventListener('click', () => { $('sh-search').value = ''; query = ''; $('sh-search-clear').hidden = true; limit = STEP; renderShare(); $('sh-search').focus(); });
+  // Select all / Clear act on the list you're looking at (what the search shows); Clear all empties every page
+  const shown = () => { const L = lists(page); return (sub === 'open' ? [...L.now, ...L.open] : L.done).filter(hit); };
+  $('sel-all').addEventListener('click', () => { for (const t of shown()) sel.add(keyOf(t)); renderShare(); });
+  $('sel-clear').addEventListener('click', () => { for (const t of shown()) sel.delete(keyOf(t)); renderShare(); });
+  $('sel-clear-all').addEventListener('click', () => { sel.clear(); window.SFX.play('tick'); renderShare(); });
   $('fmt-seg').addEventListener('click', e => {
     const b = e.target.closest('.seg-btn');
     if (!b) return;
-    fmt = b.dataset.fmt;
-    $('fmt-seg').querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('sel', x === b));
+    fmt = b.dataset.fmt; saveOpts(); paintControls();
   });
+  $('sh-prio').addEventListener('click', () => { withPrio = !withPrio; saveOpts(); paintControls(); });
+  $('sh-dates').addEventListener('click', () => { withDates = !withDates; saveOpts(); paintControls(); });
+  const flashBtn = (b, text) => { const old = b.textContent; b.textContent = text; setTimeout(() => { b.textContent = old; }, 1200); };
   $('btn-copy').addEventListener('click', async () => {
-    if (!picked().length) return;
+    if (!picked()) return;
     await window.api.copyText(buildText(fmt));
     window.SFX.play('tick');
-    const b = $('btn-copy'), old = b.textContent;
-    b.textContent = T('sh.copied');
-    setTimeout(() => { b.textContent = old; }, 1200);
+    flashBtn($('btn-copy'), T('sh.copied'));
+  });
+  // WhatsApp: always the WhatsApp format; the app (or WhatsApp Web) opens with the message ready for a contact / group
+  $('btn-wa').addEventListener('click', async () => {
+    if (!picked()) return;
+    const res = await window.api.openWhatsApp(buildText('wa'));
+    window.SFX.play('tick');
+    $('share-note').textContent = res && res.ok ? T('sh.wa.opened') : T('sh.wa.fail');
+    $('share-note').title = '';
   });
   $('btn-export').addEventListener('click', async () => {
-    if (!picked().length) return;
+    if (!picked()) return;
     const res = await window.api.exportMd(buildText('md'));
     if (res && res.ok) {
       window.SFX.play('tick');

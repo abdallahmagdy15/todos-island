@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
   openNote: file => ipcRenderer.invoke('open-note', file),
   openUpdate: () => ipcRenderer.invoke('open-update'),
   exportMd: text => ipcRenderer.invoke('export-md', text),
+  openWhatsApp: text => ipcRenderer.invoke('open-whatsapp', text),
   copyText: text => ipcRenderer.invoke('copy-text', text),
   onWindowOpened: cb => ipcRenderer.on('window-opened', () => cb()), // opened / brought forward / restored → sort again
   onTasksChanged: cb => ipcRenderer.on('tasks-changed', () => cb()),
