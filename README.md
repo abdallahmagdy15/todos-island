@@ -6,9 +6,9 @@
 
 ![release](https://img.shields.io/github/v/release/abdallahmagdy15/todos-island) ![platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey) ![license](https://img.shields.io/badge/license-MIT-green)
 
-[![Watch the 36-second film](docs/promo-poster.jpg)](docs/todos-island-promo.mp4)
+[![Watch the 45-second film](docs/promo-poster.jpg)](docs/todos-island-promo.mp4)
 
-<p align="center"><a href="docs/todos-island-promo.mp4">▶ Watch the 36-second film</a></p>
+<p align="center"><a href="docs/todos-island-promo.mp4">▶ Watch the 45-second film</a></p>
 
 ## Why another todo app?
 
