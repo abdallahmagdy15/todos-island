@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS = {
   labelSize: 0, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
   appearance: 'system', // system | light | dark → nativeTheme.themeSource (every window follows)
   islandTheme: 'mist', // the picture under the island's glass: mist | dusk | lagoon | bloom | dune
+  shareFmt: 'text', // Share + the island's quick Copy: 'text' (plain, WhatsApp-friendly) | 'md' (the note as written)
   hideFromCapture: true, // the island stays on your screen but Teams / OBS / screenshots can't see it (Windows "exclude from capture")
   glassLevel: 3, // frost: 0 = solid · 1–4 = 15/25/38/50 % of the theme shows through the island's glass
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
@@ -616,6 +617,7 @@ ipcMain.handle('save-settings', (_e, s) => {
   if (clean.mode !== undefined && !['both', 'work', 'personal'].includes(clean.mode)) delete clean.mode;
   if (clean.updateCheck !== undefined) clean.updateCheck = !!clean.updateCheck;
   if (clean.hideFromCapture !== undefined) clean.hideFromCapture = !!clean.hideFromCapture;
+  if (clean.shareFmt !== undefined && !['text', 'md'].includes(clean.shareFmt)) delete clean.shareFmt;
   if (clean.accent !== undefined && !['blue', 'violet', 'teal', 'pink', 'graphite'].includes(clean.accent)) delete clean.accent;
   for (const k of ['labelSize', 'taskSize']) if (clean[k] !== undefined) { const v = Math.round(+clean[k]); if (v >= 0 && v <= 3) clean[k] = v; else delete clean[k]; }
   delete clean.tintLevel; // removed in v1.8
@@ -978,7 +980,7 @@ else {
           LOG('CLIP-WA: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
           await shStep('share-fmt-md+copy', `(async()=>{ document.querySelector('#fmt-seg .seg-btn[data-fmt=md]').click(); await new Promise(r=>setTimeout(r,150)); document.getElementById('btn-copy').click(); await new Promise(r=>setTimeout(r,500)); return 'ok'; })()`);
           // Share pages (owner 2026-09-29): pick on Work/Open, switch to Work/Done, pick there → ONE selection, one message
-          await shStep('share-pages-one-selection', `(async()=>{ const w=ms=>new Promise(r=>setTimeout(r,ms)); document.getElementById('sel-clear-all').click(); await w(150); const pg=document.querySelector('#sh-page [data-page=work]'); if(pg) pg.click(); document.querySelector('#sh-sub [data-sub=open]').click(); await w(200); const o=document.querySelector('#share-list .sh-row'); if(!o) return 'no-open-row'; o.click(); document.querySelector('#sh-sub [data-sub=done]').click(); await w(200); const d=document.querySelector('#share-list .sh-row'); if(d) d.click(); await w(100); const hint=document.getElementById('sel-hint').textContent; const subCnt=[...document.querySelectorAll('#sh-sub .cnt')].map(c=>c.textContent).join('/'); document.querySelector('#fmt-seg [data-fmt=wa]').click(); document.getElementById('btn-wa').click(); await w(500); document.querySelector('#sh-sub [data-sub=open]').click(); return 'hint=['+hint+'] openDone='+subCnt+' doneRow='+!!d; })()`);
+          await shStep('share-pages-one-selection', `(async()=>{ const w=ms=>new Promise(r=>setTimeout(r,ms)); document.getElementById('sel-clear-all').click(); await w(150); const pg=document.querySelector('#sh-page [data-page=work]'); if(pg) pg.click(); document.querySelector('#sh-sub [data-sub=open]').click(); await w(200); const o=document.querySelector('#share-list .sh-row'); if(!o) return 'no-open-row'; o.click(); document.querySelector('#sh-sub [data-sub=done]').click(); await w(200); const d=document.querySelector('#share-list .sh-row'); if(d) d.click(); await w(100); const hint=document.getElementById('sel-hint').textContent; const subCnt=[...document.querySelectorAll('#sh-sub .cnt')].map(c=>c.textContent).join('/'); document.querySelector('#fmt-seg [data-fmt=text]').click(); document.getElementById('btn-wa').click(); await w(500); document.querySelector('#sh-sub [data-sub=open]').click(); return 'hint=['+hint+'] openDone='+subCnt+' doneRow='+!!d; })()`);
           LOG('CLIP-MD: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
           await closePanel();
           if (process.env.TODO_ISLAND_USERDATA) { // sandbox only: a vanished note must be admitted honestly, in both surfaces

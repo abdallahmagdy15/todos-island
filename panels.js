@@ -254,17 +254,18 @@
   // lists — never mixed. ONE selection across every page and list; the foot counts it and builds ONE message
   // (lib/share.js: a Work block, then a Personal block). A search filters the list you're on (picks elsewhere stay).
   // Long lists render a first batch and load more as you scroll.
-  let shSnap = null, fmt = 'wa', page = 'work', sub = 'open', query = '', withPrio = false, withDates = false;
+  let shSnap = null, fmt = 'text', page = 'work', sub = 'open', query = '', withPrio = false, withDates = false;
   const sel = new Set(); // keys: 'o:<id>' open, 'd:<id>' done — picks survive page switches while the app runs
   const folded = { now: false, open: false };
   const STEP = 30;
   let limit = STEP;
   try { // per-viewer conveniences only
     const saved = JSON.parse(localStorage.getItem('share.opts') || '{}');
-    if (saved.fmt === 'wa' || saved.fmt === 'md') fmt = saved.fmt;
     withPrio = !!saved.prio; withDates = !!saved.dates;
   } catch (e) {}
-  const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify({ fmt, prio: withPrio, dates: withDates })); } catch (e) {} };
+  const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify({ prio: withPrio, dates: withDates })); } catch (e) {} };
+  // the format is a setting (shareFmt: 'text' | 'md'), so the island's quick Copy uses the same pick (owner 2026-09-29)
+  const fmtFrom = snap => (snap && snap.settings && snap.settings.shareFmt === 'md' ? 'md' : 'text');
 
   async function share() {
     if (kind === 'share') { close(); return; } // the Share button toggles its panel
@@ -272,6 +273,7 @@
     show('share');
     shSnap = await window.api.getSnapshot();
     if (shSnap && shSnap.lang && shSnap.lang !== LANG) setLang(shSnap.lang);
+    fmt = fmtFrom(shSnap);
     limit = STEP; $('share-list').scrollTop = 0;
     paintControls(); renderShare();
   }
@@ -326,7 +328,7 @@
     $('sh-page').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.page === page; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('sh-sub').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.sub === sub; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('fmt-seg').querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('sel', x.dataset.fmt === fmt));
-    for (const [id, v] of [['sh-prio', withPrio], ['sh-dates', withDates]]) { $(id).classList.toggle('sel', v); $(id).setAttribute('aria-pressed', v); $(id).hidden = fmt !== 'wa'; } // Markdown is the note as written
+    for (const [id, v] of [['sh-prio', withPrio], ['sh-dates', withDates]]) { $(id).classList.toggle('sel', v); $(id).setAttribute('aria-pressed', v); $(id).hidden = fmt !== 'text'; } // Markdown is the note as written
   }
   function syncShare() { // counts on every page / list + the total; zero selection: the buttons say so
     const on = notesOn(), all = {};
@@ -377,7 +379,8 @@
   $('fmt-seg').addEventListener('click', e => {
     const b = e.target.closest('.seg-btn');
     if (!b) return;
-    fmt = b.dataset.fmt; saveOpts(); paintControls();
+    fmt = b.dataset.fmt === 'md' ? 'md' : 'text'; paintControls();
+    window.api.saveSettings({ shareFmt: fmt });
   });
   $('sh-prio').addEventListener('click', () => { withPrio = !withPrio; saveOpts(); paintControls(); });
   $('sh-dates').addEventListener('click', () => { withDates = !withDates; saveOpts(); paintControls(); });
@@ -391,7 +394,7 @@
   // WhatsApp: always the WhatsApp format; the app (or WhatsApp Web) opens with the message ready for a contact / group
   $('btn-wa').addEventListener('click', async () => {
     if (!picked()) return;
-    const res = await window.api.openWhatsApp(buildText('wa'));
+    const res = await window.api.openWhatsApp(buildText('text'));
     window.SFX.play('tick');
     $('share-note').textContent = res && res.ok ? T('sh.wa.opened') : T('sh.wa.fail');
     $('share-note').title = '';

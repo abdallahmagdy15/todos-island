@@ -224,6 +224,17 @@ function showNotice(msg) {
 let hoverT = null, hoverRow = null;
 const etab = window.UI.editTab($('wrap'), {
   onEdit: r => editFromIsland(r.dataset.file, r.dataset.id || r.dataset.card),
+  // quick Copy (owner 2026-09-29): the task in the Share format (Settings shareFmt: plain text or Markdown); no note write
+  onCopy: async r => {
+    const id = r.dataset.id || r.dataset.card;
+    const t = snap && snap.sections.flatMap(s => s.items).find(x => x.id === id);
+    if (!t) return false;
+    const fmt = snap.settings.shareFmt === 'md' ? 'md' : 'text';
+    await window.api.copyText(window.ShareText.taskText(t, fmt));
+    window.SFX.play('tick');
+    return true;
+  },
+  copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
   onLeave: () => clearHover()
 });
 const showEdit = r => etab.show(r, T('isl.btn.editAria', { t: r.querySelector('.tt').textContent }));

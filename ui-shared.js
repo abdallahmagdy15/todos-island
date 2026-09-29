@@ -238,7 +238,7 @@
   // pointer has RESTED on (its hoverSec dwell), so passing over rows on the way to another shows nothing. It floats over
   // the row's top edge, outside the row's own box, so it never takes layout width and never gets clipped by the row.
   // onDelete (tasks window only — the island never deletes) adds a trash tab beside Edit, same glass, same rest
-  function editTab(host, { onEdit, onStar, onDelete, onLeave }) {
+  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, onLeave }) {
     const tab = document.createElement('button');
     tab.type = 'button'; tab.className = 'etab'; tab.tabIndex = -1;
     tab.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg><span class="etab-t"></span>';
@@ -258,7 +258,14 @@
       host.appendChild(star);
     }
     // placed from the row's corner inward, so on screen they read ☆ Now · ✎ Edit · 🗑 (owner 2026-09-29: Now first)
-    const tabs = [del, tab, star].filter(Boolean);
+    let copy = null; // the island's quick Copy (owner 2026-09-29): the task as Markdown or plain text, one click
+    if (onCopy) {
+      copy = document.createElement('button');
+      copy.type = 'button'; copy.className = 'etab etab-copy'; copy.tabIndex = -1;
+      copy.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="etab-t"></span>';
+      host.appendChild(copy);
+    }
+    const tabs = [del, tab, copy, star].filter(Boolean);
     let row = null;
     const place = () => {
       if (!row || !row.isConnected) { api.hide(); return; }
@@ -280,6 +287,7 @@
         tab.title = label; tab.setAttribute('aria-label', label);
         if (del) { const dl = T('etab.del'); del.title = dl; del.setAttribute('aria-label', dl); }
         if (star) api.setNow(r.classList.contains('is-now'));
+        if (copy) { copy.querySelector('.etab-t').textContent = T('etab.copy'); const cl = copyLabel ? copyLabel() : T('etab.copy'); copy.title = cl; copy.setAttribute('aria-label', cl); }
         tabs.forEach(t => t.classList.add('on')); place();
       },
       hide() { row = null; tabs.forEach(t => t.classList.remove('on')); },
@@ -296,6 +304,14 @@
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
     if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
     if (star) star.addEventListener('click', e => { e.stopPropagation(); if (row) onStar(row); });
+    if (copy) copy.addEventListener('click', async e => {
+      e.stopPropagation();
+      if (!row) return;
+      const ok = await onCopy(row);
+      if (ok === false) return;
+      const t = copy.querySelector('.etab-t'); t.textContent = T('etab.copied'); copy.classList.add('done');
+      setTimeout(() => { t.textContent = T('etab.copy'); copy.classList.remove('done'); }, 1100);
+    });
     tabs.forEach(t => t.addEventListener('mouseleave', e => { if (row && !row.contains(e.relatedTarget) && !api.owns(e.relatedTarget) && onLeave) onLeave(); }));
     return api;
   }
