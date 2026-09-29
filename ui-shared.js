@@ -222,7 +222,7 @@
       if (toggleMark(el, mark)) place(el);
     });
     el.addEventListener('pointerup', e => { lastPt = { el, x: e.clientX, y: e.clientY }; setTimeout(() => place(el, lastPt), 0); });
-    el.addEventListener('keyup', e => { if (e.shiftKey || e.key === 'Shift' || (e.ctrlKey && e.key.toLowerCase() === 'a')) { lastPt = null; place(el); } else if (!e.ctrlKey) fmtBarEl().hidden = true; });
+    el.addEventListener('keyup', e => { if (e.shiftKey || e.key === 'Shift' || (e.ctrlKey && e.key.toLowerCase() === 'a')) { lastPt = null; place(el); } else if (!e.ctrlKey && !['Control', 'Meta', 'Alt'].includes(e.key)) fmtBarEl().hidden = true; }); // letting go of Ctrl after Ctrl+Shift+← must not hide the bar
     el.addEventListener('input', () => { if (el.selectionStart === el.selectionEnd) fmtBarEl().hidden = true; });
     el.addEventListener('blur', () => { if (barFor === el) fmtBarEl().hidden = true; });
     el.addEventListener('scroll', () => { if (barFor === el) fmtBarEl().hidden = true; });
