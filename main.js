@@ -27,10 +27,10 @@ const DEFAULT_SETTINGS = {
   weekendAware: true, weekendDays: 'auto', // weekendDays: auto (the Windows region's) | sat-sun | fri-sat
   autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
-  accent: 'blue', // theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
+  accent: 'teal', // owner default 2026-09-29 (was blue) — theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
   labelSize: 0, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
   appearance: 'system', // system | light | dark → nativeTheme.themeSource (every window follows)
-  islandTheme: 'mist', // the picture under the island's glass: mist | dusk | lagoon | bloom | dune
+  islandTheme: 'lagoon', // owner default 2026-09-29 (was mist) — the picture under the island's glass: mist | dusk | lagoon | bloom | dune
   shareFmt: 'text', // Share + the island's quick Copy: 'text' (plain, WhatsApp-friendly) | 'md' (the note as written)
   hideFromCapture: true, // the island stays on your screen but Teams / OBS / screenshots can't see it (Windows "exclude from capture")
   glassLevel: 3, // frost: 0 = solid · 1–4 = 15/25/38/50 % of the theme shows through the island's glass
