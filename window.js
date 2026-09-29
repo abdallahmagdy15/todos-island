@@ -238,7 +238,7 @@ async function refresh() {
   if (animating) { refreshPending = true; return; }
   snap = await window.api.getSnapshot();
   if (snap && snap.lang && snap.lang !== LANG) { LANG = snap.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
-  if (snap && snap.settings) { window.SFX.enabled = !!snap.settings.soundOn; window.UI.applyTheme(snap.settings); }
+  if (snap && snap.settings) { window.SFX.enabled = !!snap.settings.soundOn; window.UI.applyTheme(snap.settings); $('set-capture').checked = !!snap.settings.hideFromCapture; } // the tray can flip it too
   applyMode();
   updateTabCounts();
   renderChrome();
@@ -631,7 +631,7 @@ async function loadSettings() {
   $('set-work').value = s.workPath; $('set-personal').value = s.personalPath;
   $('work-name').textContent = baseName(s.workPath); $('work-name').title = s.workPath;
   $('personal-name').textContent = baseName(s.personalPath); $('personal-name').title = s.personalPath;
-  $('set-weekend').checked = !!s.weekendAware; $('set-weekend-days').value = s.weekendDays || 'auto'; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn; $('set-update').checked = s.updateCheck !== false;
+  $('set-weekend').checked = !!s.weekendAware; $('set-weekend-days').value = s.weekendDays || 'auto'; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn; $('set-update').checked = s.updateCheck !== false; $('set-capture').checked = !!s.hideFromCapture;
   $('set-focus').checked = !!s.focusByTime;
   $('set-mode').value = s.mode || 'both';
   langSel = s.uiLang || 'system';
@@ -713,11 +713,11 @@ async function saveSettings() {
     offIntervalMin: readNumber('set-off-interval', 5, 240, 60),
     workRemindersOn: $('set-work-rem').checked, offRemindersOn: $('set-off-rem').checked,
     dayStart: readTime('set-start', (snap && snap.settings.dayStart) || '09:00'), dayEnd: readTime('set-end', (snap && snap.settings.dayEnd) || '17:00'),
-    dismissSec: readNumber('set-dismiss', 5, 600, 10),
+    dismissSec: readNumber('set-dismiss', 5, 600, 7),
     undoSec: readNumber('set-undo', 5, 120, 5),
     hoverSec: readNumber('set-hover', 0.5, 10, 1),
     shortcut: shortcutValue || 'Control+Alt+T',
-    weekendAware: $('set-weekend').checked, weekendDays: $('set-weekend-days').value, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked, updateCheck: $('set-update').checked,
+    weekendAware: $('set-weekend').checked, weekendDays: $('set-weekend-days').value, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked, updateCheck: $('set-update').checked, hideFromCapture: $('set-capture').checked,
     focusByTime: $('set-focus').checked,
     mode: $('set-mode').value,
     uiLang: langSel,

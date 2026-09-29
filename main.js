@@ -23,15 +23,16 @@ const DEFAULT_SETTINGS = {
   // defaults = the owner's own tuned setup (2026-09-25) — every new install starts from it
   workIntervalMin: 60, offIntervalMin: 60, workRemindersOn: true, offRemindersOn: true,
   dayStart: '09:00', dayEnd: '17:00',
-  dismissSec: 10, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
+  dismissSec: 7, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
   weekendAware: true, weekendDays: 'auto', // weekendDays: auto (the Windows region's) | sat-sun | fri-sat
   autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
   accent: 'blue', // theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
-  labelSize: 1, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
+  labelSize: 0, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
   appearance: 'system', // system | light | dark → nativeTheme.themeSource (every window follows)
   islandTheme: 'mist', // the picture under the island's glass: mist | dusk | lagoon | bloom | dune
-  glassLevel: 3, // frost: 0 = solid · 1–4 = 20/35/50/65 % of the theme shows through the island's glass
+  hideFromCapture: true, // the island stays on your screen but Teams / OBS / screenshots can't see it (Windows "exclude from capture")
+  glassLevel: 3, // frost: 0 = solid · 1–4 = 15/25/38/50 % of the theme shows through the island's glass
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
   personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
 };
@@ -244,8 +245,19 @@ function createIsland() {
     webPreferences: { preload: path.join(__dirname, 'island-preload.js'), backgroundThrottling: false }
   });
   island.setAlwaysOnTop(true, 'screen-saver');
+  applyCaptureHide();
   lockZoom(island.webContents);
   island.loadFile('island.html');
+}
+
+// Hide from screen sharing (owner 2026-09-29): Windows' "exclude from capture" flag (SetWindowDisplayAffinity) —
+// the island still pops on time on YOUR screen, but Teams, OBS, Zoom, screenshots and any future capture app see
+// through it. Enforced by Windows, so no app detection. Island only: the tasks window is opened on purpose and may be
+// shown. Showcase runs force it off so README captures keep the island.
+function applyCaptureHide() {
+  if (!island || island.isDestroyed()) return;
+  const on = !!state.settings.hideFromCapture && !SHOWCASE;
+  try { island.setContentProtection(on); } catch (e) { LOG('CAPTURE-HIDE-FAIL ' + e.message); }
 }
 
 function openWindow(tab) {
@@ -449,6 +461,11 @@ function rebuildTrayMenu() {
     { label: tt(L, 'tray.open'), click: openWindow },
     { label: tt(L, 'tray.setup'), click: () => openOnboarding() },
     { type: 'separator' },
+    { label: tt(L, 'tray.capture'), type: 'checkbox', checked: !!state.settings.hideFromCapture, click: item => {
+      state.settings.hideFromCapture = item.checked; saveState(); applyCaptureHide(); sendSnap();
+      if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('tasks-changed'); // Settings switch follows
+    } },
+    { type: 'separator' },
     { label: tt(L, 'tray.quit'), click: () => app.quit() }
   ]));
 }
@@ -587,6 +604,7 @@ ipcMain.handle('save-settings', (_e, s) => {
   }
   if (clean.mode !== undefined && !['both', 'work', 'personal'].includes(clean.mode)) delete clean.mode;
   if (clean.updateCheck !== undefined) clean.updateCheck = !!clean.updateCheck;
+  if (clean.hideFromCapture !== undefined) clean.hideFromCapture = !!clean.hideFromCapture;
   if (clean.accent !== undefined && !['blue', 'violet', 'teal', 'pink', 'graphite'].includes(clean.accent)) delete clean.accent;
   for (const k of ['labelSize', 'taskSize']) if (clean[k] !== undefined) { const v = Math.round(+clean[k]); if (v >= 0 && v <= 3) clean[k] = v; else delete clean[k]; }
   delete clean.tintLevel; // removed in v1.8
@@ -608,9 +626,10 @@ ipcMain.handle('save-settings', (_e, s) => {
   saveState();
   if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
   applyAppearance(); // Light/Dark may have changed
+  applyCaptureHide();
+  rebuildTrayMenu(); // the tray's "Hide from screen sharing" tick follows the setting
   if (clean.uiLang !== undefined && clean.uiLang !== state.settings.uiLang) {
-    // language switch: tray re-labels, every live window re-applies its chrome, island re-renders via snapshot
-    rebuildTrayMenu();
+    // language switch: tray re-labels (above), every live window re-applies its chrome, island re-renders via snapshot
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('lang-changed', uiLang());
   }
   sendSnap();
@@ -624,8 +643,9 @@ function applySettingsSideEffects(prev) {
   if (state.settings.autoStart !== prev.autoStart) applyAutoStart(state.settings.autoStart);
   if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
   applyAppearance();
+  applyCaptureHide();
+  rebuildTrayMenu();
   if (uiLang() !== resolveLang(prev.uiLang, app.getLocale())) {
-    rebuildTrayMenu();
     if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('lang-changed', uiLang());
   }
   sendSnap();
@@ -867,6 +887,14 @@ else {
           await step('composer-typed-add', `(async()=>{ const ta=document.getElementById('new-title'); ta.value='!! 26 Sep E2E composed task'; ta.dispatchEvent(new Event('input',{bubbles:true})); ${wait(400)} const sel=[...document.querySelectorAll('#new-prio .pchip.sel')].map(c=>c.dataset.p).join(); document.getElementById('btn-add').click(); ${wait(700)} const row=[...document.querySelectorAll('.wrow')].find(r=>r.textContent.includes('E2E composed task')); return 'chip=' + sel + ' row=' + (row ? row.querySelector('.bang').textContent + '|' + (row.querySelector('.wdue')||{}).textContent : 'MISSING'); })()`);
           await step('done-tab+clear+undo', `(async()=>{ document.getElementById('tab-done').click(); ${wait(400)} const n0=document.querySelectorAll('.wrow.done').length; document.getElementById('btn-clear-done').click(); ${wait(700)} const n1=document.querySelectorAll('.wrow.done').length; ${undoClick} ${wait(900)} const n2=document.querySelectorAll('.wrow.done').length; return n0+'→'+n1+'→'+n2; })()`);
           await step('settings-autosave', `(async()=>{ document.getElementById('tab-settings').click(); ${wait(500)} if(document.getElementById('set-advanced').hidden) document.getElementById('adv-toggle').click(); const d=document.getElementById('set-dismiss'); d.value='3'; d.dispatchEvent(new Event('input',{bubbles:true})); ${wait(300)} const typedSaved=(await window.api.getSnapshot()).settings.dismissSec; d.dispatchEvent(new Event('change',{bubbles:true})); ${wait(700)} const fs=document.querySelector('.fstat[data-for=set-dismiss]').textContent; const stored=(await window.api.getSnapshot()).settings.dismissSec; return 'typedSaved='+typedSaved+' clamp=['+fs+'] stored='+stored+' guard='+!!document.getElementById('dirty-guard'); })()`);
+          { // hide from screen sharing (owner 2026-09-29): the switch flips Windows' exclude-from-capture flag on the island, both ways
+            const prot = () => (typeof island.isContentProtected === 'function' ? island.isContentProtected() : 'n/a');
+            const was = state.settings.hideFromCapture;
+            await step('capture-hide', `(async()=>{ const c=document.getElementById('set-capture'); c.checked=!c.checked; c.dispatchEvent(new Event('change',{bubbles:true})); await new Promise(z=>setTimeout(z,700)); return 'stored=' + (await window.api.getSnapshot()).settings.hideFromCapture; })()`);
+            LOG('UTEST capture-hide(main): setting=' + state.settings.hideFromCapture + ' protected=' + prot());
+            await step('capture-hide-back', `(async()=>{ const c=document.getElementById('set-capture'); c.checked=!c.checked; c.dispatchEvent(new Event('change',{bubbles:true})); await new Promise(z=>setTimeout(z,700)); return 'stored=' + (await window.api.getSnapshot()).settings.hideFromCapture; })()`);
+            LOG('UTEST capture-hide-back(main): setting=' + state.settings.hideFromCapture + ' protected=' + prot() + ' restored=' + (state.settings.hideFromCapture === was));
+          }
           // time wheel (owner 2026-09-28): a click on the start time opens two wheels; turning the hour commits + autosaves; Esc closes. The start time is restored after.
           { const startWas = state.settings.dayStart;
             await step('time-wheel', `(async()=>{ if(document.getElementById('view-settings').hidden) document.getElementById('tab-settings').click(); await new Promise(z=>setTimeout(z,500)); const inp=document.getElementById('set-start'); inp.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true})); await new Promise(z=>setTimeout(z,300)); const pop=document.querySelector('.twheel'); if(!pop) return 'NO-WHEEL'; const [hc]=pop.querySelectorAll('.tw-col'); const items=hc.querySelectorAll('.tw-item').length; hc.scrollTo({top:7*32,behavior:'instant'}); hc.dispatchEvent(new Event('scrollend')); await new Promise(z=>setTimeout(z,700)); const v=inp.value; const curl=getComputedStyle(hc.querySelector('.tw-item')).animationName; document.body.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); inp.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true})); await new Promise(z=>setTimeout(z,400)); const unit=getComputedStyle(document.querySelector('.unit-field .unit')).position; return 'wheel=yes hours='+items+' value='+v+' curl='+curl+' closed='+(!document.querySelector('.twheel.on'))+' unitInside='+unit; })()`);

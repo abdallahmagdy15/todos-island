@@ -90,7 +90,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 - Your tasks and notes stay on your PC. The app collects no analytics and needs no account.
 - The one network request: at startup (then once a day) it asks GitHub for the latest release number. Nothing about you or your tasks is sent. If a newer version exists, a small green **Update** pill appears in the top bar; nothing downloads on its own. You can turn this off in *Settings → App → Check for updates*.
 - The island never records your screen or reads your desktop picture.
-- The island is a normal window: it shows up in screenshots and screen shares like any other app.
+- **Hide from screen sharing** (on by default): the island still pops up on your own screen, but Teams, OBS, Zoom, screenshots and other capture apps can't see it. Windows enforces this itself, so the app never watches what else is running. Turn it off in *Settings → Hide from screen sharing* or from the tray menu, and the island shows in recordings like any other window. It can't hide the island from a camera pointed at your screen.
 
 ## Develop
 
