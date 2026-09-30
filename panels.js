@@ -90,7 +90,8 @@
     }
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
-    $('ed-subs').innerHTML = t.subs.map(x =>
+    const subs = [...t.subs.filter(x => !x.done), ...t.subs.filter(x => x.done)]; // open first (owner 2026-09-30); the note keeps its order
+    $('ed-subs').innerHTML = subs.map(x =>
       `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
   }
@@ -100,8 +101,9 @@
     $('ed-mark').textContent = activeState ? '[★]' : '[ ]';
     $('ed-mark').classList.toggle('now', activeState);
   }
-  // "will write" — the exact line the note gets (same serializer as the note; typed notation is honored)
-  let pvT = null, pvSeq = 0, last = null;
+  // compose — the exact line the note gets (same serializer as the note; typed notation is honored). It syncs the chips with
+  // typed tokens and guards the title; the visible "will write" row was removed (owner 2026-09-30)
+  let pvT = null, pvSeq = 0;
   function schedulePreview(ms = 80) { clearTimeout(pvT); pvT = setTimeout(updatePreview, ms); }
   async function updatePreview() {
     clearTimeout(pvT);
@@ -114,11 +116,9 @@
       fallback: { priority: prioCtl.value, due: dueCtl.value, active: activeState }
     });
     if (my !== pvSeq) return r;
-    last = r;
     prioCtl.set(r.priority); dueCtl.set(r.due);
     if (r.active !== activeState) { activeState = r.active; paintActive(); }
-    $('ed-preview-line').textContent = r.ok ? r.line : T('ed.noTitle');
-    $('ed-preview-line').classList.toggle('bad', !r.ok);
+    $('ed-title').classList.toggle('invalid', !r.ok); // an empty title: the field turns red; the save flash says why
     return r;
   }
   // autosave: one save at a time, in order; typed text waits for a pause, picks save at once
@@ -230,23 +230,11 @@
     window.SFX.play('delete'); await window.api.deleteTask(ID, FILE); // undo lives in the window's toast
     dirty = false; close();
   });
-  // Complete — M1 on the preview line itself: the bracket ticks, a pen line strikes it, then the panel slides away
+  // Complete — the sound plays with the write, then the panel slides away (the preview-line strike went with the row)
   $('ed-complete').addEventListener('click', async () => {
     await saveNow();
     window.SFX.play('complete');
-    const line = $('ed-preview-line');
-    if (last && last.ok) line.textContent = last.line.replace('- [ ]', '- [x]');
-    line.classList.add('tt', 'striking');
-    try {
-      await Promise.all([
-        window.api.complete(ID, FILE),
-        window.Motion.play(line, [{ backgroundSize: '0% 1.5px' }, { backgroundSize: '100% 1.5px' }], { duration: 220, delay: 120 })
-      ]);
-      await new Promise(r => setTimeout(r, window.Motion.reduced ? 0 : 160));
-      close();
-    } catch (err) {
-      updatePreview();
-    } finally { line.classList.remove('tt', 'striking'); }
+    try { await window.api.complete(ID, FILE); close(); } catch (err) { updatePreview(); }
   });
 
   // ---------- share ----------
@@ -261,14 +249,17 @@
   let limit = STEP;
   // Include toggles (owner 2026-09-30): Subtasks · Priority · Dates in BOTH formats, remembered PER format — Markdown starts
   // with all on (the note as written), plain text with subtasks only
-  const opts = { md: { subs: true, prio: true, dates: true }, text: { subs: true, prio: false, dates: false } };
+  // subs is a MODE: 'all' | 'open' (done subtasks left out) | 'off' — the mini switch in the Subtasks part (owner 2026-09-30)
+  const opts = { md: { subs: 'all', prio: true, dates: true }, text: { subs: 'all', prio: false, dates: false } };
+  const asMode = v => (v === false || v === 'off' ? 'off' : v === 'open' ? 'open' : 'all'); // earlier builds stored true / false
   try { // per-viewer conveniences only
     const saved = JSON.parse(localStorage.getItem('share.opts') || '{}');
     if (saved.md || saved.text) { for (const f of ['md', 'text']) Object.assign(opts[f], saved[f] || {}); }
     else Object.assign(opts.text, { prio: !!saved.prio, dates: !!saved.dates, subs: saved.subs !== false }); // pre-2026-09-30 shape
+    for (const f of ['md', 'text']) opts[f].subs = asMode(opts[f].subs);
   } catch (e) {}
   const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify(opts)); } catch (e) {} };
-  const INC = [['sh-subs', 'subs'], ['sh-prio', 'prio'], ['sh-dates', 'dates']];
+  const INC = [['sh-prio', 'prio'], ['sh-dates', 'dates']];
   // the format is a setting (shareFmt: 'text' | 'md'), so the island's quick Copy uses the same pick (owner 2026-09-29)
   const fmtFrom = snap => (snap && snap.settings && snap.settings.shareFmt === 'md' ? 'md' : 'text');
 
@@ -334,6 +325,9 @@
     $('sh-sub').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.sub === sub; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('fmt-seg').querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('sel', x.dataset.fmt === fmt));
     for (const [id, k] of INC) { const v = !!opts[fmt][k]; $(id).classList.toggle('on', v); $(id).setAttribute('aria-pressed', v); }
+    const m = opts[fmt].subs;
+    $('sh-subs').classList.toggle('on', m !== 'off');
+    $('sh-subs').querySelectorAll('[data-subs]').forEach(b => { const s = b.dataset.subs === m; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
   }
   function syncShare() { // counts on every page / list + the total; zero selection: the buttons say so
     const on = notesOn(), all = {};
@@ -343,7 +337,7 @@
     $('sh-page').querySelectorAll('.seg-btn').forEach(b => cnt(b, all[b.dataset.page] ? all[b.dataset.page].open + all[b.dataset.page].done : 0));
     $('sh-sub').querySelectorAll('.seg-btn').forEach(b => cnt(b, all[page] ? all[page][b.dataset.sub] : 0));
     $('btn-copy').disabled = !n; $('btn-export').disabled = !n; $('btn-wa').disabled = !n;
-    $('sel-hint').textContent = n ? T('sh.selN', { n }) : T('sh.selHint');
+    $('sel-hint').textContent = n ? T('sh.selN', { n }) : ''; // owner 2026-09-30: no "select tasks" hint — the disabled buttons say it
     $('sel-clear-all').hidden = !n;
   }
   function buildText(k) {
@@ -388,6 +382,11 @@
     window.api.saveSettings({ shareFmt: fmt });
   });
   for (const [id, k] of INC) $(id).addEventListener('click', () => { opts[fmt][k] = !opts[fmt][k]; window.SFX.play('tick'); saveOpts(); paintControls(); });
+  $('sh-subs').addEventListener('click', e => {
+    const b = e.target.closest('[data-subs]');
+    if (!b || b.dataset.subs === opts[fmt].subs) return;
+    opts[fmt].subs = b.dataset.subs; window.SFX.play('tick'); saveOpts(); paintControls();
+  });
   const flashBtn = (b, text) => { const old = b.textContent; b.textContent = text; setTimeout(() => { b.textContent = old; }, 1200); };
   $('btn-copy').addEventListener('click', async () => {
     if (!picked()) return;

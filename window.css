@@ -105,7 +105,7 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .wrow.dwelt .wacts, .wrow:focus-within .wacts, .wrow:focus-visible .wacts { opacity: 1; visibility: visible; transition-delay: 0s; }
 
 /* the priority: the note's own notation, in mono, heat-colored, at task-text size (nothing when there is none) */
-.bang { flex: none; font-family: var(--font-mono); font-weight: 750; font-size: var(--fs-task); line-height: 1; letter-spacing: -1px; }
+.bang { flex: none; font-family: var(--font-mono); font-weight: 700; font-size: calc(var(--fs-task) * 0.82); line-height: 1; letter-spacing: -1px; } /* owner 2026-09-30: smaller mark, same as the island */
 .bang:empty { display: none; }
 .bang.p3 { color: var(--p3); } .bang.p2 { color: var(--p2); } .bang.p1 { color: var(--p1); }
 .wstar { flex: none; color: var(--accent); font-size: calc(var(--fs-task) * 1.25); line-height: 1; }
@@ -570,10 +570,11 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 .label-hint { font-weight: 400; color: var(--faint); font-size: var(--fs-1); }
 #ed-title { width: 100%; min-height: 44px; max-height: 212px; overflow-y: auto; resize: none; line-height: 1.55; padding: 10px 13px; }
 #ed-active.sel { color: var(--accent); }
-.ed-preview { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
-.ed-preview code { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.ed-preview code.bad { color: var(--danger); }
-.pv-label { flex: none; font-size: var(--fs-1); color: var(--faint); }
+/* owner 2026-09-30: the "will write" preview row is gone; Priority + Now share a line; the add-subtask field stays in view */
+.field-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--s-5, 24px); }
+.field-row > .field { min-width: 0; }
+#ed-form .addsub { position: sticky; bottom: calc(-1 * var(--s-4)); z-index: 2; padding-block: 8px var(--s-4); margin-bottom: calc(-1 * var(--s-4)); background: var(--card); box-shadow: 0 -1px 0 var(--rule-soft); }
+.glass-on #ed-form .addsub { background: rgb(var(--sheet-rgb)); } /* opaque: rows scrolling under it must not ghost through */
 .ed-actions { display: flex; align-items: center; gap: var(--s-2); }
 .saved.bad { color: var(--danger); }
 .saved:not(:empty) { animation: fstatIn var(--d-1) var(--ease-out) both; }
@@ -648,6 +649,16 @@ button.sh-sec:hover { color: var(--ink); }
 .inc .opt-g.p { color: var(--p2); }
 .inc .opt-g.d { color: var(--accent); }
 .inc-b:not(.on) .opt-g { opacity: .55; }
+/* the Subtasks part: glyph · name · a mini switch All · Open · Off (owner 2026-09-30) */
+.inc-part { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding-inline: 10px 3px; font-size: var(--fs-2); font-weight: 650; color: var(--muted); }
+.inc-part.on { color: var(--ink); background: var(--accent-soft); }
+.inc-part + .inc-b { border-inline-start: 1px solid var(--rule); }
+.inc-part:not(.on) .opt-g { opacity: .55; }
+.inc-mini { display: inline-flex; gap: 1px; padding: 2px; border-radius: 6px; background: rgba(var(--g-base), var(--well-a)); box-shadow: inset 0 1px 2px var(--inner-shade); }
+.inc-mini button { height: 20px; padding: 0 7px; border: 0; border-radius: 5px; background: transparent; font-family: inherit; font-size: var(--fs-1); font-weight: 650; color: var(--muted); cursor: pointer; }
+.inc-mini button:hover { color: var(--ink); }
+.inc-mini button.sel { color: var(--ink); background: linear-gradient(var(--lq-top), var(--lq-bot)); box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), 0 1px 2px var(--drop); }
+.inc-mini button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 #sel-clear-all { flex: none; white-space: nowrap; }
 .sh-opts .opt-g { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
 .sh-opts .chip.sel .opt-g { color: var(--accent); }
@@ -665,7 +676,9 @@ button.sh-sec:hover { color: var(--ink); }
 .sh-row .shtitle { flex: 1; min-width: 0; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sh-row .tag { flex: none; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); background: var(--chip); border-radius: var(--r-1); padding: 2px 6px; }
 .sh-row .star { flex: none; color: var(--accent); font-size: var(--fs-3); }
-.sh-status { display: flex; align-items: baseline; gap: var(--s-2); min-width: 0; }
+.sh-actions { flex-wrap: wrap; row-gap: var(--s-2); } /* count + notes lead, the three buttons follow; wraps at 660 px */
+.sh-status { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; margin-inline-end: auto; } /* start of the button row */
+.sh-status .sel-x { position: static; flex: none; width: 22px; height: 22px; font-size: var(--fs-3); }
 .sel-hint { font-size: var(--fs-2); color: var(--faint); white-space: nowrap; }
 .note-inline { font-size: var(--fs-2); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 #btn-export { margin-inline-start: auto; }

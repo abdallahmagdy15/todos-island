@@ -238,8 +238,10 @@ const etab = window.UI.editTab($('wrap'), {
   onLeave: () => clearHover()
 });
 const showEdit = r => etab.show(r, T('isl.btn.editAria', { t: r.querySelector('.tt').textContent }));
+const TAB_REST_MS = 800; // owner 2026-09-30: the Edit / Copy tabs arrive after 0.8 s (or sooner if hoverSec is shorter)
+let tabT = null;
 function clearHover() {
-  clearTimeout(hoverT);
+  clearTimeout(hoverT); clearTimeout(tabT);
   $('body').querySelectorAll('.hovered, .dwelling').forEach(r => r.classList.remove('hovered', 'dwelling'));
   hoverRow = null;
   etab.hide();
@@ -256,10 +258,11 @@ $('body').addEventListener('mouseover', e => {
     row.style.setProperty('--dwell', sec + 's');
     requestAnimationFrame(() => row.classList.add('dwelling')); // M3 — the charge is visible, so the unfold never surprises
   }
+  tabT = setTimeout(() => { if (hoverRow === row) showEdit(row); }, Math.min(TAB_REST_MS, sec * 1000));
   hoverT = setTimeout(() => {
     row.classList.remove('dwelling');
     row.classList.add('hovered');
-    showEdit(row);
+    showEdit(row); // re-places the tabs on the unfolded row
     scheduleResize(300);
   }, sec * 1000);
 });
