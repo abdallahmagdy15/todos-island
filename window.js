@@ -112,7 +112,7 @@ function renderList() {
 }
 // ---- rest on a row: the corner Edit + Delete tabs (owner pick "D", 2026-09-28) and the full title arrive together.
 // The tasks window is where you edit, so the rest is short (REST_MS, owner 2026-09-28); the island keeps hoverSec.
-const REST_MS = 200;
+const REST_MS = 600; // owner 2026-09-30: was 200 — the tabs / peek / full title came too eagerly
 let restRow = null, restT = null, restId = null, restTab = null;
 const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySelector('.list-sheet'), {
   onEdit: r => window.Panels.edit(r.dataset.file, r.dataset.id),
@@ -210,12 +210,14 @@ window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback 
 const T = (k, prm) => window.I18N.t(LANG, k, prm);
 function updateTabCounts() {
   if (!snap) return;
-  const n = name => { const s = snap.sections.find(x => x.name === name); return s ? s.items.length : 0; };
+  // sections are keyed by their ENGLISH name ('Work' / 'Personal'), never the translated label (Arabic read 0 — fixed 2026-09-30)
+  const n = tag => { const s = snap.sections.find(x => x.name.toLowerCase() === tag); return s ? s.items.length : 0; };
   // counts in mono; a broken source never reads as 0 — it reads "!"
-  const label = (tag, name) => fileErr(tag) ? `${name}<span class="cnt bad" title="${T('win.tab.err')}">!</span>` : `${name}<span class="cnt">${n(name)}</span>`;
+  const label = (tag, name) => fileErr(tag) ? `${name}<span class="cnt bad" title="${T('win.tab.err')}">!</span>` : `${name}<span class="cnt">${n(tag)}</span>`;
   $('tab-work').innerHTML = label('work', T('win.tab.work'));
   $('tab-personal').innerHTML = label('personal', T('win.tab.personal'));
   $('tab-done').innerHTML = `${T('win.tab.done')}<span class="cnt">${(snap.done || []).length}</span>`;
+  $('tab-settings').textContent = T('win.tab.settings'); // it never had a translation hook
   moveTabCursor(false);
 }
 // the liquid lens behind the active tab (owner 2026-09-28: "correct, not buggy"). It answers the PRESS: on pointer-down

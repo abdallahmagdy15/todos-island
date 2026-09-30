@@ -254,16 +254,21 @@
   // lists — never mixed. ONE selection across every page and list; the foot counts it and builds ONE message
   // (lib/share.js: a Work block, then a Personal block). A search filters the list you're on (picks elsewhere stay).
   // Long lists render a first batch and load more as you scroll.
-  let shSnap = null, fmt = 'text', page = 'work', sub = 'open', query = '', withPrio = false, withDates = false;
+  let shSnap = null, fmt = 'text', page = 'work', sub = 'open', query = '';
   const sel = new Set(); // keys: 'o:<id>' open, 'd:<id>' done — picks survive page switches while the app runs
   const folded = { now: false, open: false };
   const STEP = 30;
   let limit = STEP;
+  // Include toggles (owner 2026-09-30): Subtasks · Priority · Dates in BOTH formats, remembered PER format — Markdown starts
+  // with all on (the note as written), plain text with subtasks only
+  const opts = { md: { subs: true, prio: true, dates: true }, text: { subs: true, prio: false, dates: false } };
   try { // per-viewer conveniences only
     const saved = JSON.parse(localStorage.getItem('share.opts') || '{}');
-    withPrio = !!saved.prio; withDates = !!saved.dates;
+    if (saved.md || saved.text) { for (const f of ['md', 'text']) Object.assign(opts[f], saved[f] || {}); }
+    else Object.assign(opts.text, { prio: !!saved.prio, dates: !!saved.dates, subs: saved.subs !== false }); // pre-2026-09-30 shape
   } catch (e) {}
-  const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify({ prio: withPrio, dates: withDates })); } catch (e) {} };
+  const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify(opts)); } catch (e) {} };
+  const INC = [['sh-subs', 'subs'], ['sh-prio', 'prio'], ['sh-dates', 'dates']];
   // the format is a setting (shareFmt: 'text' | 'md'), so the island's quick Copy uses the same pick (owner 2026-09-29)
   const fmtFrom = snap => (snap && snap.settings && snap.settings.shareFmt === 'md' ? 'md' : 'text');
 
@@ -328,7 +333,7 @@
     $('sh-page').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.page === page; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('sh-sub').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.sub === sub; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('fmt-seg').querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('sel', x.dataset.fmt === fmt));
-    for (const [id, v] of [['sh-prio', withPrio], ['sh-dates', withDates]]) { $(id).classList.toggle('sel', v); $(id).setAttribute('aria-pressed', v); $(id).hidden = fmt !== 'text'; } // Markdown is the note as written
+    for (const [id, k] of INC) { const v = !!opts[fmt][k]; $(id).classList.toggle('on', v); $(id).setAttribute('aria-pressed', v); }
   }
   function syncShare() { // counts on every page / list + the total; zero selection: the buttons say so
     const on = notesOn(), all = {};
@@ -347,7 +352,7 @@
       const L = lists(tag), p = arr => arr.filter(t => sel.has(keyOf(t)));
       return { name: T(tag === 'work' ? 'win.tab.work' : 'win.tab.personal'), done: p(L.done), now: p(L.now), open: p(L.open) };
     });
-    return window.ShareText.buildShare({ groups, fmt: k, withPrio, withDates, date: today,
+    return window.ShareText.buildShare({ groups, fmt: k, withPrio: opts[k].prio, withDates: opts[k].dates, withSubs: opts[k].subs, date: today,
       labels: { done: T('sh.wa.done'), now: T('sh.wa.now'), next: T('sh.wa.next') } });
   }
   const picked = () => notesOn().some(tag => { const L = lists(tag); return pickedIn(L.now) + pickedIn(L.open) + pickedIn(L.done); });
@@ -382,8 +387,7 @@
     fmt = b.dataset.fmt === 'md' ? 'md' : 'text'; paintControls();
     window.api.saveSettings({ shareFmt: fmt });
   });
-  $('sh-prio').addEventListener('click', () => { withPrio = !withPrio; saveOpts(); paintControls(); });
-  $('sh-dates').addEventListener('click', () => { withDates = !withDates; saveOpts(); paintControls(); });
+  for (const [id, k] of INC) $(id).addEventListener('click', () => { opts[fmt][k] = !opts[fmt][k]; window.SFX.play('tick'); saveOpts(); paintControls(); });
   const flashBtn = (b, text) => { const old = b.textContent; b.textContent = text; setTimeout(() => { b.textContent = old; }, 1200); };
   $('btn-copy').addEventListener('click', async () => {
     if (!picked()) return;

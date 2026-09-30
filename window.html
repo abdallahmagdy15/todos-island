@@ -378,8 +378,12 @@
             <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
             <button class="seg-btn sel" data-fmt="text" type="button" data-i18n="sh.fmt.text">Plain text</button>
           </div>
-          <button class="chip" id="sh-prio" type="button" aria-pressed="false"><span class="opt-g">!!</span><span data-i18n="sh.opt.prio">Priority</span></button>
-          <button class="chip" id="sh-dates" type="button" aria-pressed="false"><span class="opt-g">28 Sep</span><span data-i18n="sh.opt.dates">Dates</span></button>
+          <!-- Include (owner 2026-09-30, demo design-demos/share-toggles.html pick B + glyphs): one capsule, a tick per part -->
+          <div class="inc" role="group" data-i18n-aria="sh.opt.include">
+            <button class="inc-b on" id="sh-subs" type="button" aria-pressed="true"><span class="inc-tick"></span><span class="opt-g">[ ]</span><span data-i18n="sh.opt.subs">Subtasks</span></button>
+            <button class="inc-b" id="sh-prio" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g p">!!</span><span data-i18n="sh.opt.prio">Priority</span></button>
+            <button class="inc-b" id="sh-dates" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g d">28 Sep</span><span data-i18n="sh.opt.dates">Dates</span></button>
+          </div>
         </div>
         <div class="sh-status"><span class="sel-hint" id="sel-hint" data-i18n="sh.selHint">Select tasks to share</span><button id="sel-clear-all" class="btn-text" type="button" hidden data-i18n="sh.clearAll">Clear all</button><span id="share-note" class="note-inline" role="status"></span></div>
         <div class="ed-actions">

@@ -219,14 +219,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
   box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), 0 0 0 1px var(--ctl-line); }
 
 /* ---- fields: recessed glass (they sit INTO the surface) ---- */
-#search, .new-task textarea, .settings-card input[type=text],
+#search, #sh-search, .new-task textarea, .settings-card input[type=text],
 .settings-card select, .addsub input, #ed-title {
   color: var(--ink); border: 0; border-radius: var(--r-2); font-family: inherit; font-size: var(--fs-3);
   background: var(--field); caret-color: var(--accent);
   box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1px var(--rule), inset 0 -1px 0 var(--spec-bounce), 0 0 0 0 var(--accent-soft);
   transition: box-shadow 200ms var(--ease-out), background 200ms ease; /* critically damped: focus never bounces */
 }
-#search:focus, .new-task textarea:focus, .settings-card input:focus, .settings-card select:focus, .addsub input:focus, #ed-title:focus {
+#search:focus, #sh-search:focus, .new-task textarea:focus, .settings-card input:focus, .settings-card select:focus, .addsub input:focus, #ed-title:focus {
   outline: none; background: color-mix(in srgb, var(--field) 55%, rgba(var(--sheet-rgb), 0.45));
   box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1.5px var(--accent), inset 0 -1px 0 var(--spec-bounce), 0 0 0 3px var(--accent-soft);
 }
@@ -631,7 +631,23 @@ button.sh-sec:hover { color: var(--ink); }
 .sh-search .search-clear { top: 2px; }
 .sh-opts { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
 .sh-opts .seg { margin-inline-end: auto; }
-.sh-opts .chip { gap: 6px; }
+/* Include capsule (owner 2026-09-30, demo share-toggles.html B + glyphs): ONE clear-glass capsule split by hairlines;
+   each part = tick · glyph · name, toggles on its own; "on" = accent tick + a faint accent fill */
+.inc { display: inline-flex; border-radius: calc(var(--r-2) - 1px); overflow: hidden; background: var(--sheen), var(--ctl);
+  box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), 0 0 0 1px var(--ctl-line); }
+.inc-b { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 0; background: transparent;
+  font-family: inherit; font-size: var(--fs-2); font-weight: 650; color: var(--muted); cursor: pointer;
+  transition: color 160ms ease, background 160ms ease; }
+.inc-b + .inc-b { border-inline-start: 1px solid var(--rule); }
+.inc-b:hover { color: var(--ink); }
+.inc-b.on { color: var(--ink); background: var(--accent-soft); }
+.inc-b:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.inc-tick { flex: none; width: 13px; height: 13px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px currentColor; display: grid; place-items: center; }
+.inc-b.on .inc-tick { background: var(--accent); box-shadow: none; }
+.inc-b.on .inc-tick::after { content: ""; width: 6px; height: 3px; margin-top: -2px; border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg); }
+.inc .opt-g.p { color: var(--p2); }
+.inc .opt-g.d { color: var(--accent); }
+.inc-b:not(.on) .opt-g { opacity: .55; }
 #sel-clear-all { flex: none; white-space: nowrap; }
 .sh-opts .opt-g { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
 .sh-opts .chip.sel .opt-g { color: var(--accent); }

@@ -195,6 +195,8 @@ const STRINGS_EN = {
   'sh.open': "Open",
   'sh.sec.nowOpen': "Now",
   'sh.search.ph': "Search this list…",
+  'sh.opt.include': "Include in the message",
+  'sh.opt.subs': "Subtasks",
   'sh.opt.prio': "Priority",
   'sh.opt.dates': "Dates",
   'sh.clearAll': "Clear all",
