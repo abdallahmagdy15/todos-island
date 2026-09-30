@@ -222,6 +222,17 @@ function showNotice(msg) {
 // The same rest shows the corner Edit tab (owner pick "D", 2026-09-28) on rows AND the Now card: passing over rows on the
 // way to another one shows nothing, so the tab never flickers across the list.
 let hoverT = null, hoverRow = null;
+// the Share panel's Include options for a format (owner 2026-09-30: the island copy matches them). Same origin as the tasks
+// window, so its localStorage 'share.opts' is readable here; the defaults mirror panels.js (Markdown all on, text subtasks only)
+function shareOpts(fmt) {
+  const o = fmt === 'md' ? { subs: 'all', prio: true, dates: true } : { subs: 'all', prio: false, dates: false };
+  try {
+    const s = JSON.parse(localStorage.getItem('share.opts') || '{}');
+    if (s.md || s.text) Object.assign(o, s[fmt] || {});
+    else if (fmt === 'text') Object.assign(o, { prio: !!s.prio, dates: !!s.dates, subs: s.subs !== false }); // pre-2026-09-30 shape
+  } catch (e) {}
+  return o;
+}
 const etab = window.UI.editTab($('wrap'), {
   onEdit: r => editFromIsland(r.dataset.file, r.dataset.id || r.dataset.card),
   // quick Copy (owner 2026-09-29): the task in the Share format (Settings shareFmt: plain text or Markdown); no note write
@@ -230,7 +241,8 @@ const etab = window.UI.editTab($('wrap'), {
     const t = snap && snap.sections.flatMap(s => s.items).find(x => x.id === id);
     if (!t) return false;
     const fmt = snap.settings.shareFmt === 'md' ? 'md' : 'text';
-    await window.api.copyText(window.ShareText.taskText(t, fmt));
+    const o = shareOpts(fmt);
+    await window.api.copyText(window.ShareText.taskText(t, fmt, { withSubs: o.subs, withPrio: o.prio, withDates: o.dates }));
     window.SFX.play('tick');
     return true;
   },
