@@ -219,6 +219,20 @@
           <div class="sctl"><input id="set-capture" type="checkbox" role="switch" class="switch"></div>
         </div>
         </section>
+        <!-- About + updates (owner 2026-10-01): the version, links, the auto-update switch with Check now, and the live status -->
+        <section class="sgroup" id="set-about">
+        <h2 class="md-h"><span class="hash">##</span> <span data-i18n="about.h">About</span></h2>
+        <div class="about-head">
+          <span class="about-mark" aria-hidden="true">[&#9733;]</span>
+          <div class="about-id"><div class="about-name"><span data-i18n="app.name">Todo Island</span> <span class="about-ver" id="about-ver"></span></div>
+            <div class="about-links"><button class="btn-text" id="about-notes" type="button" data-i18n="about.notes">What's new</button><button class="btn-text" id="about-repo" type="button">GitHub</button></div></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label for="set-update" data-i18n="set.update">Check for updates</label><span class="shint" data-i18n="set.update.hint">checks GitHub at startup and daily, and downloads a new version by itself</span></div>
+          <div class="sctl row"><button class="btn-soft sm" id="btn-check-now" type="button" data-i18n="about.check">Check now</button><input id="set-update" type="checkbox" role="switch" class="switch"></div>
+        </div>
+        <div class="about-status" id="about-status" role="status" aria-live="polite"><span id="about-status-text"></span><button class="btn-soft sm" id="about-action" type="button" hidden></button></div>
+        </section>
         <section class="sgroup">
         <button class="adv-toggle" id="adv-toggle" type="button" aria-expanded="false" aria-controls="set-advanced">
           <span class="hash">##</span> <span data-i18n="set.h.advanced">Advanced</span>
@@ -256,10 +270,6 @@
           <div class="sctl"><input id="set-sound" type="checkbox" role="switch" class="switch"></div>
         </div>
         <h2 class="md-h mt"><span class="hash">##</span> <span data-i18n="set.h.app">App</span></h2>
-        <div class="srow">
-          <div class="slabel"><label for="set-update" data-i18n="set.update">Check for updates</label><span class="shint" data-i18n="set.update.hint">one quiet check with GitHub at startup; a green Update pill shows when a new version is out</span></div>
-          <div class="sctl"><input id="set-update" type="checkbox" role="switch" class="switch"></div>
-        </div>
         <div class="srow">
           <div class="slabel"><label for="set-undo" data-i18n="set.undo">Undo window</label><span class="shint" data-i18n="set.undo.hint">seconds · 5–120</span></div>
           <div class="sctl"><input id="set-undo" type="text" inputmode="decimal" class="num-in" lang="en" dir="ltr" spellcheck="false"><span class="fstat" data-for="set-undo" role="status"></span></div>

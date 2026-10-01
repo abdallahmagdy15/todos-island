@@ -32,8 +32,15 @@ function subsHtml(subs, attrs = '') {
   const fold = done.length ? `<div class="subs-done"><div class="sd-sum">${esc(T('isl.sub.doneN', { n: done.length }))}</div><div class="sd-wrap"><div class="sd-in">${done.map(one).join('')}</div></div></div>` : '';
   return open.map(one).join('') + fold;
 }
-// priority sits on the right with the date; no priority → nothing (no placeholder dot)
-const bangHtml = t => t.priority ? `<span class="bang ${bangCls(t.priority)}">${esc(t.priority)}</span>` : '';
+// priority sits on the right with the date. It is CLICKABLE (owner 2026-10-01): ! → !! → !!! → none, undoable.
+// No priority → an empty ghost mark that draws a faint "!" only on the row you rest on (CSS ::before), so nothing shifts.
+const PRIO_NEXT = { '': '!', '!': '!!', '!!': '!!!', '!!!': '' };
+const bangHtml = t => `<span class="bang ${t.priority ? bangCls(t.priority) : 'ghost'}" data-prio="${esc(t.priority || '')}" role="button" title="${esc(T('prio.click'))}">${t.priority ? esc(t.priority) : ''}</span>`;
+// the island's order is FROZEN while it is shown (owner 2026-10-01): a priority click never moves the row under the pointer;
+// every new appearance sorts fresh. id → rank; a priority change renames the id, and the rank follows it.
+let frozenOrder = null;
+const freezeSort = items => !frozenOrder ? items : items.map((t, i) => [t, frozenOrder.has(t.id) ? frozenOrder.get(t.id) : 1e9 + i])
+  .sort((a, b) => a[1] - b[1]).map(x => x[0]);
 function rowHtml(t) {
   const subsBadge = t.subs.length ? `<span class="row-sub">${T('isl.sub.badge', { a: t.subs.filter(s => !s.done).length, b: t.subs.length })}</span>` : '';
   const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${inline(n)}</div>`).join('');
@@ -109,7 +116,9 @@ function render() {
   // focus-by-time only makes sense with both notes — a one-note user would get an empty island half the day
   const focus = snap.settings.focusByTime && (snap.settings.mode || 'both') === 'both';
   if (focus) sections = sections.filter(s => s.name === (snap.workday ? 'Work' : 'Personal'));
+  sections = sections.map(s => ({ ...s, items: freezeSort(s.items) }));
   const flat = sections.flatMap(s => s.items);
+  if (!frozenOrder) frozenOrder = new Map(flat.map((t, i) => [t.id, i]));
   const total = flat.length;
   const actives = flat.filter(t => t.active);
   const errs = hasErrors();
@@ -335,6 +344,17 @@ $('body').addEventListener('dragend', () => {
 document.addEventListener('click', e => {
   if (e.target.closest('[data-open-tasks]')) { window.SFX.play('tick'); window.api.openWindow(); retract(); return; }
   if (e.target.closest('[data-open-settings]')) { window.api.openWindow('settings'); return; }
+  const pr = e.target.closest('[data-prio]');
+  if (pr) { // the priority mark: ! → !! → !!! → none — never stages Now; one-off session = its own Undo
+    e.stopPropagation();
+    const host = pr.closest('.row, .active-card');
+    const id = host.dataset.id || host.dataset.card, file = host.dataset.file;
+    window.SFX.play('tick');
+    window.api.updateTask(file, id, { priority: PRIO_NEXT[pr.dataset.prio] || null, session: 'islp' + Date.now() }).then(res => {
+      if (res && res.id && res.id !== id && frozenOrder && frozenOrder.has(id)) { frozenOrder.set(res.id, frozenOrder.get(id)); render(); }
+    });
+    return;
+  }
   const sub = e.target.closest('[data-sub]');
   if (sub) { // tick a subtask — works in hover-unfold rows AND in Now cards
     e.stopPropagation();
@@ -405,7 +425,8 @@ function editFromIsland(file, id) {
 }
 window.api.onShown(info => {
   retracting = false;
-  if (expanded) { expanded = false; if (snap) render(); } // each appearance starts with the few (owner 2026-09-28)
+  expanded = false; frozenOrder = null; // each appearance starts with the few (owner 2026-09-28), freshly sorted (2026-10-01)
+  if (snap) render();
   $('body').scrollTop = 0;
   // hover is only trusted if the island was already up; a fresh pop starts un-hovered and counts down at once
   islandHovered = info.fresh && document.documentElement.matches(':hover');

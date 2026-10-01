@@ -399,7 +399,7 @@
     if (!picked()) return;
     const res = await window.api.openWhatsApp(buildText('text'));
     window.SFX.play('tick');
-    $('share-note').textContent = res && res.ok ? T('sh.wa.opened') : T('sh.wa.fail');
+    $('share-note').textContent = !(res && res.ok) ? T('sh.wa.fail') : res.paste ? T('sh.wa.paste') : T('sh.wa.opened');
     $('share-note').title = '';
   });
   $('btn-export').addEventListener('click', async () => {

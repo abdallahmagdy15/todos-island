@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('api', {
   composeTask: data => ipcRenderer.invoke('compose-task', data),
   openNote: file => ipcRenderer.invoke('open-note', file),
   openUpdate: () => ipcRenderer.invoke('open-update'),
+  checkUpdate: () => ipcRenderer.invoke('check-update'), // Settings → About "Check now"
+  openAboutLink: kind => ipcRenderer.invoke('open-about-link', kind), // 'notes' | 'repo' — main owns the URLs
   exportMd: text => ipcRenderer.invoke('export-md', text),
   openWhatsApp: text => ipcRenderer.invoke('open-whatsapp', text),
   copyText: text => ipcRenderer.invoke('copy-text', text),

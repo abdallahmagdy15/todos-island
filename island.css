@@ -125,6 +125,12 @@ body.pinned .gl-arc { transform: none !important; transition: none !important; }
 .bang { flex: none; font-family: var(--font-mono); font-weight: 700; font-size: calc(var(--fs-task) * 0.82); line-height: 1; letter-spacing: -1px; } /* owner 2026-09-30: smaller mark (was full task size, 750) */
 .active-card .bang { font-size: calc(var(--fs-task-lg) * 0.82); }
 .bang.p3 { color: var(--p3); } .bang.p2 { color: var(--p2); } .bang.p1 { color: var(--p1); }
+/* clickable priority (owner 2026-10-01): ! → !! → !!! → none; no priority = a ghost "!" on the rested row only */
+.bang[data-prio] { cursor: pointer; border-radius: 4px; transition: background var(--d-1, 120ms) ease; }
+.bang[data-prio]:hover { background: var(--hover); }
+.bang.ghost { display: none; color: var(--faint); }
+.bang.ghost::before { content: '!'; }
+.hovered .bang.ghost { display: inline-block; opacity: 0.6; }
 .bang.p0::after { content: ''; display: inline-block; width: 4px; height: 4px; margin-inline-start: 10px; border-radius: 50%; background: var(--faint); opacity: 0.5; vertical-align: middle; }
 
 .row-main { flex: 1; min-width: 0; }

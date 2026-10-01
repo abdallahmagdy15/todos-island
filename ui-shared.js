@@ -390,11 +390,15 @@
   }
 
   // the green Update pill (island + tasks window): shown only while a newer release exists; tooltip names the version
+  // the green pill (owner 2026-10-01): hidden while the new version downloads; "Restart to update" once it's ready
   function renderUpdate(btn, update) {
     if (!btn) return;
-    btn.hidden = !update;
-    if (!update) return;
-    const tip = T('upd.title', { v: update.version });
+    btn.hidden = !update || update.status === 'downloading';
+    if (btn.hidden) return;
+    const ready = update.status === 'ready';
+    const label = btn.querySelector('[data-i18n]') || btn;
+    label.textContent = T(ready ? 'upd.restart' : 'upd.label');
+    const tip = T(ready ? 'upd.readyTitle' : 'upd.title', { v: update.version });
     btn.title = tip; btn.setAttribute('aria-label', tip);
   }
   // theme color + text sizes from settings (every window calls this with each snapshot's settings)

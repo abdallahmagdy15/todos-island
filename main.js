@@ -1,7 +1,7 @@
 'use strict';
 // Todo Island — tray reminder over the two Obsidian notes.
 // Sources are only written on the owner's own clicks in the app (owner's hands), never in bulk by the AI.
-const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, net } = require('electron');
+const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, net, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { NoteFile, resolveDue, MONTHS, stampMs } = require('./lib/parse.js');
@@ -23,14 +23,14 @@ const DEFAULT_SETTINGS = {
   // defaults = the owner's own tuned setup (2026-09-25) — every new install starts from it
   workIntervalMin: 60, offIntervalMin: 60, workRemindersOn: true, offRemindersOn: true,
   dayStart: '09:00', dayEnd: '17:00',
-  dismissSec: 7, undoSec: 5, hoverSec: 1, shortcut: 'Control+Alt+T', focusByTime: true,
+  dismissSec: 7, undoSec: 5, hoverSec: 1, shortcut: 'Control+`', focusByTime: true,
   weekendAware: true, weekendDays: 'auto', // weekendDays: auto (the Windows region's) | sat-sun | fri-sat
   autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
-  accent: 'teal', // owner default 2026-09-29 (was blue) — theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
+  accent: 'blue', // owner default 2026-10-01 (back from teal) — theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
   labelSize: 0, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
   appearance: 'system', // system | light | dark → nativeTheme.themeSource (every window follows)
-  islandTheme: 'lagoon', // owner default 2026-09-29 (was mist) — the picture under the island's glass: mist | dusk | lagoon | bloom | dune
+  islandTheme: 'mist', // owner default 2026-10-01 (back from lagoon) — the picture under the island's glass: mist | dusk | lagoon | bloom | dune
   shareFmt: 'text', // Share + the island's quick Copy: 'text' (plain, WhatsApp-friendly) | 'md' (the note as written)
   hideFromCapture: true, // the island stays on your screen but Teams / OBS / screenshots can't see it (Windows "exclude from capture")
   glassLevel: 3, // frost: 0 = solid · 1–4 = 15/25/38/50 % of the theme shows through the island's glass
@@ -181,38 +181,159 @@ function snapshot() {
   // Done: newest done first (the u stamp = done date); unstamped done tasks keep note order after them.
   // Work notes already file each newly done task at the top of ## Done, so the note reads in the same order.
   const done = [...work.done, ...personal.done].sort((a, b) => b.updatedTs - a.updatedTs);
-  return { sections, errors, sources, lastWrite, done, workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update };
+  return { sections, errors, sources, lastWrite, done, workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update, appVersion: curVersion(), lastCheck };
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
 
-// ---- update check: one GET to GitHub's latest-release API at startup (then daily). No popup, no download:
-// a newer release lights a green "Update" pill in the island + tasks-window top bars; a click opens its page.
-// Offline / rate-limited / any failure = silence (no pill), next try tomorrow. Off in Settings → App.
-const { pickUpdate, API: UPDATE_API } = require('./lib/update.js');
-let update = null;
-async function checkForUpdate() {
+// ---- updates (owner 2026-10-01: auto-update). One GET to GitHub's latest-release API at startup (+8 s), then daily, or
+// on demand (Settings "Check now", tray "Check for updates"). With "Check for updates" ON, a newer release DOWNLOADS its
+// installer in the background — this repo's own asset only, size + sha256 verified (lib/update.js pickAsset). Ready →
+// the green pill reads "Restart to update", Settings → About says so, and ONE Windows notification. Install = the normal
+// setup wizard, then the app quits. Not clicked? The next app start opens the wizard by itself, ONCE per version
+// (pendingAction). While it downloads the pill stays hidden. Any failure → the pill opens the release page, as before.
+const { pickUpdate, pickAsset, pendingAction, API: UPDATE_API, RELEASES } = require('./lib/update.js');
+const crypto = require('crypto');
+const { spawn } = require('child_process');
+const UPD_DIR = path.join(app.getPath('userData'), 'updates');
+const curVersion = () => (SANDBOX && process.env.TODO_ISLAND_FAKE_VERSION) || app.getVersion(); // E2E: pretend to be older
+const updNet = () => !SANDBOX || !!process.env.TODO_ISLAND_UPDATE_REAL; // sandbox runs stay offline unless a test opts in
+const mayInstall = () => !SANDBOX || !!process.env.TODO_ISLAND_UPDATE_INSTALL; // sandbox runs never start an installer
+let update = null;    // { version, url, asset, status: 'available' | 'downloading' | 'ready' | 'failed', progress, file }
+let lastCheck = null; // { at, result: 'uptodate' | 'available' | 'error', version }
+let checking = null;
+function pushUpdate() {
+  sendSnap();
+  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('tasks-changed'); // the window re-reads its snapshot
+}
+function checkForUpdate(manual = false) {
+  if (!checking) checking = runCheck(manual).finally(() => { checking = null; });
+  return checking;
+}
+async function runCheck(manual) {
   const fake = process.env.TODO_ISLAND_UPDATE_TEST; // E2E: pretend this tag is the latest release (no network)
-  if (!state.settings.updateCheck || (SANDBOX && !fake)) return;
+  if (!manual && !state.settings.updateCheck) return lastCheck;
+  if (!fake && !updNet()) { if (manual) { lastCheck = { at: Date.now(), result: 'error' }; pushUpdate(); } return lastCheck; }
   try {
     let release;
-    if (fake) release = { tag_name: fake, html_url: 'https://github.com/abdallahmagdy15/todos-island/releases/tag/' + fake };
+    if (fake) release = { tag_name: fake, html_url: `${RELEASES}/tag/${fake}` };
     else {
       const r = await net.fetch(UPDATE_API, { headers: { 'User-Agent': 'todos-island/' + app.getVersion(), Accept: 'application/vnd.github+json' } });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       release = await r.json();
     }
-    setUpdate(pickUpdate(release, app.getVersion()));
-    LOG('UPDATE-CHECK ' + (update ? 'available ' + update.version : 'up to date ' + app.getVersion()));
-  } catch (e) { LOG('UPDATE-CHECK-FAIL ' + e.message); }
+    const u = pickUpdate(release, curVersion());
+    lastCheck = { at: Date.now(), result: u ? 'available' : 'uptodate', version: u ? u.version : curVersion() };
+    LOG('UPDATE-CHECK ' + (u ? 'available ' + u.version : 'up to date ' + curVersion()));
+    if (!u) { if (update && update.status !== 'ready') update = null; pushUpdate(); return lastCheck; }
+    if (update && update.version === u.version && update.status !== 'failed') { pushUpdate(); return lastCheck; } // already on it
+    update = { ...u, asset: pickAsset(release, u.version), status: 'available', progress: 0, file: null };
+    pushUpdate();
+    if (state.settings.updateCheck && update.asset) downloadUpdate(); // auto-download rides on the check switch (owner)
+  } catch (e) {
+    LOG('UPDATE-CHECK-FAIL ' + e.message);
+    lastCheck = { at: Date.now(), result: 'error' };
+    pushUpdate();
+  }
+  return lastCheck;
 }
-function setUpdate(u) {
-  if (JSON.stringify(u) === JSON.stringify(update)) return;
-  update = u;
-  sendSnap();
-  if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('tasks-changed'); // the window re-reads its snapshot
+async function downloadUpdate() {
+  const u = update;
+  if (!u || !u.asset || u.status === 'downloading' || u.status === 'ready' || !updNet()) return;
+  u.status = 'downloading'; u.progress = 0; pushUpdate();
+  const file = path.join(UPD_DIR, u.asset.name), part = file + '.part';
+  let fd = null;
+  try {
+    fs.mkdirSync(UPD_DIR, { recursive: true });
+    const r = await net.fetch(u.asset.url, { headers: { 'User-Agent': 'todos-island/' + app.getVersion() } });
+    if (!r.ok || !r.body) throw new Error('HTTP ' + r.status);
+    const hash = crypto.createHash('sha256'), reader = r.body.getReader();
+    fd = fs.openSync(part, 'w');
+    let got = 0, shown = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const buf = Buffer.from(value);
+      got += buf.length;
+      if (got > u.asset.size) throw new Error('bigger than the release says');
+      fs.writeSync(fd, buf); hash.update(buf);
+      const pct = Math.floor(got * 100 / u.asset.size);
+      if (pct >= shown + 2) { shown = pct; u.progress = pct; pushUpdate(); }
+    }
+    fs.closeSync(fd); fd = null;
+    if (got !== u.asset.size) throw new Error(`size ${got} ≠ ${u.asset.size}`);
+    if (hash.digest('hex') !== u.asset.sha256) throw new Error('sha256 mismatch');
+    fs.rmSync(file, { force: true }); fs.renameSync(part, file);
+    state.pendingUpdate = { version: u.version, file }; saveState();
+    Object.assign(u, { status: 'ready', progress: 100, file });
+    LOG(`UPDATE-READY ${u.version} ${got} bytes sha256-ok`);
+    pushUpdate();
+    notifyReady(u);
+  } catch (e) {
+    if (fd !== null) { try { fs.closeSync(fd); } catch (e2) {} }
+    try { fs.rmSync(part, { force: true }); } catch (e2) {}
+    LOG('UPDATE-DOWNLOAD-FAIL ' + e.message);
+    if (update === u) { u.status = 'failed'; pushUpdate(); }
+  }
 }
-ipcMain.handle('open-update', () => { if (update) shell.openExternal(update.url); });
+function notify(title, body, onClick) {
+  if (!Notification.isSupported()) return;
+  const n = new Notification({ title, body, silent: false });
+  if (onClick) n.on('click', onClick);
+  n.show();
+}
+function notifyReady(u) { // ONE notification per version (owner)
+  if (state.notifiedFor === u.version) return;
+  state.notifiedFor = u.version; saveState();
+  const L = uiLang();
+  notify(tt(L, 'upd.n.readyTitle', { v: u.version }), tt(L, 'upd.n.readyBody'), installUpdate);
+}
+function startInstaller(file, why) {
+  if (!mayInstall()) { LOG(`UPDATE-INSTALL-SANDBOX ${why} ${file}`); return false; }
+  LOG(`UPDATE-INSTALL ${why} ${file}`);
+  spawn(file, [], { detached: true, stdio: 'ignore' }).unref(); // the normal setup wizard (owner); it replaces the app's files
+  app.quit();
+  return true;
+}
+function installUpdate() {
+  const u = update, file = u && u.file;
+  if (!file || !fs.existsSync(file)) { if (u) shell.openExternal(u.url); return; }
+  startInstaller(file, 'click');
+}
+// the pill, the Settings button and a notification click all mean "go": ready → install · found → download · else the page
+function updateAction() {
+  if (!update) return;
+  if (update.status === 'ready') return installUpdate();
+  if (update.status === 'available' && update.asset && updNet()) return downloadUpdate();
+  if (update.status !== 'downloading') shell.openExternal(update.url);
+}
+// the Check-for-updates switch moved: off drops a found-but-not-downloaded update; on resumes / starts the check
+function updateSwitchChanged() {
+  if (!state.settings.updateCheck) { if (update && update.status === 'available') { update = null; pushUpdate(); } }
+  else if (!update) checkForUpdate();
+  else if (update.status === 'available' && update.asset) downloadUpdate();
+}
+ipcMain.handle('open-update', () => updateAction());
+ipcMain.handle('check-update', () => checkForUpdate(true));
+ipcMain.handle('open-about-link', (_e, kind) => { // fixed URLs only — the page never passes one in
+  shell.openExternal(kind === 'notes' ? `${RELEASES}/tag/v${app.getVersion()}` : RELEASES.replace(/\/releases$/, ''));
+});
+// at startup: an installer downloaded earlier is installed ONCE by itself; after that the pill offers it; a spent one goes
+function startupUpdate() {
+  const p = state.pendingUpdate;
+  const act = pendingAction(p, curVersion(), state.autoInstalledFor, !!(p && p.file && fs.existsSync(p.file)));
+  try { // anything else in updates/ is stale (a cancelled .part, an older installer)
+    for (const f of fs.readdirSync(UPD_DIR)) {
+      const full = path.join(UPD_DIR, f);
+      if (!((act === 'install' || act === 'offer') && full === p.file)) fs.rmSync(full, { force: true });
+    }
+  } catch (e) {}
+  if (act === 'none' || act === 'drop') { if (p) { delete state.pendingUpdate; saveState(); } return false; }
+  update = { version: p.version, url: `${RELEASES}/tag/v${p.version}`, asset: null, status: 'ready', progress: 100, file: p.file };
+  if (act === 'offer') return false;
+  state.autoInstalledFor = p.version; saveState(); // once per version: cancel the wizard and it won't come back by itself
+  return startInstaller(p.file, 'startup');
+}
 
 // ---- island themes: the island paints its own picture under its glass (island.js). It no longer films the screen
 // (owner, 2026-09-27: the live copy lagged behind scrolling and filmed the mouse pointer as a blurry ghost), so the
@@ -468,9 +589,14 @@ function rebuildTrayMenu() {
   if (!tray) return;
   const L = uiLang();
   tray.setContextMenu(Menu.buildFromTemplate([
+    { label: tt(L, 'tray.version', { v: curVersion() }), enabled: false }, // About (owner 2026-10-01): the version up front
+    { type: 'separator' },
     { label: tt(L, 'tray.show'), click: () => { state.lastShown = Date.now(); saveState(); showIsland(); } },
     { label: tt(L, 'tray.open'), click: openWindow },
     { label: tt(L, 'tray.setup'), click: () => openOnboarding() },
+    { type: 'separator' },
+    { label: tt(L, 'tray.check'), click: trayCheck },
+    { label: tt(L, 'tray.about'), click: () => openWindow('about') },
     { type: 'separator' },
     { label: tt(L, 'tray.capture'), type: 'checkbox', checked: !!state.settings.hideFromCapture, click: item => {
       state.settings.hideFromCapture = item.checked; saveState(); applyCaptureHide(); sendSnap();
@@ -479,6 +605,16 @@ function rebuildTrayMenu() {
     { type: 'separator' },
     { label: tt(L, 'tray.quit'), click: () => app.quit() }
   ]));
+}
+// tray → Check for updates: you asked, so it answers with ONE notification (owner 2026-10-01)
+async function trayCheck() {
+  const r = await checkForUpdate(true), L = uiLang();
+  const title = tt(L, 'app.name');
+  if (!r || r.result === 'error') return notify(title, tt(L, 'upd.n.error'));
+  if (r.result === 'uptodate') return notify(title, tt(L, 'upd.n.latest', { v: curVersion() }));
+  if (update && update.status === 'ready') return notify(tt(L, 'upd.n.readyTitle', { v: update.version }), tt(L, 'upd.n.readyBody'), installUpdate);
+  if (update && update.status === 'downloading') return notify(title, tt(L, 'upd.n.downloading', { v: update.version }));
+  notify(title, tt(L, 'upd.n.available', { v: r.version }), updateAction);
 }
 // tray glyph [★]: brackets in the taskbar's own ink (light or dark taskbar), one sharp bitmap per display scale
 function trayImage() {
@@ -637,7 +773,7 @@ ipcMain.handle('save-settings', (_e, s) => {
     }
   }
   saveState();
-  if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
+  updateSwitchChanged();
   applyAppearance(); // Light/Dark may have changed
   applyCaptureHide();
   rebuildTrayMenu(); // the tray's "Hide from screen sharing" tick follows the setting
@@ -654,7 +790,7 @@ ipcMain.handle('save-settings', (_e, s) => {
 function applySettingsSideEffects(prev) {
   if (state.settings.shortcut !== prev.shortcut && !registerShortcut()) LOG('RESET-SHORTCUT-FAIL');
   if (state.settings.autoStart !== prev.autoStart) applyAutoStart(state.settings.autoStart);
-  if (!state.settings.updateCheck) setUpdate(null); else if (!update) checkForUpdate();
+  updateSwitchChanged();
   applyAppearance();
   applyCaptureHide();
   rebuildTrayMenu();
@@ -667,6 +803,7 @@ function applySettingsSideEffects(prev) {
 ipcMain.handle('reset-settings', () => {
   const prev = state.settings;
   state.settings = { ...DEFAULT_SETTINGS }; // paths revert to the default folder; the files on disk stay exactly where they were
+  delete state.waRoute; delete state.waPwa; // the remembered WhatsApp route is found afresh on the next share
   saveState();
   applySettingsSideEffects(prev);
   const token = pushUndo({ kind: 'settings', prev, label: null, expires: Date.now() + state.settings.undoSec * 1000 });
@@ -804,28 +941,90 @@ ipcMain.handle('clear-done-all', () => {
 // Share → WhatsApp (owner 2026-09-29): the installed app first (whatsapp://send → its contact / group picker), else
 // WhatsApp Web (wa.me). Only these two URL shapes are ever opened; the text is also on the clipboard (a very long
 // message can be cut by the link, pasting always works).
+// Share → WhatsApp opens WhatsApp DIRECTLY (owner 2026-10-01; lib/whatsapp.js): the remembered route (state.waRoute)
+// first, else desktop app → WhatsApp Web installed as a Chrome/Edge app → the browser at web.whatsapp.com (never the
+// wa.me landing page). The first route that launches is remembered — never 'web', so a later install gets found.
+const { openNow, routeOrder, waUrl, pwaArgs, WEB: WA_WEB } = require('./lib/whatsapp.js');
+// what is open right now (owner 2026-10-01, "go with titles"): the desktop app's process + the open windows' TITLES.
+// desktopCapturer is asked for names only — a 0×0 thumbnail and no icons, so no pixels are ever captured.
+async function waOpenNow() {
+  if (process.platform !== 'win32') return null;
+  const { desktopCapturer } = require('electron');
+  const { execFile } = require('child_process');
+  const [titles, running] = await Promise.all([
+    desktopCapturer.getSources({ types: ['window'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false })
+      .then(list => list.map(x => x.name), () => []),
+    new Promise(res => execFile('tasklist', ['/fi', 'imagename eq whatsapp*', '/fo', 'csv', '/nh'], { windowsHide: true },
+      (e, out) => res(!e && /"whatsapp[^"]*\.exe"/i.test(String(out || ''))))) // WhatsApp.exe (classic) · WhatsApp.Root.exe (Store)
+  ]);
+  return openNow(titles, running);
+}
+function waPwaLink() { // the browser app's Start Menu shortcut → { p, link } or null
+  if (process.platform !== 'win32') return null;
+  const read = p => { try { const link = shell.readShortcutLink(p); return pwaArgs(link, WA_WEB) && fs.existsSync(link.target) ? { p, link } : null; } catch { return null; } };
+  const saved = state.waPwa && read(state.waPwa);
+  if (saved) return saved;
+  const found = [];
+  const walk = (dir, depth) => {
+    let ents = []; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of ents) {
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) { if (depth < 2) walk(p, depth + 1); } else if (/whatsapp.*\.lnk$/i.test(e.name)) found.push(p);
+    }
+  };
+  walk(path.join(app.getPath('appData'), 'Microsoft', 'Windows', 'Start Menu', 'Programs'), 0);
+  for (const p of found) { const r = read(p); if (r) return r; }
+  return null;
+}
+const spawnOk = (file, args) => new Promise(res => {
+  try { const c = spawn(file, args, { detached: true, stdio: 'ignore' }); c.once('spawn', () => { c.unref(); res(true); }); c.once('error', () => res(false)); }
+  catch { res(false); }
+});
+async function openWhatsApp(text, dry) { // dry = only say which route and link it would use
+  const open = await waOpenNow();
+  for (const route of routeOrder(state.waRoute, open)) {
+    const url = waUrl(route, text);
+    let launch, pwa = null;
+    // Windows answers an unknown protocol with a "find an app" prompt instead of an error — ask first who handles it
+    if (route === 'app') { if (!app.getApplicationNameForProtocol('whatsapp://')) continue; launch = () => shell.openExternal(url).then(() => true, () => false); }
+    else if (route === 'pwa') { pwa = waPwaLink(); if (!pwa) continue; launch = () => spawnOk(pwa.link.target, pwaArgs(pwa.link, url)); }
+    else launch = () => shell.openExternal(url).then(() => true, () => false);
+    // an open WhatsApp Web window only gets FOCUSED (Chrome drops the message) → the user pastes; the desktop app takes it
+    const paste = open === 'web' && route !== 'app';
+    if (dry) return { route, url, open, paste, shortcut: pwa && pwa.p };
+    if (!(await launch())) { LOG('WHATSAPP-FAIL ' + route); continue; }
+    const keep = route === 'web' ? {} : { waRoute: route, waPwa: pwa ? pwa.p : state.waPwa };
+    if (state.waRoute !== keep.waRoute || state.waPwa !== keep.waPwa) {
+      delete state.waRoute; delete state.waPwa; Object.assign(state, keep); saveState();
+    }
+    if (paste) { const L = uiLang(); notify(tt(L, 'wa.n.title'), tt(L, 'wa.n.body')); }
+    return { ok: true, via: route, paste };
+  }
+  return { ok: false };
+}
 ipcMain.handle('open-whatsapp', async (_e, text) => {
   const body = String(text || '');
   await clipboard.writeText(body);
-  if (SANDBOX || process.env.TODO_ISLAND_UNDO_TEST) { LOG('WHATSAPP-SANDBOX chars=' + body.length); return { ok: true, via: 'sandbox' }; } // tests never open apps
-  const q = encodeURIComponent(body);
-  // Windows answers an unknown protocol with a "find an app" prompt instead of an error — ask first who handles it
-  const hasApp = !!app.getApplicationNameForProtocol('whatsapp://');
-  try {
-    await shell.openExternal((hasApp ? 'whatsapp://send?text=' : 'https://wa.me/?text=') + q);
-    return { ok: true, via: hasApp ? 'app' : 'web' };
-  } catch (e) { LOG('WHATSAPP-FAIL ' + e.message); return { ok: false }; }
+  if (SANDBOX || process.env.TODO_ISLAND_UNDO_TEST) { // tests never open apps — they only log the route it would take
+    const plan = await openWhatsApp(body, true);
+    LOG('WHATSAPP-SANDBOX chars=' + body.length + ' open=' + plan.open + ' route=' + plan.route + ' paste=' + plan.paste + (plan.shortcut ? ' shortcut=' + path.basename(plan.shortcut) : ''));
+    return { ok: true, via: 'sandbox' };
+  }
+  return openWhatsApp(body);
 });
 ipcMain.handle('copy-text', async (_e, text) => { await clipboard.writeText(String(text || '')); return true; }); // Electron 44 clipboard is async — await so the invoke resolves after the write
 ipcMain.handle('open-note', (_e, file) => {
   shell.openPath(file === 'work' ? state.settings.workPath : state.settings.personalPath);
 });
 
+// Windows toasts need the installed shortcut's app id (electron-builder appId); a dev run has no shortcut, so skip it there
+if (process.platform === 'win32' && app.isPackaged) app.setAppUserModelId('com.abdallahmagdy15.todos-island');
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 else {
   app.on('second-instance', () => { openWindow(); });
   app.whenReady().then(() => {
     LOG('APP-START');
+    if (startupUpdate()) return; // a downloaded update installs itself once at startup (the wizard takes over)
     // self-heal: a default-folder note that went missing is re-created (enabled notes only; onboarding creates the rest)
     if (state.onboarded) {
       for (const tag of ['work', 'personal']) {
@@ -858,13 +1057,13 @@ else {
           await step('force-work-tab', `(async()=>{ document.getElementById('tab-work').click(); await new Promise(r=>setTimeout(r,400)); return document.querySelectorAll('.wrow').length + ' rows'; })()`);
           await step('complete+undo', `(async()=>{ const c=document.querySelector('.wrow .chk'); if(!c) return 'no-chk'; c.click(); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           // tasks window rest (owner 2026-09-28): 200 ms, then Edit + Delete tabs; nothing on a quicker pass
-          await step('rest-edit-tab', `(async()=>{ const r=document.querySelector('#task-list .wrow:not(.done)'); if(!r) return 'no-row'; r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,80)); const early=!!document.querySelector('.etab.on')||r.classList.contains('dwelt'); await new Promise(z=>setTimeout(z,300)); const t=!!document.querySelector('.etab.on:not(.etab-del)'), d=!!document.querySelector('.etab-del.on'); r.dispatchEvent(new MouseEvent('mouseout',{bubbles:true,relatedTarget:document.body})); await new Promise(z=>setTimeout(z,150)); const gone=!document.querySelector('.etab.on'); return (early?'SHOWN-TOO-EARLY ':'quiet-pass ')+(t?'tab-after-rest ':'NO-TAB ')+(d?'del-tab ':'NO-DEL-TAB ')+(gone?'leave-hides':'TAB-STUCK'); })()`);
-          await step('delete+undo', `(async()=>{ const r=document.querySelector('#task-list .wrow:not(.done)'); if(!r) return 'no-row'; r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,350)); const d=document.querySelector('.etab-del.on'); if(!d) return 'no-del-tab'; const n0=document.querySelectorAll('#task-list .wrow').length; d.click(); await new Promise(z=>setTimeout(z,800)); const n1=document.querySelectorAll('#task-list .wrow').length; ${undoClick} await new Promise(z=>setTimeout(z,800)); return 'rows '+n0+'→'+n1+'→'+document.querySelectorAll('#task-list .wrow').length; })()`);
+          await step('rest-edit-tab', `(async()=>{ const r=document.querySelector('#task-list .wrow:not(.done)'); if(!r) return 'no-row'; r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,80)); const early=!!document.querySelector('.etab.on')||r.classList.contains('dwelt'); await new Promise(z=>setTimeout(z,750)); const t=!!document.querySelector('.etab.on:not(.etab-del)'), d=!!document.querySelector('.etab-del.on'); r.dispatchEvent(new MouseEvent('mouseout',{bubbles:true,relatedTarget:document.body})); await new Promise(z=>setTimeout(z,150)); const gone=!document.querySelector('.etab.on'); return (early?'SHOWN-TOO-EARLY ':'quiet-pass ')+(t?'tab-after-rest ':'NO-TAB ')+(d?'del-tab ':'NO-DEL-TAB ')+(gone?'leave-hides':'TAB-STUCK'); })()`);
+          await step('delete+undo', `(async()=>{ const r=document.querySelector('#task-list .wrow:not(.done)'); if(!r) return 'no-row'; r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,750)); const d=document.querySelector('.etab-del.on'); if(!d) return 'no-del-tab'; const n0=document.querySelectorAll('#task-list .wrow').length; d.click(); await new Promise(z=>setTimeout(z,800)); const n1=document.querySelectorAll('#task-list .wrow').length; ${undoClick} await new Promise(z=>setTimeout(z,800)); return 'rows '+n0+'→'+n1+'→'+document.querySelectorAll('#task-list .wrow').length; })()`);
           // row click folds/unfolds its details; the subtask text opens the editor, its [ ] ticks (owner 2026-09-28)
           await step('row-click-toggles', `(async()=>{ const r=document.querySelector('#task-list .wrow.has-detail'); if(!r) return 'no-detail-row'; const id=r.dataset.id, o0=r.classList.contains('open'); r.querySelector('.tt').click(); await new Promise(z=>setTimeout(z,300)); const r1=[...document.querySelectorAll('#task-list .wrow')].find(x=>x.dataset.id===id); const o1=r1.classList.contains('open'); r1.querySelector('.tt').click(); await new Promise(z=>setTimeout(z,300)); const o2=[...document.querySelectorAll('#task-list .wrow')].find(x=>x.dataset.id===id).classList.contains('open'); return 'open '+o0+'→'+o1+'→'+o2+(document.querySelector('.wexp')?' OLD-EXPAND-BTN':''); })()`);
           // owner 2026-09-29: the ☆ tab stages Now and the row STAYS where it is (order frozen while open); the side panel's
           // frost takes the clicks meant for the list. Both undone/closed after.
-          await step('star-tab-stays+frost', `(async()=>{ const rows=[...document.querySelectorAll('#task-list .wrow:not(.is-now)')]; const r=rows[rows.length-1]; if(!r) return 'no-row'; const id=r.dataset.id, i0=[...document.querySelectorAll('#task-list .wrow')].indexOf(r); r.scrollIntoView({block:'center'}); r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,400)); const st=document.querySelector('.etab-star.on'); if(!st) return 'no-star-tab'; st.click(); await new Promise(z=>setTimeout(z,900)); const all=[...document.querySelectorAll('#task-list .wrow')]; const r1=all.find(x=>x.dataset.id===id); const out='idx '+i0+'→'+all.indexOf(r1)+' now='+r1.classList.contains('is-now'); await window.api.toggleActive(id, r1.dataset.file); await new Promise(z=>setTimeout(z,600)); document.getElementById('btn-share').click(); await new Promise(z=>setTimeout(z,700)); const r2=[...document.querySelectorAll('#task-list .wrow')].find(x=>x.dataset.id===id)||r1; const b=r2.getBoundingClientRect(); const hit=document.elementFromPoint(b.left+20,b.top+b.height/2); const frost=hit&&hit.id; window.Panels.close(); await new Promise(z=>setTimeout(z,500)); return out+' hitUnderPanel='+frost; })()`);
+          await step('star-tab-stays+frost', `(async()=>{ const rows=[...document.querySelectorAll('#task-list .wrow:not(.is-now)')]; const r=rows[rows.length-1]; if(!r) return 'no-row'; const id=r.dataset.id, i0=[...document.querySelectorAll('#task-list .wrow')].indexOf(r); r.scrollIntoView({block:'center'}); r.dispatchEvent(new MouseEvent('mouseover',{bubbles:true})); await new Promise(z=>setTimeout(z,750)); const st=document.querySelector('.etab-star.on'); if(!st) return 'no-star-tab'; st.click(); await new Promise(z=>setTimeout(z,900)); const all=[...document.querySelectorAll('#task-list .wrow')]; const r1=all.find(x=>x.dataset.id===id); const out='idx '+i0+'→'+all.indexOf(r1)+' now='+r1.classList.contains('is-now'); await window.api.toggleActive(id, r1.dataset.file); await new Promise(z=>setTimeout(z,600)); document.getElementById('btn-share').click(); await new Promise(z=>setTimeout(z,700)); const r2=[...document.querySelectorAll('#task-list .wrow')].find(x=>x.dataset.id===id)||r1; const b=r2.getBoundingClientRect(); const hit=document.elementFromPoint(b.left+20,b.top+b.height/2); const frost=hit&&hit.id; window.Panels.close(); await new Promise(z=>setTimeout(z,500)); return out+' hitUnderPanel='+frost; })()`);
           const panelKind = () => mainWin.webContents.executeJavaScript('window.Panels.kind'); // the side panel that's open (null = none)
           const closePanel = () => mainWin.webContents.executeJavaScript('window.Panels.close()');
           LOG('UTEST row-click-opened-editor: ' + ((await panelKind()) ? 'UNEXPECTED' : 'no (correct)'));
@@ -910,6 +1109,19 @@ else {
           const wait = ms => `await new Promise(r=>setTimeout(r,${ms}));`;
           const key = k => `document.activeElement.dispatchEvent(new KeyboardEvent('keydown',{key:'${k}',bubbles:true}));`;
           await step('kbd-roving+priority', `(async()=>{ document.getElementById('tab-work').click(); ${wait(300)} const rows=[...document.querySelectorAll('#task-list .wrow')]; rows[0].focus(); ${key('ArrowDown')} const moved=document.activeElement===rows[1]; const stops=rows.filter(r=>r.tabIndex===0).length; ${key('3')} ${wait(700)} const b1=document.activeElement.querySelector('.wmeta .bang').textContent; ${key('0')} ${wait(700)} const b2=document.activeElement.querySelector('.wmeta .bang').textContent; return 'moved='+moved+' tabstops='+stops+' after3=['+b1+'] after0=['+b2+'] role='+document.querySelector('#task-list .fold').getAttribute('role'); })()`);
+          { // clickable priority (owner 2026-10-01): window mark cycles, the row stays, Undo restores the note byte for byte
+            const before = fs.readFileSync(state.settings.workPath, 'utf8');
+            await step('prio-click+undo', `(async()=>{ const w=ms=>new Promise(r=>setTimeout(r,ms)); document.getElementById('tab-work').click(); await w(300); const rows=[...document.querySelectorAll('#task-list .wrow')]; const r=rows[Math.min(2,rows.length-1)]; if(!r) return 'no-row'; const title=r.querySelector('.tt').textContent, i0=rows.indexOf(r); const bang=r.querySelector('.wmeta .bang'); const p0=bang.dataset.prio; bang.click(); await w(900); const r1=document.querySelectorAll('#task-list .wrow')[i0]; const p1=r1.querySelector('.wmeta .bang').dataset.prio; const stayed=r1.querySelector('.tt').textContent===title; const toast=!document.getElementById('undo-toast').hidden; ${undoClick} await w(900); return 'prio ['+p0+']→['+p1+'] stayed='+stayed+' toast='+toast; })()`);
+            LOG('UTEST prio-click-roundtrip: ' + (fs.readFileSync(state.settings.workPath, 'utf8') === before ? 'byte-identical' : 'CHANGED'));
+          }
+          { // the island: the mark cycles, the order stays FROZEN while shown (the row never moves), its undo bar restores
+            const bw = fs.readFileSync(state.settings.workPath, 'utf8'), bp = fs.readFileSync(state.settings.personalPath, 'utf8');
+            showIsland({ focus: false }); await new Promise(z => setTimeout(z, 800));
+            await iStep('island-prio-click', `(async()=>{ const w=ms=>new Promise(r=>setTimeout(r,ms)); const rows=[...document.querySelectorAll('.row')]; const r=rows[rows.length-1]; if(!r) return 'no-row'; const title=r.querySelector('.tt').textContent, i0=rows.indexOf(r); const b=r.querySelector('[data-prio]'); const p0=b.dataset.prio; b.click(); await w(400); const r1=[...document.querySelectorAll('.row')][i0]; const p1=r1.querySelector('[data-prio]').dataset.prio; const b2=r1.querySelector('[data-prio]'); b2.click(); await w(400); const r2=[...document.querySelectorAll('.row')][i0]; const p2=r2.querySelector('[data-prio]').dataset.prio; const stayed=r2.querySelector('.tt').textContent===title; const bar=!document.getElementById('undo-bar').hidden; return 'prio ['+p0+']→['+p1+']→['+p2+'] stayed='+stayed+' undoBar='+bar+' nowUnchanged='+!r2.closest('.active-card'); })()`);
+            // undo both clicks (each is its own one-off session) — newest first
+            for (let k = 0; k < 2; k++) { const lu = latestUndo(); if (lu) { await iStep('island-prio-undo-' + k, `(async()=>{ const u=document.querySelector('#undo-bar [data-undo]'); if(!u) return 'no-undo-btn'; u.click(); await new Promise(r=>setTimeout(r,700)); return 'undone'; })()`); } }
+            LOG('UTEST island-prio-roundtrip: ' + (fs.readFileSync(state.settings.workPath, 'utf8') === bw && fs.readFileSync(state.settings.personalPath, 'utf8') === bp ? 'byte-identical' : 'CHANGED'));
+          }
           showIsland({ focus: true });
           await iStep('island-kbd-summon', `(async()=>{ await new Promise(r=>setTimeout(r,600)); const a=document.activeElement; const onNav=!!(a&&a.hasAttribute&&a.hasAttribute('data-nav')); a.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowDown',bubbles:true})); const moved=document.activeElement!==a && document.activeElement.hasAttribute('data-nav'); const tab=document.querySelector('.etab.on'); return 'focused-nav='+onNav+' arrow-moved='+moved+(tab?' STRAY-EDIT-TAB':' no-stray-tab'); })()`);
           LOG('UTEST island-focusable-after-summon: ' + island.isFocusable());
