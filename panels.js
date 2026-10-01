@@ -62,14 +62,16 @@
   const MAX_TA = 212; // ≈ 10 lines, then the field scrolls inside
   function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, MAX_TA) + 'px'; }
 
-  async function edit(file, id) {
+  // opts.focus = 'sub': a task just added from the composer opens with the cursor in "add subtask" (owner 2026-10-01)
+  async function edit(file, id, opts = {}) {
     if (kind === 'edit' && (file !== FILE || id !== ID)) await saveNow(); // switching tasks: the old one lands first
     const same = kind === 'edit' && file === FILE && id === ID;
     FILE = file; ID = id;
     if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; }
     show('edit');
     await load(!same);
-    if (!same) setTimeout(() => { const ta = $('ed-title'); ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); }, 80);
+    if (opts.focus === 'sub') setTimeout(() => $('ed-sub').focus({ preventScroll: true }), 80);
+    else if (!same) setTimeout(() => { const ta = $('ed-title'); ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); }, 80);
   }
   async function load(full) {
     const s = await window.api.getSnapshot();

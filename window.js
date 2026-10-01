@@ -627,8 +627,9 @@ $('btn-add').addEventListener('click', async () => {
   window.SFX.play('add');
   freshFrom = visibleIds();
   resetComposer();
-  $('new-title').focus();
   await refresh();
+  // the new task opens in the editor at once, cursor in "add subtask" — keep breaking it down (owner 2026-10-01)
+  if (res.id) window.Panels.edit(currentTab, res.id, { focus: 'sub' }); else $('new-title').focus();
 });
 
 // ---- tabs ----
