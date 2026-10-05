@@ -118,7 +118,7 @@
       fallback: { priority: prioCtl.value, due: dueCtl.value, active: activeState }
     });
     if (my !== pvSeq) return r;
-    prioCtl.set(r.priority); dueCtl.set(r.due);
+    prioCtl.set(r.priority); dueCtl.set(r.due ? { ...r.due, time: r.time } : null);
     if (r.active !== activeState) { activeState = r.active; paintActive(); }
     $('ed-title').classList.toggle('invalid', !r.ok); // an empty title: the field turns red; the save flash says why
     return r;
@@ -247,6 +247,25 @@
   let shSnap = null, fmt = 'text', page = 'work', sub = 'open', query = '';
   const sel = new Set(); // keys: 'o:<id>' open, 'd:<id>' done — picks survive page switches while the app runs
   const folded = { now: false, open: false };
+  // day filter (#12, owner 2026-10-05): All · Today · Yesterday · Pick… (a day or a range). Every opening starts on
+  // Today ("this day" is the default); lib/share.js trimTask keeps only what changed in the range (hidden stamps).
+  let dayMode = 'today', pickA = null, pickB = null, calMonth = null;
+  const DAY = 864e5;
+  const midnight = (d = new Date()) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  function dayFilter() {
+    const R = window.ShareText.dayRange, t0 = midnight();
+    if (dayMode === 'today') return R(t0);
+    if (dayMode === 'yday') return R(new Date(t0.getTime() - DAY));
+    if (dayMode === 'pick' && pickA) return R(pickA, pickB || pickA);
+    return null;
+  }
+  const dShort = d => `${d.getDate()} ${MONTHS[d.getMonth()]}`;
+  function dayLabel() { // the message header's date: the day (or span) the message covers
+    const f = dayFilter();
+    if (!f) return dShort(new Date());
+    const a = new Date(f.from), b = new Date(f.to);
+    return midnight(a).getTime() === midnight(b).getTime() ? dShort(a) : `${dShort(a)} – ${dShort(b)}`;
+  }
   const STEP = 30;
   let limit = STEP;
   // Include toggles (owner 2026-09-30): Subtasks · Priority · Dates in BOTH formats, remembered PER format — Markdown starts
@@ -272,6 +291,7 @@
     shSnap = await window.api.getSnapshot();
     if (shSnap && shSnap.lang && shSnap.lang !== LANG) setLang(shSnap.lang);
     fmt = fmtFrom(shSnap);
+    dayMode = 'today'; pickA = pickB = null; $('day-pop').hidden = true;
     limit = STEP; $('share-list').scrollTop = 0;
     paintControls(); renderShare();
   }
@@ -291,7 +311,8 @@
   const pickedIn = arr => arr.filter(t => sel.has(keyOf(t))).length;
   function rowHtml(t) {
     const subs = t.subs || [];
-    return `<div class="sh-row ${sel.has(keyOf(t)) ? 'sel' : ''}" data-key="${esc(keyOf(t))}">
+    const off = dayFilter() && !window.ShareText.trimTask(t, { day: dayFilter() }); // nothing that day: dimmed, still pickable
+    return `<div class="sh-row ${sel.has(keyOf(t)) ? 'sel' : ''}${off ? ' off' : ''}" data-key="${esc(keyOf(t))}"${off ? ` title="${esc(T('sh.day.off'))}"` : ''}>
       <span class="sh-chk" aria-hidden="true"></span>
       <span class="shtitle">${inline(t.title)}</span>
       ${subs.length ? `<span class="tag">${subs.filter(s => s.done).length}/${subs.length}</span>` : ''}
@@ -310,7 +331,7 @@
       for (const [k, label] of [['now', T('sh.sec.nowOpen')], ['open', T('sh.open')]]) {
         const arr = L[k].filter(hit);
         if (!arr.length) continue;
-        html += `<button class="sh-sec" type="button" data-fold="${k}" aria-expanded="${!folded[k]}"><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span class="hash">##</span> ${esc(label)} <span class="cnt">${arr.length}</span></button>`;
+        html += `<button class="sh-sec" type="button" data-fold="${k}" aria-expanded="${!folded[k]}">${window.UI.icon('chevronDown', 'chev')}<span class="hash">##</span> ${esc(label)} <span class="cnt">${arr.length}</span></button>`;
         if (!folded[k]) html += take(arr).map(rowHtml).join('');
       }
     } else {
@@ -326,6 +347,8 @@
     $('sh-page').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.page === page; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('sh-sub').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.sub === sub; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('fmt-seg').querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('sel', x.dataset.fmt === fmt));
+    $('sh-day').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.day === dayMode; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
+    $('sh-day').querySelector('.pick-l').textContent = dayMode === 'pick' && pickA ? dayLabel() + ' ▾' : T('sh.day.pick');
     for (const [id, k] of INC) { const v = !!opts[fmt][k]; $(id).classList.toggle('on', v); $(id).setAttribute('aria-pressed', v); }
     const m = opts[fmt].subs;
     $('sh-subs').classList.toggle('on', m !== 'off');
@@ -348,7 +371,7 @@
       const L = lists(tag), p = arr => arr.filter(t => sel.has(keyOf(t)));
       return { name: T(tag === 'work' ? 'win.tab.work' : 'win.tab.personal'), done: p(L.done), now: p(L.now), open: p(L.open) };
     });
-    return window.ShareText.buildShare({ groups, fmt: k, withPrio: opts[k].prio, withDates: opts[k].dates, withSubs: opts[k].subs, date: today,
+    return window.ShareText.buildShare({ groups, fmt: k, withPrio: opts[k].prio, withDates: opts[k].dates, withSubs: opts[k].subs, date: dayFilter() ? dayLabel() : today, day: dayFilter(),
       labels: { done: T('sh.wa.done'), now: T('sh.wa.now'), next: T('sh.wa.next') } });
   }
   const picked = () => notesOn().some(tag => { const L = lists(tag); return pickedIn(L.now) + pickedIn(L.open) + pickedIn(L.done); });
@@ -383,6 +406,56 @@
     fmt = b.dataset.fmt === 'md' ? 'md' : 'text'; paintControls();
     window.api.saveSettings({ shareFmt: fmt });
   });
+  // ---- day filter: segments + the small calendar (dots = days something changed; future days disabled) ----
+  function changedDays() {
+    const keys = new Set(), add = ts => { if (ts) { const d = new Date(ts); keys.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`); } };
+    const all = [...shSnap.sections.flatMap(x => x.items), ...(shSnap.done || [])];
+    for (const t of all) { add(t.updatedTs); for (const x of t.subs || []) { add(x.u ? new Date(x.u).getTime() : 0); add(x.c ? new Date(x.c).getTime() : 0); } }
+    return keys;
+  }
+  function drawCal() {
+    const pop = $('day-pop'), m = calMonth, today = midnight().getTime(), has = changedDays();
+    const first = new Date(m.getFullYear(), m.getMonth(), 1), lead = (first.getDay() + 6) % 7, dim = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+    const f = dayFilter() && dayMode === 'pick' ? dayFilter() : null;
+    const wd = [1, 2, 3, 4, 5, 6, 0].map(i => new Date(2026, 9, 4 + i).toLocaleDateString(LANG === 'ar' ? 'ar' : 'en', { weekday: 'narrow' }));
+    let cells = wd.map(x => `<span class="wd">${esc(x)}</span>`).join('') + '<span></span>'.repeat(lead);
+    for (let d = 1; d <= dim; d++) {
+      const ts = new Date(m.getFullYear(), m.getMonth(), d).getTime();
+      const cls = [f && ts >= f.from && ts <= f.to ? (ts === midnight(new Date(f.from)).getTime() || ts === midnight(new Date(f.to)).getTime() ? 'end' : 'in') : '',
+        has.has(`${m.getFullYear()}-${m.getMonth()}-${d}`) ? 'has' : ''].join(' ').trim();
+      cells += `<button type="button" data-ts="${ts}" class="${cls}"${ts > today ? ' disabled' : ''}>${d}</button>`;
+    }
+    const nextOff = new Date(m.getFullYear(), m.getMonth() + 1, 1).getTime() > today;
+    pop.innerHTML = `<div class="dcal-head"><button class="dcal-nav" data-nav="-1" type="button" aria-label="${esc(T('sh.day.prev'))}">‹</button><span>${esc(m.toLocaleDateString(LANG === 'ar' ? 'ar' : 'en', { month: 'long', year: 'numeric' }).replace(/[٠-٩]/g, c => String(c.charCodeAt(0) & 0xF)))}</span><button class="dcal-nav" data-nav="1" type="button" aria-label="${esc(T('sh.day.next'))}"${nextOff ? ' disabled' : ''}>›</button></div><div class="dcal">${cells}</div><div class="dcal-hint">${esc(T('sh.day.hint'))}</div>`;
+  }
+  let anchorTs = null;
+  const applyDay = () => { paintControls(); renderShare(); };
+  $('sh-day').addEventListener('click', e => {
+    const b = e.target.closest('.seg-btn');
+    if (!b) return;
+    if (b.dataset.day === 'pick') {
+      const pop = $('day-pop');
+      if (!pop.hidden) { pop.hidden = true; return; }
+      calMonth = midnight(pickA || new Date()); calMonth.setDate(1); anchorTs = null;
+      drawCal(); pop.hidden = false; return;
+    }
+    $('day-pop').hidden = true;
+    if (b.dataset.day === dayMode) return;
+    dayMode = b.dataset.day; window.SFX.play('tick'); applyDay();
+  });
+  $('day-pop').addEventListener('click', e => {
+    const nav = e.target.closest('[data-nav]');
+    if (nav) { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + +nav.dataset.nav, 1); drawCal(); return; }
+    const d = e.target.closest('.dcal button[data-ts]');
+    if (!d) return;
+    const ts = +d.dataset.ts;
+    if (anchorTs === null) { anchorTs = ts; pickA = new Date(ts); pickB = null; } // first click: that day
+    else { pickA = new Date(Math.min(anchorTs, ts)); pickB = new Date(Math.max(anchorTs, ts)); anchorTs = null; } // second: the span
+    dayMode = 'pick'; window.SFX.play('tick'); drawCal(); applyDay();
+    if (anchorTs === null) setTimeout(() => { $('day-pop').hidden = true; }, 380); // a finished span closes the calendar
+  });
+  document.addEventListener('pointerdown', e => { if (!$('day-pop').hidden && !e.target.closest('#day-pop, #sh-day')) $('day-pop').hidden = true; });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('day-pop').hidden) { e.stopPropagation(); $('day-pop').hidden = true; } }, true);
   for (const [id, k] of INC) $(id).addEventListener('click', () => { opts[fmt][k] = !opts[fmt][k]; window.SFX.play('tick'); saveOpts(); paintControls(); });
   $('sh-subs').addEventListener('click', e => {
     const b = e.target.closest('[data-subs]');

@@ -43,10 +43,11 @@ To set priority, a due date or the task you're on, just type it at the start of 
 | `--` | separates the marks from the title |
 | `!` `!!` `!!!` | priority: low, medium, high |
 | `26 Sep` | due date (the year is worked out for you) |
+| `26 Sep 2pm` | due date with a time (`2:30pm` and `14:30` work too; a time alone, like `2pm --`, means today) |
 | indented `- [ ]` | a subtask; `- [ ] !! -- call Sam` gives it a priority too (subtasks take `!` `!!` `!!!` only) |
 | indented plain text | a description |
 
-When the app writes a task, it adds a small hidden stamp at the end of the line, such as `<!-- c:2026-09-27T14:05 u:2026-09-27T15:10 -->`. It records when the task was created and last changed. Obsidian and other markdown viewers hide it. The app uses it to order your list: soonest due date first, then priority, then most recently changed. Done tasks show newest first. You never need to type it.
+When the app writes a task, it adds a small hidden stamp at the end of the line, such as `<!-- c:2026-09-27T14:05 u:2026-09-27T15:10 -->`. It records when the task was created and last changed. Obsidian and other markdown viewers hide it. The app uses it to order your list: soonest due date first, then priority, then most recently changed. Done tasks show newest first. Subtasks get the same stamp when the app adds, ticks, renames or re-prioritizes them; Share uses it to pick what changed on a given day. You never need to type it.
 
 Older notes that use `*` for Now and the wide dash `—` as the separator still read exactly the same. The app writes the new style (`/now`, `--`) only on the lines it changes.
 

@@ -11,6 +11,7 @@ let animating = 0, pendingSnap = null; // a snapshot arriving mid-animation wait
 const { esc, bangCls, inline, plain } = window.UI;
 const $ = id => document.getElementById(id);
 let LANG = 'en';
+window.UI.hydrateIcons(); // one icon set (ui-shared.js ICONS) for every window
 window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback — apply once at load, not only on a language change
 const T = (k, prm) => window.I18N.t(LANG, k, prm);
 
@@ -19,14 +20,14 @@ function dueHtml(t) {
   const cls = t.dueState === 'today' ? 'due today' : t.dueState === 'overdue' ? 'due overdue' : 'due';
   // overdue never relies on color alone: the date and "Nd late" swap in one slot (UI.lateFlip)
   if (t.dueState === 'overdue' && t.dueTs) return `<span class="${cls}">${window.UI.lateFlip(t.dueText, t.dueTs)}</span>`;
-  return `<span class="${cls}">${esc(t.dueState === 'today' ? T('isl.due.today') : t.dueText)}</span>`;
+  return `<span class="${cls}">${esc(t.dueState === 'today' ? T('isl.due.today') + (t.dueTime ? ' ' + t.dueTime : '') : t.dueText)}</span>`;
 }
 // subtasks: the note's own [ ] / [x] brackets (like the parent task). Open ones always show; done ones fold behind
 // one quiet "[x] N done" line and unfold while the pointer rests on it (owner, 2026-09-27).
 const RANK_SUB = { '!!!': 3, '!!': 2, '!': 1 };
 const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : '';
 function subsHtml(subs, attrs = '') {
-  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span></div>`;
+  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
   const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
   const fold = done.length ? `<div class="subs-done"><div class="sd-sum">${esc(T('isl.sub.doneN', { n: done.length }))}</div><div class="sd-wrap"><div class="sd-in">${done.map(one).join('')}</div></div></div>` : '';
@@ -45,9 +46,10 @@ function rowHtml(t) {
   const subsBadge = t.subs.length ? `<span class="row-sub">${T('isl.sub.badge', { a: t.subs.filter(s => !s.done).length, b: t.subs.length })}</span>` : '';
   const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${inline(n)}</div>`).join('');
   const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs)}</div></div>` : '';
-  return `<div class="fold"><div class="fold-in"><div class="row" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" draggable="true">
+  const timed = snap && snap.timer && snap.timer.id === t.id;
+  return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" draggable="true">
     <div class="row-main"><span class="rtitle"><span class="tt">${inline(t.title)}</span></span>${detail}</div>
-    <span class="meta">${subsBadge}${bangHtml(t)}${dueHtml(t)}</span>
+    <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}</span>
   </div></div></div>`;
 }
 
@@ -90,9 +92,17 @@ function renderUndo() {
 
 // one resize timer — unfold/fold transitions finish first, stacked timeouts never pile up
 let resizeT = null;
+// the window's height: the pill, or further down while the timer dial hangs below it
+let dial = null;
+const islandH = () => {
+  // the copy list / running-timer pill can hang below the pill too
+  const pops = [...$('wrap').querySelectorAll(':scope > .clist, :scope > .tpill')].map(el => el.offsetTop + el.offsetHeight + 12);
+  return Math.max($('wrap').offsetHeight, dial && dial.el.isConnected ? dial.el.offsetTop + dial.el.offsetHeight + 12 : 0, ...pops);
+};
+new MutationObserver(() => scheduleResize(0)).observe($('wrap'), { childList: true }); // a wheel / dial came or went
 function scheduleResize(delay = 0) {
   clearTimeout(resizeT);
-  resizeT = setTimeout(() => window.api.resize($('wrap').offsetHeight, 0), delay);
+  resizeT = setTimeout(() => window.api.resize(islandH(), 0), delay);
 }
 
 // cold start: the pill can appear before the first snapshot lands — Facebook-style shimmer rows,
@@ -103,7 +113,77 @@ function renderSkeleton() {
   const row = i => `<div class="sk-row" style="--i:${i}"><span class="sk sk-bang"></span><span class="sk sk-title" style="--w:${58 + (i * 13) % 30}%"></span><span class="sk sk-due"></span></div>`;
   $('body').innerHTML = row(0) + row(1) + row(2);
   document.body.classList.remove('expanded');
-  requestAnimationFrame(() => window.api.resize($('wrap').offsetHeight));
+  requestAnimationFrame(() => window.api.resize(islandH()));
+}
+// the note header; with focus-by-time it is the peek switch (⇄ = flip to the other note for this showing)
+let peekOther = false;
+function secHtml(name, peek) {
+  const label = esc(name === 'Work' ? T('isl.sec.work') : T('isl.sec.personal'));
+  if (!peek) return `<div class="sec"><span class="hash">##</span> ${label}</div>`;
+  const other = name === 'Work' ? T('isl.sec.personal') : T('isl.sec.work');
+  return `<button class="sec sec-peek${peekOther ? ' peeking' : ''}" data-peek type="button" title="${esc(T('isl.peek.title', { n: other }))}" aria-label="${esc(T('isl.peek.title', { n: other }))}"><span class="hash">##</span> ${label} <span class="swap" aria-hidden="true">${window.UI.icon('swap')}</span></button>`;
+}
+// ---- focus timer (#10 + #6): the ⏱ tab opens the arc dial; the top bar shows ⏱ + time left (click = stop) ----
+let timerIv = null;
+function paintTimer() {
+  const t = snap && snap.timer, chip = $('timer-chip');
+  chip.hidden = !t;
+  clearInterval(timerIv); timerIv = null;
+  if (!t) return;
+  const paint = () => {
+    chip.innerHTML = window.UI.timerChip(t);
+    const tip = T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(t) });
+    chip.title = tip; chip.setAttribute('aria-label', tip);
+  };
+  paint(); timerIv = setInterval(paint, 15000);
+}
+$('timer-chip').addEventListener('click', async () => { window.SFX.play('tick'); await window.api.timerStop(); });
+function openDial(r, anchor) {
+  const id = r.dataset.id || r.dataset.card, file = r.dataset.file;
+  const t = snap && snap.sections.flatMap(x => x.items).find(x => x.id === id);
+  if (!t) return;
+  let last = 120; try { last = +localStorage.getItem('timer.last') || 120; } catch (e) {}
+  const running = !!(snap.timer && snap.timer.id === id);
+  dial = window.UI.arcDial($('wrap'), anchor, {
+    minutes: running ? Math.round(snap.timer.total / 60000) : last, running,
+    onStart: async m => { try { localStorage.setItem('timer.last', String(m)); } catch (e) {} window.SFX.play('starOn'); await window.api.timerStart(file, id, t.title, m); },
+    onStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); },
+    onClose: () => { dial = null; scheduleResize(160); }
+  });
+  scheduleResize(0); armDismiss();
+}
+window.api.onTimerEnded(d => {
+  // time's up: the island is already dropping in (main showIsland); pin it and give the task the gel highlight
+  pinned = true;
+  if (snap) render();
+  setTimeout(() => {
+    window.SFX.play('complete');
+    const el = $('body').querySelector(`[data-card="${CSS.escape(d.id)}"], .row[data-id="${CSS.escape(d.id)}"]`);
+    window.UI.gelHit(el);
+    const b = document.createElement('div');
+    b.className = 'time-up'; b.setAttribute('role', 'status');
+    b.innerHTML = `${window.UI.TIMER_IC}<span>${esc(T('timer.ended', { t: plain(d.title) }))}</span>`;
+    $('body').prepend(b); scheduleResize(0);
+    setTimeout(() => { b.remove(); scheduleResize(0); }, 9000);
+  }, 420);
+});
+
+// card flip (owner pick A): the list turns on a horizontal hinge, the other note comes up on its back, a small overshoot
+async function flipPeek() {
+  if (animating) return;
+  const body = $('body');
+  animating++;
+  window.SFX.play('tick');
+  try {
+    await window.Motion.play(body, [{ transform: 'perspective(900px) rotateX(0)', opacity: 1 }, { transform: 'perspective(900px) rotateX(-90deg)', opacity: 0.6 }], { duration: 170, easing: window.Motion.EASE_IN });
+    peekOther = !peekOther;
+    render();
+    await window.Motion.play(body, [{ transform: 'perspective(900px) rotateX(90deg)', opacity: 0.6 }, { transform: 'perspective(900px) rotateX(-8deg)', opacity: 1, offset: 0.7 }, { transform: 'perspective(900px) rotateX(0)', opacity: 1 }], { duration: 380, easing: window.Motion.EASE_OUT });
+  } finally {
+    body.getAnimations().forEach(a => a.cancel()); // never leave a filled transform on the list
+    animating--;
+    flush();
+  }
 }
 function render() {
   if (!snap) { renderSkeleton(); return; }
@@ -115,7 +195,9 @@ function render() {
   let sections = snap.sections;
   // focus-by-time only makes sense with both notes — a one-note user would get an empty island half the day
   const focus = snap.settings.focusByTime && (snap.settings.mode || 'both') === 'both';
-  if (focus) sections = sections.filter(s => s.name === (snap.workday ? 'Work' : 'Personal'));
+  // peek (owner 2026-10-05, task #9): a click on the "## Work/Personal" header flips to the OTHER note for this showing
+  const timeNote = snap.workday ? 'Work' : 'Personal';
+  if (focus) sections = sections.filter(s => s.name === (peekOther ? (timeNote === 'Work' ? 'Personal' : 'Work') : timeNote));
   sections = sections.map(s => ({ ...s, items: freezeSort(s.items) }));
   const flat = sections.flatMap(s => s.items);
   if (!frozenOrder) frozenOrder = new Map(flat.map((t, i) => [t.id, i]));
@@ -129,6 +211,7 @@ function render() {
   window.UI.renderUpdate($('btn-update'), snap.update);
   $('head-count').textContent =
     actives.length ? T('isl.head.active', { n: actives.length, m: total }) : T('isl.head.count', { m: total });
+  paintTimer();
   const mark = $('mark'); // live status mark, not decoration: [!] broken source · [★] something is Now · [ ] idle
   mark.textContent = errs ? '[!]' : actives.length ? '[★]' : '[ ]';
   mark.className = 'mark' + (errs ? ' err' : actives.length ? ' now' : '');
@@ -142,11 +225,11 @@ function render() {
     html += `<div class="sec"><span class="hash">##</span> ${esc(T('isl.sec.now'))}</div>`;
     for (const a of actives) {
       const subs = a.subs.length ? `<div class="ac-subs">${subsHtml(a.subs, ` data-parent="${esc(a.id)}" data-file="${a.file}"`)}</div>` : '';
-      html += `<div class="fold"><div class="fold-in"><div class="active-card rim" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
+      html += `<div class="fold"><div class="fold-in"><div class="active-card rim${snap.timer && snap.timer.id === a.id ? ' timed' : ''}" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
           <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${inline(a.title)}</span></span>
-          <span class="meta">${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
+          <span class="meta">${snap.timer && snap.timer.id === a.id ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
         </div>
         ${subs}
       </div></div></div>`;
@@ -165,13 +248,13 @@ function render() {
     const rest = sec.items.filter(t => !t.active);
     const items = rest.slice(0, budget);
     budget -= items.length; shown += items.length;
-    if (!items.length) continue;
-    html += `<div class="sec"><span class="hash">##</span> ${esc(sec.name === 'Work' ? T('isl.sec.work') : T('isl.sec.personal'))}</div>` + items.map(rowHtml).join('');
+    if (!items.length && !focus) continue;
+    html += secHtml(sec.name, focus) + items.map(rowHtml).join('');
   }
   // no button: a collapsed list with more behind it fades at its bottom edge (the hint), and scrolling loads the rest
   const hiddenCount = flat.filter(t => !t.active).length - shown;
   $('body').classList.toggle('has-more', !expanded && hiddenCount > 0);
-  if (expanded && hiddenCount > 0) html += `<div class="more-rest" data-open-tasks role="button">${esc(T('isl.expand.rest', { n: hiddenCount }))}<svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></div>`;
+  if (expanded && hiddenCount > 0) html += `<div class="more-rest" data-open-tasks role="button">${esc(T('isl.expand.rest', { n: hiddenCount }))}${window.UI.icon('arrowUpRight')}</div>`;
   $('body').innerHTML = html;
   if (hoverRowId) { // hover-unfold survives snapshot re-renders (re-applied to the same task)
     const again = $('body').querySelector(`.row[data-id="${CSS.escape(hoverRowId)}"]`);
@@ -185,7 +268,7 @@ function render() {
   }
   renderUndo();
 
-  requestAnimationFrame(() => window.api.resize($('wrap').offsetHeight));
+  requestAnimationFrame(() => window.api.resize(islandH()));
   armDismiss();
 }
 
@@ -231,17 +314,9 @@ function showNotice(msg) {
 // The same rest shows the corner Edit tab (owner pick "D", 2026-09-28) on rows AND the Now card: passing over rows on the
 // way to another one shows nothing, so the tab never flickers across the list.
 let hoverT = null, hoverRow = null;
-// the Share panel's Include options for a format (owner 2026-09-30: the island copy matches them). Same origin as the tasks
-// window, so its localStorage 'share.opts' is readable here; the defaults mirror panels.js (Markdown all on, text subtasks only)
-function shareOpts(fmt) {
-  const o = fmt === 'md' ? { subs: 'all', prio: true, dates: true } : { subs: 'all', prio: false, dates: false };
-  try {
-    const s = JSON.parse(localStorage.getItem('share.opts') || '{}');
-    if (s.md || s.text) Object.assign(o, s[fmt] || {});
-    else if (fmt === 'text') Object.assign(o, { prio: !!s.prio, dates: !!s.dates, subs: s.subs !== false }); // pre-2026-09-30 shape
-  } catch (e) {}
-  return o;
-}
+// the copy list's choices (#5): subtasks + day per viewer, the format = the Share setting (saved through save-settings);
+// priority + dates still follow the Share panel's Include options for that format
+const copyPrefs = window.UI.copyPrefs(() => (snap && snap.settings.shareFmt === 'md' ? 'md' : 'text'), f => { if (snap) snap.settings.shareFmt = f; window.api.saveShareFmt(f); });
 const etab = window.UI.editTab($('wrap'), {
   onEdit: r => editFromIsland(r.dataset.file, r.dataset.id || r.dataset.card),
   // quick Copy (owner 2026-09-29): the task in the Share format (Settings shareFmt: plain text or Markdown); no note write
@@ -249,12 +324,16 @@ const etab = window.UI.editTab($('wrap'), {
     const id = r.dataset.id || r.dataset.card;
     const t = snap && snap.sections.flatMap(s => s.items).find(x => x.id === id);
     if (!t) return false;
-    const fmt = snap.settings.shareFmt === 'md' ? 'md' : 'text';
-    const o = shareOpts(fmt);
-    await window.api.copyText(window.ShareText.taskText(t, fmt, { withSubs: o.subs, withPrio: o.prio, withDates: o.dates }));
+    const text = copyPrefs.text(t);
+    if (!text) return false; // the wheel's "today" with nothing changed today
+    await window.api.copyText(text);
     window.SFX.play('tick');
     return true;
   },
+  copyOpts: { get: () => copyPrefs.get(), set: (k, v) => copyPrefs.set(k, v) },
+  timerOf: r => (snap && snap.timer && snap.timer.id === (r.dataset.id || r.dataset.card) ? snap.timer : null),
+  onTimerStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); },
+  onTimer: (r, tab) => openDial(r, tab),
   copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
   onLeave: () => clearHover()
 });
@@ -342,6 +421,9 @@ $('body').addEventListener('dragend', () => {
 
 // clicks never write as a side effect of looking: row = open the editor; explicit [ ] / ☆ / Done / Not now controls write
 document.addEventListener('click', e => {
+  const sc = e.target.closest('[data-subcopy]');
+  if (sc) { e.stopPropagation(); window.UI.subCopyClick(sc, async t => { await window.api.copyText(t); window.SFX.play('tick'); }); return; }
+  if (e.target.closest('[data-peek]')) { flipPeek(); return; }
   if (e.target.closest('[data-open-tasks]')) { window.SFX.play('tick'); window.api.openWindow(); retract(); return; }
   if (e.target.closest('[data-open-settings]')) { window.api.openWindow('settings'); return; }
   const pr = e.target.closest('[data-prio]');
@@ -409,6 +491,7 @@ let retracting = false;
 function retract() {
   if (retracting) return;
   retracting = true;
+  peekOther = false; // a peek lasts one showing: the next pop is the time-based note again
   islandHovered = false; counting = false; // a hidden window never gets its mouseleave
   clearHover(); // …so the rested row and its Edit tab reset too
   clearTimeout(dismissT);
@@ -425,6 +508,7 @@ function editFromIsland(file, id) {
 }
 window.api.onShown(info => {
   retracting = false;
+  peekOther = false; // a peek lasts one showing
   expanded = false; frozenOrder = null; // each appearance starts with the few (owner 2026-09-28), freshly sorted (2026-10-01)
   if (snap) render();
   $('body').scrollTop = 0;

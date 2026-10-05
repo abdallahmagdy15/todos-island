@@ -2,6 +2,7 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 [hidden] { display: none !important; } /* kills the ghost undo-bar: display:flex overrode the hidden attribute */
 html, body { background: transparent; overflow: hidden; }
+body { min-height: 100vh; } /* the window can be taller than the pill (the timer dial hangs below it): never clip that part */
 body { font-family: var(--font-sans); color: var(--ink); user-select: none; font-size: var(--fs-3); }
 /* the island's labels sit on glass, so its secondary greys are a step darker (light) / brighter (dark) than the
    paper windows' — the owner found them faded. Static values, gated by contrast.js (island-muted / island-faint). */
@@ -104,6 +105,13 @@ body.pinned .gl-arc { transform: none !important; transition: none !important; }
 }
 .sec .hash { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
 .sec::after { content: ''; flex: 1; height: 1px; background: var(--rule-soft); align-self: center; }
+/* peek switch (#9): with focus-by-time the header is a button — click flips to the other note for this showing */
+button.sec-peek { width: 100%; border: 0; background: transparent; font-family: inherit; text-align: start; cursor: pointer; border-radius: var(--r-1); }
+.sec-peek .swap { display: inline-flex; font-weight: 400; color: var(--faint); transition: color 160ms ease, transform 260ms var(--ease-out); order: 2; margin-inline-start: 6px; }
+.sec-peek::after { order: 1; }
+.sec-peek:hover, .sec-peek:focus-visible { color: var(--ink); }
+.sec-peek:hover .swap, .sec-peek:focus-visible .swap, .sec-peek.peeking .swap { color: var(--accent); }
+.sec-peek:hover .swap { transform: rotate(180deg); }
 
 .fold { display: grid; grid-template-rows: 1fr; } /* M1: rows fold away via grid rows, never height */
 .fold-in { min-height: 0; overflow: hidden; }
@@ -291,3 +299,12 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 /* the Update pill keeps its own shape — the icon-button rule above would square it to 28×28 */
 .pill-top button.upd { width: auto; height: 24px; padding: 0 10px 0 8px; border-radius: 12px; color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
 .pill-top button.upd:hover { color: var(--ok); background: color-mix(in srgb, var(--ok) 22%, transparent); }
+
+/* focus timer (#10): the top-bar chip (⏱ ring + time left; click = stop) and the "time's up" line */
+.timer-chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; cursor: pointer;
+  font-family: inherit; font-size: var(--fs-1); font-weight: 650; color: var(--accent); background: var(--accent-soft); -webkit-app-region: no-drag; }
+.timer-chip:hover { box-shadow: inset 0 0 0 1px var(--accent-border); }
+.time-up { display: flex; align-items: center; gap: 8px; margin: 6px 12px 2px; padding: 7px 12px; border-radius: var(--r-inner); font-size: var(--fs-2); font-weight: 650;
+  color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.time-up .ic { flex: none; }
+.sec-peek .swap .ic { width: 12px; height: 12px; stroke-width: 2; }

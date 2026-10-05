@@ -324,6 +324,7 @@ document.addEventListener('keydown', e => {
   defs = await window.api.defaults();
   LANG = defs.lang || 'en';
   window.UI.applyTheme(defs.look || { accent: defs.accent }); // theme color + the island theme's scene behind the setup, as in every window
+  window.UI.hydrateIcons(); // the shared icon set
   window.I18N.applyDoc(LANG);
   ans.reminders.dayStart = $('ob-start').value = defs.dayStart || '09:00';
   ans.reminders.dayEnd = $('ob-end').value = defs.dayEnd || '17:00';

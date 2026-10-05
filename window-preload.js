@@ -28,6 +28,8 @@ contextBridge.exposeInMainWorld('api', {
   exportMd: text => ipcRenderer.invoke('export-md', text),
   openWhatsApp: text => ipcRenderer.invoke('open-whatsapp', text),
   copyText: text => ipcRenderer.invoke('copy-text', text),
+  timerStart: (file, id, title, min) => ipcRenderer.invoke('timer-start', file, id, title, min),
+  timerStop: () => ipcRenderer.invoke('timer-stop'),
   onWindowOpened: cb => ipcRenderer.on('window-opened', () => cb()), // opened / brought forward / restored → sort again
   onTasksChanged: cb => ipcRenderer.on('tasks-changed', () => cb()),
   onShowUndo: cb => ipcRenderer.on('show-undo', (_e, d) => cb(d)),

@@ -228,13 +228,13 @@ button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
 
 /* ---- fields: recessed glass (they sit INTO the surface) ---- */
 #search, #sh-search, .new-task textarea, .settings-card input[type=text],
-.settings-card select, .addsub input, #ed-title {
+.settings-card select, .addsub input, #ed-title, input.dtime {
   color: var(--ink); border: 0; border-radius: var(--r-2); font-family: inherit; font-size: var(--fs-3);
   background: var(--field); caret-color: var(--accent);
   box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1px var(--rule), inset 0 -1px 0 var(--spec-bounce), 0 0 0 0 var(--accent-soft);
   transition: box-shadow 200ms var(--ease-out), background 200ms ease; /* critically damped: focus never bounces */
 }
-#search:focus, #sh-search:focus, .new-task textarea:focus, .settings-card input:focus, .settings-card select:focus, .addsub input:focus, #ed-title:focus {
+#search:focus, #sh-search:focus, .new-task textarea:focus, .settings-card input:focus, .settings-card select:focus, .addsub input:focus, #ed-title:focus, input.dtime:focus {
   outline: none; background: color-mix(in srgb, var(--field) 55%, rgba(var(--sheet-rgb), 0.45));
   box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1.5px var(--accent), inset 0 -1px 0 var(--spec-bounce), 0 0 0 3px var(--accent-soft);
 }
@@ -288,6 +288,8 @@ input.invalid, textarea.invalid {
 .pchip.sel { color: var(--hue); }
 .pchip.p0.sel { color: var(--ink); }
 .pick-wrap { position: relative; display: inline-flex; }
+.dtime { width: 64px; height: 26px; padding: 0 8px; text-align: center; font-family: var(--font-mono) !important; font-size: var(--fs-2) !important; cursor: pointer; } /* due time (#7): optional, opens the time wheel */
+input.dtime::placeholder { color: var(--faint); font-family: var(--font-sans); }
 .date-proxy { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
 
 /* ---- markdown-literal headings: faint mono "##" + sentence-case title ---- */
@@ -373,8 +375,10 @@ h2.md-h { margin-bottom: var(--s-1); }
   padding: 10px 14px; font-size: var(--fs-2); color: var(--muted);
   animation: fadeUp var(--d-2) var(--ease-out) both;
 }
-#undo-toast { bottom: 44px; }
-.notice { bottom: 96px; color: var(--ink); z-index: 51; }
+/* #1 (owner 2026-10-05): the undo bubble floats just ABOVE the add-task box (--dock-h = window bottom → composer top,
+   set by window.js), so it never covers what you're typing; without a composer it sits above the status line */
+#undo-toast { bottom: calc(var(--dock-h, 36px) + 8px); }
+.notice { bottom: calc(var(--dock-h, 36px) + 60px); color: var(--ink); z-index: 51; }
 .notice.bad { border-color: var(--danger); color: var(--danger); }
 @keyframes fadeUp { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .undo-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }
@@ -668,6 +672,33 @@ button.sh-sec:hover { color: var(--ink); }
 .inc-mini button.sel { color: var(--ink); background: linear-gradient(var(--lq-top), var(--lq-bot)); box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), 0 1px 2px var(--drop); }
 .inc-mini button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 #sel-clear-all { flex: none; white-space: nowrap; }
+/* day filter (#12): the segments + a small calendar that opens ABOVE the foot (solid, like the time wheel) */
+.sh-dayrow { position: relative; }
+.sh-dayrow .seg { margin-inline-end: 0; }
+.sh-dayrow .pick-l { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sh-row.off { opacity: .45; }
+.day-pop {
+  position: absolute; bottom: calc(100% + 6px); inset-inline-end: 0; z-index: 30; width: 252px; padding: 10px; border-radius: 14px;
+  background: var(--pill-bg); color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 18px 40px -16px rgba(0, 0, 0, 0.45);
+  transform-origin: 80% 100%; animation: dayPop 240ms var(--ease-spring) both;
+}
+@keyframes dayPop { from { opacity: 0; transform: scale(.92) translateY(6px); } to { opacity: 1; transform: none; } }
+.dcal-head { display: flex; align-items: center; justify-content: space-between; font-weight: 650; font-size: var(--fs-2); padding: 0 2px 6px; }
+.dcal-nav { width: 26px; height: 26px; border: 0; border-radius: var(--r-1); background: transparent; color: var(--muted); cursor: pointer; font-size: var(--fs-3); }
+.dcal-nav:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.dcal-nav:disabled { opacity: .3; cursor: default; }
+.dcal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; text-align: center; font-family: var(--font-mono); font-size: var(--fs-1); }
+.dcal .wd { color: var(--faint); padding-bottom: 2px; }
+.dcal button { position: relative; border: 0; background: transparent; color: var(--ink); font: inherit; padding: 5px 0; border-radius: var(--r-1); cursor: pointer; }
+.dcal button:hover:not(:disabled) { background: var(--hover); }
+.dcal button:disabled { color: var(--faint); opacity: .5; cursor: default; }
+.dcal button.in { background: var(--accent-soft); border-radius: 0; }
+.dcal button.end, .dcal button.end:hover:not(:disabled) { background: var(--accent); color: var(--accent-ink); }
+.dcal button.has::after { content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
+.dcal button.end.has::after { background: var(--accent-ink); }
+.dcal-hint { margin-top: 6px; font-size: var(--fs-1); color: var(--faint); }
+@media (prefers-reduced-motion: reduce) { .day-pop { animation: none; } }
 .sh-opts .opt-g { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
 .sh-opts .chip.sel .opt-g { color: var(--accent); }
 .sh-sec .hash, .sh-sec .cnt { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
@@ -680,7 +711,7 @@ button.sh-sec:hover { color: var(--ink); }
 .sh-chk { flex: none; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; letter-spacing: -0.5px; color: var(--faint); }
 .sh-chk::before { content: "[ ]"; }
 .sh-row.sel .sh-chk { color: var(--accent); }
-.sh-row.sel .sh-chk::before { content: "[x]"; }
+.sh-row.sel .sh-chk::before { content: "[\2713]"; } /* a picked row: [✓] (the text check mark, never the emoji; owner 2026-10-05) */
 .sh-row .shtitle { flex: 1; min-width: 0; line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sh-row .tag { flex: none; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); background: var(--chip); border-radius: var(--r-1); padding: 2px 6px; }
 .sh-row .star { flex: none; color: var(--accent); font-size: var(--fs-3); }
