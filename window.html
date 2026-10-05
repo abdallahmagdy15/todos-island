@@ -373,6 +373,17 @@
       </div>
       <div class="side-scroll" id="share-list"></div>
       <div class="side-foot">
+        <!-- day filter (#12, owner 2026-10-05, pick "quick segments"): only what changed on that day, by the hidden stamps -->
+        <div class="sh-opts sh-dayrow">
+          <span class="ctl-label" data-i18n="sh.day">Day</span>
+          <div class="seg" id="sh-day" role="radiogroup">
+            <button class="seg-btn" data-day="all" type="button" role="radio" data-i18n="sh.day.all">All</button>
+            <button class="seg-btn sel" data-day="today" type="button" role="radio" data-i18n="sh.day.today">Today</button>
+            <button class="seg-btn" data-day="yday" type="button" role="radio" data-i18n="sh.day.yday">Yesterday</button>
+            <button class="seg-btn" data-day="pick" type="button" role="radio" aria-haspopup="dialog"><span class="pick-l" data-i18n="sh.day.pick">Pick…</span></button>
+          </div>
+          <div class="day-pop" id="day-pop" role="dialog" hidden></div>
+        </div>
         <div class="sh-opts">
           <div class="seg" id="fmt-seg">
             <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
