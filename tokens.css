@@ -268,6 +268,16 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .etab-del { padding: 0 8px; }
 .etab-star .etab-g { font-size: 12px; line-height: 1; }
 .etab-copy.done { color: var(--ok, var(--accent)); }
+/* rest-copy on a subtask (#4, UI.restCopy): an accent hairline charges under the text, then "Copied ✓" flashes at its end */
+[data-sub] .st { background: linear-gradient(var(--accent), var(--accent)) 0 100% / 0 1.5px no-repeat; }
+[data-sub] .st.rc-charge { background-size: 100% 1.5px; transition: background-size var(--rc-ms, 1000ms) linear; }
+[data-sub].rc-copied { position: relative; }
+[data-sub].rc-copied::after {
+  content: attr(data-copied); margin-inline-start: 8px; align-self: center; white-space: nowrap;
+  font-size: var(--fs-1); font-weight: 650; color: var(--accent); animation: rcFlash 1.4s var(--ease-out) both;
+}
+@keyframes rcFlash { 0% { opacity: 0; transform: translateX(-4px); } 15%, 75% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { [data-sub] .st.rc-charge { transition: none; } [data-sub].rc-copied::after { animation: none; } }
 .etab-star:hover, .etab-star:focus-visible, .etab-star.now { color: var(--accent); }
 .etab-del:hover, .etab-del:focus-visible { color: var(--danger); }
 @media (prefers-reduced-motion: reduce) { .etab { transform: none; transition: opacity 120ms ease; } }

@@ -158,6 +158,36 @@
     .replace(/\*\*(?!\s)(.+?)(?<!\s)\*\*/g, '$1').replace(/~~(?!\s)(.+?)(?<!\s)~~/g, '$1').replace(/<u>(.+?)<\/u>/g, '$1')
     .replace(RX_EM_U, '$1$2').replace(RX_EM_S, '$1$2');
 
+  // Rest-copy (owner 2026-10-05, task #4): resting the pointer `ms` on a subtask's TEXT copies that subtask as plain
+  // words (no bangs, no ** _ ~~ <u> marks). A thin accent line charges under the text while you rest (so the copy is
+  // never a surprise), then "Copied ✓" flashes on the subtask. Leaving the text cancels. No note write.
+  // host: the list; copy(text) → Promise<boolean> (the window's copyText IPC).
+  function restCopy(host, { ms = 1000, copy } = {}) {
+    let timer = null, el = null;
+    const clear = () => { clearTimeout(timer); timer = null; if (el) el.classList.remove('rc-charge'); el = null; };
+    host.addEventListener('pointerover', e => {
+      const st = e.target.closest && e.target.closest('[data-sub] .st');
+      if (st === el) return;
+      clear();
+      if (!st || !host.contains(st) || e.pointerType === 'touch') return;
+      el = st;
+      el.style.setProperty('--rc-ms', ms + 'ms');
+      el.classList.add('rc-charge');
+      timer = setTimeout(async () => {
+        const row = st.closest('[data-sub]');
+        const done = el === st && row && await copy(plain(row.dataset.sub)).catch(() => false);
+        st.classList.remove('rc-charge');
+        if (!done || !row) return;
+        row.dataset.copied = T('etab.copied');
+        row.classList.remove('rc-copied'); void row.offsetWidth; row.classList.add('rc-copied');
+        clearTimeout(row._rcT); row._rcT = setTimeout(() => row.classList.remove('rc-copied'), 1400);
+      }, ms);
+    });
+    host.addEventListener('pointerout', e => { if (el && !(e.relatedTarget && el.contains(e.relatedTarget))) clear(); });
+    host.addEventListener('pointerdown', clear); // a click (tick / edit) is not a rest
+    return { clear };
+  }
+
   // The formatting pop-up: select text in a task field → a small bar (B · I · S · U) above the selection; the same
   // marks on Ctrl+B / Ctrl+I / Ctrl+U / Ctrl+Shift+X. A mark toggles: applying it again removes it. Every change fires
   // 'input', so previews, autosave and auto-grow follow as if typed.
@@ -418,5 +448,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();

@@ -114,6 +114,8 @@ function renderList() {
 // The tasks window is where you edit, so the rest is short (REST_MS, owner 2026-09-28); the island keeps hoverSec.
 const REST_MS = 200;
 let restRow = null, restT = null, restId = null, restTab = null;
+// rest 1 s on a subtask's text → copy it as plain words (#4, owner 2026-10-05); the click still opens the editor
+window.UI.restCopy(document.querySelector('.list-sheet'), { ms: 1000, copy: async t => { await window.api.copyText(t); window.SFX.play('tick'); return true; } });
 const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySelector('.list-sheet'), {
   onEdit: r => window.Panels.edit(r.dataset.file, r.dataset.id),
   onStar: r => toggleNow(r.dataset.id, r.dataset.file, r),

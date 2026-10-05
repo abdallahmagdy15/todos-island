@@ -246,6 +246,8 @@ function clearHover() {
   scheduleResize(300);
 }
 $('body').addEventListener('scroll', () => etab.place());
+// rest 1 s on a subtask's text → copy it as plain words (#4, owner 2026-10-05)
+window.UI.restCopy($('body'), { ms: 1000, copy: async t => { await window.api.copyText(t); window.SFX.play('tick'); return true; } });
 $('body').addEventListener('mouseover', e => {
   const row = e.target.closest('.row, .active-card');
   if (!row || row === hoverRow) return;
