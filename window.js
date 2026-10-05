@@ -122,8 +122,18 @@ const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySe
   onStar: r => toggleNow(r.dataset.id, r.dataset.file, r),
   onDelete: async r => { window.SFX.play('delete'); restClear(); await window.api.deleteTask(r.dataset.id, r.dataset.file); await refresh(); },
   onTimer: (r, tab) => openDial(r, tab),
+  // quick Copy + the copy wheel (#5): the island's tab, now in the tasks window too (owner 2026-10-05)
+  onCopy: async r => {
+    const t = snap && snap.sections.flatMap(x => x.items).find(x => x.id === r.dataset.id);
+    const text = t && copyPrefs.text(t);
+    if (!text) return false;
+    await window.api.copyText(text); window.SFX.play('tick'); return true;
+  },
+  copyWheel: { get: () => copyPrefs.get(), set: (k, v) => copyPrefs.set(k, v) },
+  copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
   onLeave: () => restClear()
 }));
+const copyPrefs = window.UI.copyPrefs(() => (snap && snap.settings.shareFmt === 'md' ? 'md' : 'text'), f => { if (snap) snap.settings.shareFmt = f; window.api.saveSettings({ shareFmt: f }); });
 // focus timer (#10): the ⏱ tab opens the arc dial (UI.arcDial) under the tab, inside the list sheet
 function openDial(r, tab) {
   const id = r.dataset.id, file = r.dataset.file;

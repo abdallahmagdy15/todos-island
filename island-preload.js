@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   openUpdate: () => ipcRenderer.invoke('open-update'),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   copyText: text => ipcRenderer.invoke('copy-text', text), // the quick Copy tab
+  saveShareFmt: fmt => ipcRenderer.invoke('save-settings', { shareFmt: fmt }), // the copy wheel's Markdown / plain petal
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
   reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
   timerStart: (file, id, title, min) => ipcRenderer.invoke('timer-start', file, id, title, min),

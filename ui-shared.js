@@ -313,6 +313,81 @@
     setTimeout(() => { el.classList.remove('gel-hit'); wash.remove(); }, 2600);
   }
 
+  // the wheel's remembered choices: subtasks + day per viewer (localStorage), the format = the Share setting (shareFmt)
+  function copyPrefs(getFmt, saveFmt) {
+    let o = { subs: 'all', day: 'all' };
+    try { o = { ...o, ...JSON.parse(localStorage.getItem('copy.wheel') || '{}') }; } catch (e) {}
+    return {
+      get: () => ({ ...o, fmt: getFmt() }),
+      set: (k, v) => { if (k === 'fmt') { saveFmt(v); return; } o[k] = v; try { localStorage.setItem('copy.wheel', JSON.stringify(o)); } catch (e) {} },
+      // one task → the text the wheel's choices ask for ('' = nothing left, e.g. nothing changed today)
+      text: (t, fmtNow) => { const f = fmtNow || getFmt(); return window.ShareText.taskText(t, f === 'md' ? 'md' : 'text', { subs: o.subs, day: o.day === 'today' ? window.ShareText.dayRange(new Date()) : null }); }
+    };
+  }
+
+  // ---- the copy wheel itself (#5): built over the Copy tab, inside its host ----
+  const WHEEL_PETALS = [['subs', 'open', 'subsOpen', 'cw.subsOpen'], ['subs', 'all', 'subsAll', 'cw.subsAll'], ['day', 'today', 'today', 'cw.today'],
+    ['day', 'all', 'allDays', 'cw.allDays'], ['fmt', 'md', 'markdown', 'cw.md'], ['fmt', 'text', 'text', 'cw.text']];
+  const FAN_LEFT = [92, 126, 163, 197, 234, 268], FAN_DOWN = [0, 34, 71, 105, 142, 176]; // three pairs, a gap between pairs
+  function gooFilter() {
+    if (document.getElementById('ui-goo')) return;
+    const d = document.createElement('div');
+    d.innerHTML = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="ui-goo"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter></defs></svg>';
+    document.body.appendChild(d.firstChild);
+  }
+  function copyWheelOpen(host, tab, { opts, onPick, onCopy, onClose }) {
+    gooFilter();
+    const R = 46, hb = host.getBoundingClientRect(), tb = tab.getBoundingClientRect();
+    const cx = tb.left + tb.width / 2 - hb.left + host.scrollLeft, cy = tb.top + tb.height / 2 - hb.top + host.scrollTop;
+    const angles = cy - R - 16 < 0 ? FAN_DOWN : FAN_LEFT; // no room above the row: fan downward instead
+    const el = document.createElement('div');
+    el.className = 'cwheel goo'; el.style.left = cx + 'px'; el.style.top = cy + 'px';
+    el.innerHTML = '<span class="cw-hit" aria-hidden="true"></span>' +
+      WHEEL_PETALS.map(([k, v, ic, label], i) => `<button class="cw-pet${opts[k] === v ? ' sel' : ''}" type="button" data-k="${k}" data-v="${v}" data-i="${i}" title="${esc(T(label))}" aria-label="${esc(T(label))}" aria-pressed="${opts[k] === v}">${icon(ic)}</button>`).join('') +
+      `<button class="cw-core" type="button" title="${esc(T('etab.copy'))}" aria-label="${esc(T('etab.copy'))}">${icon('copy')}</button>`;
+    host.appendChild(el);
+    const pets = [...el.querySelectorAll('.cw-pet')], core = el.querySelector('.cw-core');
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pos = a => [R * Math.cos(a * Math.PI / 180), R * Math.sin(a * Math.PI / 180)];
+    pets.forEach((p, i) => {
+      const [x, y] = pos(angles[i]), to = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
+      p.style.transform = to;
+      if (!reduced) p.animate([{ transform: 'translate(0, 0) scale(.6)' }, { transform: `translate(${(x * .55).toFixed(1)}px, ${(y * .55).toFixed(1)}px) scale(.85)`, offset: .45 }, { transform: to }],
+        { duration: 380, delay: i * 30, easing: 'cubic-bezier(.34, 1.5, .64, 1)', fill: 'backwards' });
+    });
+    // the drops separate, then the filter goes so the icons are crisp
+    const unGoo = setTimeout(() => el.classList.remove('goo'), reduced ? 0 : 520);
+    let closing = false;
+    const close = overTab => {
+      if (closing) return; closing = true; clearTimeout(unGoo);
+      el.classList.add('goo');
+      const anims = reduced ? [] : pets.map((p, i) => p.animate([{ transform: p.style.transform }, { transform: 'translate(0, 0) scale(.5)' }], { duration: 150, delay: (pets.length - 1 - i) * 10, easing: 'ease-in', fill: 'forwards' }).finished);
+      Promise.all(anims).catch(() => {}).then(() => { el.remove(); onClose && onClose(overTab); });
+    };
+    el.addEventListener('pointerleave', e => close(!!(e.relatedTarget && tab.contains(e.relatedTarget))));
+    el.addEventListener('click', async e => {
+      e.stopPropagation();
+      const p = e.target.closest('.cw-pet');
+      if (p) {
+        const k = p.dataset.k, v = p.dataset.v;
+        opts = { ...opts, [k]: v };
+        pets.filter(x => x.dataset.k === k).forEach(x => { const on = x === p; x.classList.toggle('sel', on); x.setAttribute('aria-pressed', on); });
+        if (!reduced) p.animate([{ transform: p.style.transform + ' scale(.8)' }, { transform: p.style.transform + ' scale(1.12)', offset: .55 }, { transform: p.style.transform }], { duration: 300, easing: 'cubic-bezier(.34, 1.45, .64, 1)' });
+        onPick(k, v);
+        return;
+      }
+      if (e.target.closest('.cw-core')) {
+        const ok = await onCopy();
+        if (ok === false) { if (!reduced) core.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 240 }); return; } // nothing to copy (e.g. nothing today)
+        core.innerHTML = icon('check'); core.classList.add('done');
+        if (!reduced) core.animate([{ transform: 'scale(1)' }, { transform: 'scale(.86)' }, { transform: 'scale(1.1)' }, { transform: 'scale(1)' }], { duration: 380, easing: 'cubic-bezier(.34, 1.45, .64, 1)' });
+        setTimeout(() => close(false), 420);
+      }
+    });
+    el.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } });
+    return { el, close };
+  }
+
   // Rest-copy (owner 2026-10-05, task #4): resting the pointer `ms` on a subtask's TEXT copies that subtask as plain
   // words (no bangs, no ** _ ~~ <u> marks). A thin accent line charges under the text while you rest (so the copy is
   // never a surprise), then "Copied ✓" flashes on the subtask. Leaving the text cancels. No note write.
@@ -423,7 +498,7 @@
   // pointer has RESTED on (its hoverSec dwell), so passing over rows on the way to another shows nothing. It floats over
   // the row's top edge, outside the row's own box, so it never takes layout width and never gets clipped by the row.
   // onDelete (tasks window only — the island never deletes) adds a trash tab beside Edit, same glass, same rest
-  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, onTimer, onLeave }) {
+  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, copyWheel, onTimer, onLeave }) {
     const tab = document.createElement('button');
     // minor buttons are ICON ONLY (owner 2026-10-05); the name lives in the tooltip + aria label
     tab.type = 'button'; tab.className = 'etab etab-ic'; tab.tabIndex = -1;
@@ -448,7 +523,7 @@
     if (onCopy) {
       copy = document.createElement('button');
       copy.type = 'button'; copy.className = 'etab etab-ic etab-copy'; copy.tabIndex = -1;
-      copy.innerHTML = icon('copy');
+      copy.innerHTML = '<span class="cw-fill" aria-hidden="true"></span>' + icon('copy');
       host.appendChild(copy);
     }
     let timer = null; // focus timer (#10): ⏱ opens the arc dial for the rested task
@@ -493,8 +568,32 @@
       },
       get row() { return row; },
       get timerTab() { return timer; },
-      owns: el => !!el && el.nodeType === 1 && tabs.some(t => t.contains(el))
+      owns: el => !!el && el.nodeType === 1 && (tabs.some(t => t.contains(el)) || !!(wheel && wheel.el.contains(el)))
     };
+    // the copy wheel (#5, owner pick D "gooey petals"): hover Copy — NO timer, the tab fills with the accent and the
+    // moment it is full the petals squeeze out around it. The whole wheel area (a circle under the petals) counts as
+    // hover, so moving between petals never closes it.
+    let wheel = null;
+    if (copy && copyWheel) {
+      const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+      copy.addEventListener('pointerenter', () => {
+        if (wheel || !row) return;
+        copy.classList.remove('filling'); void copy.offsetWidth; copy.classList.add('filling');
+        const go = () => { copy.classList.remove('filling'); if (row && copy.matches(':hover')) openWheel(); };
+        if (reduced()) go(); else copy.querySelector('.cw-fill').addEventListener('animationend', go, { once: true });
+      });
+      copy.addEventListener('pointerleave', e => { if (!wheel) copy.classList.remove('filling'); });
+      const openWheel = () => {
+        const r = row;
+        wheel = copyWheelOpen(host, copy, {
+          opts: copyWheel.get(),
+          onPick: (k, v) => copyWheel.set(k, v),
+          onCopy: () => onCopy(r),
+          onClose: overTab => { wheel = null; host.classList.remove('cw-open'); if (!overTab && row && !row.matches(':hover') && onLeave) onLeave(); }
+        });
+        host.classList.add('cw-open');
+      };
+    }
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
     if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
     if (star) star.addEventListener('click', e => { e.stopPropagation(); if (row) onStar(row); });
@@ -504,8 +603,9 @@
       if (!row) return;
       const ok = await onCopy(row);
       if (ok === false) return;
-      copy.innerHTML = icon('check'); copy.classList.add('done'); copy.title = T('etab.copied'); // the icon becomes a check
-      setTimeout(() => { copy.innerHTML = icon('copy'); copy.classList.remove('done'); copy.title = copyLabel ? copyLabel() : T('etab.copy'); }, 1100);
+      const swapIc = n => { const old = copy.querySelector('svg.ic'); if (old) old.outerHTML = icon(n); };
+      swapIc('check'); copy.classList.add('done'); copy.title = T('etab.copied'); // the icon becomes a check
+      setTimeout(() => { swapIc('copy'); copy.classList.remove('done'); copy.title = copyLabel ? copyLabel() : T('etab.copy'); }, 1100);
     });
     tabs.forEach(t => t.addEventListener('mouseleave', e => { if (row && !row.contains(e.relatedTarget) && !api.owns(e.relatedTarget) && onLeave) onLeave(); }));
     return api;
@@ -613,5 +713,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();

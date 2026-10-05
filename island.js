@@ -87,7 +87,11 @@ function renderUndo() {
 let resizeT = null;
 // the window's height: the pill, or further down while the timer dial hangs below it
 let dial = null;
-const islandH = () => Math.max($('wrap').offsetHeight, dial && dial.el.isConnected ? dial.el.offsetTop + dial.el.offsetHeight + 12 : 0);
+const islandH = () => {
+  const cw = $('wrap').querySelector(':scope > .cwheel'); // the copy wheel can hang below the pill too
+  return Math.max($('wrap').offsetHeight, dial && dial.el.isConnected ? dial.el.offsetTop + dial.el.offsetHeight + 12 : 0, cw ? cw.offsetTop + 76 : 0);
+};
+new MutationObserver(() => scheduleResize(0)).observe($('wrap'), { childList: true }); // a wheel / dial came or went
 function scheduleResize(delay = 0) {
   clearTimeout(resizeT);
   resizeT = setTimeout(() => window.api.resize(islandH(), 0), delay);
@@ -300,6 +304,8 @@ function showNotice(msg) {
 // The same rest shows the corner Edit tab (owner pick "D", 2026-09-28) on rows AND the Now card: passing over rows on the
 // way to another one shows nothing, so the tab never flickers across the list.
 let hoverT = null, hoverRow = null;
+// the copy wheel's choices (#5): subtasks + day per viewer, the format = the Share setting (saved through save-settings)
+const copyPrefs = window.UI.copyPrefs(() => (snap && snap.settings.shareFmt === 'md' ? 'md' : 'text'), f => { if (snap) snap.settings.shareFmt = f; window.api.saveShareFmt(f); });
 const etab = window.UI.editTab($('wrap'), {
   onEdit: r => editFromIsland(r.dataset.file, r.dataset.id || r.dataset.card),
   // quick Copy (owner 2026-09-29): the task in the Share format (Settings shareFmt: plain text or Markdown); no note write
@@ -307,11 +313,13 @@ const etab = window.UI.editTab($('wrap'), {
     const id = r.dataset.id || r.dataset.card;
     const t = snap && snap.sections.flatMap(s => s.items).find(x => x.id === id);
     if (!t) return false;
-    const fmt = snap.settings.shareFmt === 'md' ? 'md' : 'text';
-    await window.api.copyText(window.ShareText.taskText(t, fmt));
+    const text = copyPrefs.text(t);
+    if (!text) return false; // the wheel's "today" with nothing changed today
+    await window.api.copyText(text);
     window.SFX.play('tick');
     return true;
   },
+  copyWheel: { get: () => copyPrefs.get(), set: (k, v) => copyPrefs.set(k, v) },
   onTimer: (r, tab) => openDial(r, tab),
   copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
   onLeave: () => clearHover()

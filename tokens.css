@@ -353,3 +353,25 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .fmtbar b { font-weight: 800; } .fmtbar i { font-style: italic; font-family: Georgia, serif; }
 @keyframes fmtIn { from { opacity: 0; transform: translateY(3px) scale(0.96); } }
 @media (prefers-reduced-motion: reduce) { .fmtbar { animation: none; } }
+
+/* ---- the copy wheel (#5, owner pick D "gooey petals"): hover Copy → it fills with the accent → icon petals squeeze out ---- */
+.etab-copy { position: absolute; overflow: hidden; isolation: isolate; }
+.etab-copy .ic { position: relative; z-index: 1; transition: color 120ms ease; }
+.cw-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); transform: scale(0); pointer-events: none; }
+.etab-copy.filling .cw-fill { animation: cwFill 220ms cubic-bezier(.3, .7, .4, 1) forwards; }
+.etab-copy.filling .ic { color: var(--accent-ink); }
+@keyframes cwFill { to { transform: scale(1); } }
+.cw-open > .etab { opacity: 0 !important; pointer-events: none !important; } /* the other tabs step aside while the wheel is open */
+.cwheel { position: absolute; z-index: 95; width: 0; height: 0; -webkit-app-region: no-drag; }
+.cwheel.goo { filter: url(#ui-goo); }
+.cw-hit { position: absolute; left: -68px; top: -68px; width: 136px; height: 136px; border-radius: 50%; } /* the hover area: gaps between petals count */
+.cw-core, .cw-pet { position: absolute; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; cursor: pointer; font: inherit; }
+.cw-core { left: -14px; top: -14px; width: 28px; height: 28px; z-index: 2; color: var(--accent-ink); background: var(--accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 4px 12px -4px rgba(20, 30, 70, .4); }
+.cw-pet { left: -13px; top: -13px; width: 26px; height: 26px; z-index: 1; color: var(--muted); background: var(--pill-bg);
+  box-shadow: inset 0 0 0 1px var(--rim-hi), 0 0 0 1px var(--rule), 0 4px 10px -4px rgba(20, 30, 70, .35); }
+.cw-pet:hover { color: var(--ink); }
+.cw-pet.sel { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--pill-bg)); box-shadow: inset 0 0 0 1.5px var(--accent-border), 0 4px 10px -4px rgba(20, 30, 70, .35); }
+.cw-core .ic, .cw-pet .ic { width: 13px; height: 13px; stroke-width: 2; }
+.cw-pet:focus-visible, .cw-core:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .etab-copy.filling .cw-fill { animation: none; transform: scale(1); } }
