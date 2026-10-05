@@ -133,7 +133,7 @@ function snapshot() {
     dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
       dueTs: t.due ? resolveDue(t.due) : null,
       notes: f.notesOf(t),
-      subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null })), // t = the note's title = the address
+      subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
       lines: f.blockLines(t) // Share → Markdown: the block as the note has it, stamp stripped
   }));
@@ -141,7 +141,7 @@ function snapshot() {
     id: f.id(t), file: group, title: t.title, // raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
     notes: f.notesOf(t),
-    subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null })), // t = the note's title = the address
+    subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
     lines: f.blockLines(t),
     created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
   }));
