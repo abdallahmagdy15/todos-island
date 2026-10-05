@@ -322,6 +322,17 @@
     setTimeout(() => { el.classList.remove('gel-hit'); wash.remove(); }, 2600);
   }
 
+  // the Share panel's Include options for a format (owner 2026-09-30) from its localStorage 'share.opts' (same origin in every
+  // window); the defaults mirror panels.js (Markdown: all on; plain text: subtasks only)
+  function shareIncludes(fmt) {
+    const o = fmt === 'md' ? { subs: 'all', prio: true, dates: true } : { subs: 'all', prio: false, dates: false };
+    try {
+      const s = JSON.parse(localStorage.getItem('share.opts') || '{}');
+      if (s.md || s.text) Object.assign(o, s[fmt] || {});
+      else if (fmt === 'text') Object.assign(o, { prio: !!s.prio, dates: !!s.dates, subs: s.subs !== false }); // pre-2026-09-30 shape
+    } catch (e) {}
+    return o;
+  }
   // the wheel's remembered choices: subtasks + day per viewer (localStorage), the format = the Share setting (shareFmt)
   function copyPrefs(getFmt, saveFmt) {
     let o = { subs: 'all', day: 'all' };
@@ -330,7 +341,10 @@
       get: () => ({ ...o, fmt: getFmt() }),
       set: (k, v) => { if (k === 'fmt') { saveFmt(v); return; } o[k] = v; try { localStorage.setItem('copy.wheel', JSON.stringify(o)); } catch (e) {} },
       // one task → the text the wheel's choices ask for ('' = nothing left, e.g. nothing changed today)
-      text: (t, fmtNow) => { const f = fmtNow || getFmt(); return window.ShareText.taskText(t, f === 'md' ? 'md' : 'text', { subs: o.subs, day: o.day === 'today' ? window.ShareText.dayRange(new Date()) : null }); }
+      text: (t, fmtNow) => {
+        const f = (fmtNow || getFmt()) === 'md' ? 'md' : 'text', inc = shareIncludes(f);
+        return window.ShareText.taskText(t, f, { withSubs: o.subs, withPrio: inc.prio, withDates: inc.dates, day: o.day === 'today' ? window.ShareText.dayRange(new Date()) : null });
+      }
     };
   }
 
@@ -685,11 +699,15 @@
   }
 
   // the green Update pill (island + tasks window): shown only while a newer release exists; tooltip names the version
+  // the green pill (owner 2026-10-01): hidden while the new version downloads; "Restart to update" once it's ready
   function renderUpdate(btn, update) {
     if (!btn) return;
-    btn.hidden = !update;
-    if (!update) return;
-    const tip = T('upd.title', { v: update.version });
+    btn.hidden = !update || update.status === 'downloading';
+    if (btn.hidden) return;
+    const ready = update.status === 'ready';
+    const label = btn.querySelector('[data-i18n]') || btn;
+    label.textContent = T(ready ? 'upd.restart' : 'upd.label');
+    const tip = T(ready ? 'upd.readyTitle' : 'upd.title', { v: update.version });
     btn.title = tip; btn.setAttribute('aria-label', tip);
   }
   // theme color + text sizes from settings (every window calls this with each snapshot's settings)
@@ -713,5 +731,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, subCopyHtml, subCopyClick, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, subCopyHtml, subCopyClick, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();

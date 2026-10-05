@@ -60,7 +60,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
   - Tick `[ ]` to complete it. Hover a task for its edit pencil; **+** in the top bar adds a task in the tasks window.
   - Open subtasks always show, most important first; done ones tuck away behind one line.
   - Pin the island to keep it on screen.
-  - Press <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>T</kbd> to show or hide it.
+  - Press <kbd>Ctrl</kbd>+<kbd>`</kbd> to show or hide it (change it in Settings).
 - **Glass themes.** The island is frosted glass over a soft picture you choose in *Settings → Look → Theme*: **Mist**, **Dusk**, **Lagoon**, **Bloom** or **Dune**.
   - Every theme has a light and a dark version. Pick **Light**, **Dark** or **System** in *Settings → Look → Appearance*; every window follows it.
   - Choose how much of the theme shows through in *Settings → Look → Glass*: **Solid**, 20%, 35%, 50% or 65%.
@@ -70,9 +70,10 @@ The tokens can go in any order, and all of them are optional. The app's own edit
   - Settings save as you change them. There's no Save button.
 - **Undo for everything.** Complete, delete, un-mark Now, reorder or clear done: every change you make gets a short countdown with an Undo button.
 - **Share your day.** Pick tasks, then copy them as WhatsApp-ready text or Markdown, or export a `.md` file. This is useful for daily updates to a lead, a team or an AI assistant.
+- **Change priority in one click.** Click a task's `!` / `!!` / `!!!` mark in the island or the task list to step it to the next priority (one Undo away). On a task with no priority, a faint `!` appears when you rest on it.
 - **Keyboard first.** In the task list: <kbd>↑</kbd>/<kbd>↓</kbd> to move, <kbd>Enter</kbd> to edit, <kbd>Space</kbd> to complete, <kbd>\*</kbd> for Now, <kbd>0</kbd>–<kbd>3</kbd> for priority, <kbd>/</kbd> to search, <kbd>?</kbd> for all shortcuts.
 - **English and العربية.** The whole interface switches language, and Arabic uses a full right-to-left layout. Your tasks and dates stay exactly as you wrote them.
-- **Quiet updates.** When a new version is out, a green **Update** pill shows in the island and the tasks window. There's no popup, and a click opens the download page.
+- **Updates that look after themselves.** When a new version is out, it downloads quietly in the background. Then a green **Restart to update** pill appears in the island and the tasks window, with one notification. Click it to run the setup. If you don't, the setup opens once the next time the app starts. *Settings → About* shows your version, has a **Check now** button, and the tray menu has **Check for updates**.
 - **Honest when something breaks.** If a note goes missing or can't be read, you get a clear error. You never get an empty "all done" list.
 - **Light and gentle.** No runtime dependencies. Light/dark follows Windows. Sounds are optional, it can start quietly with Windows, and a two-minute first-run setup gets you going.
 
@@ -92,7 +93,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 ## Privacy
 
 - Your tasks and notes stay on your PC. The app collects no analytics and needs no account.
-- The one network request: at startup (then once a day) it asks GitHub for the latest release number. Nothing about you or your tasks is sent. If a newer version exists, a small green **Update** pill appears in the top bar; nothing downloads on its own. You can turn this off in *Settings → App → Check for updates*.
+- Network use is updates only. At startup (then once a day) the app asks GitHub for the latest release number. Nothing about you or your tasks is sent. If a newer version exists, it downloads that release's installer from this repository's GitHub Releases page and checks its size and SHA-256 fingerprint before offering it. Turn this off in *Settings → About → Check for updates*: then nothing is checked or downloaded unless you press **Check now**.
 - The island never records your screen or reads your desktop picture.
 - **Hide from screen sharing** (on by default): the island still pops up on your own screen, but Teams, OBS, Zoom, screenshots and other capture apps can't see it. Windows enforces this itself, so the app never watches what else is running. Turn it off in *Settings → Hide from screen sharing* or from the tray menu, and the island shows in recordings like any other window. It can't hide the island from a camera pointed at your screen.
 

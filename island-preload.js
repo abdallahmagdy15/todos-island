@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld('api', {
   onSnapshot: cb => ipcRenderer.on('snapshot', (_e, d) => cb(d)),
   toggleActive: (id, file) => ipcRenderer.invoke('toggle-active', id, file),
   toggleSubtask: (file, parentId, title, session) => ipcRenderer.invoke('toggle-subtask', file, parentId, title, session),
+  updateTask: (file, id, patch) => ipcRenderer.invoke('update-task', file, id, patch), // the clickable priority mark
   complete: (id, file) => ipcRenderer.invoke('complete', id, file),
   undoAction: token => ipcRenderer.invoke('undo-action', token),
   undoExpire: token => ipcRenderer.invoke('undo-expire', token),

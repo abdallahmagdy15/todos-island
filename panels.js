@@ -62,14 +62,16 @@
   const MAX_TA = 212; // ≈ 10 lines, then the field scrolls inside
   function autoGrow(ta) { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, MAX_TA) + 'px'; }
 
-  async function edit(file, id) {
+  // opts.focus = 'sub': a task just added from the composer opens with the cursor in "add subtask" (owner 2026-10-01)
+  async function edit(file, id, opts = {}) {
     if (kind === 'edit' && (file !== FILE || id !== ID)) await saveNow(); // switching tasks: the old one lands first
     const same = kind === 'edit' && file === FILE && id === ID;
     FILE = file; ID = id;
     if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; }
     show('edit');
     await load(!same);
-    if (!same) setTimeout(() => { const ta = $('ed-title'); ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); }, 80);
+    if (opts.focus === 'sub') setTimeout(() => $('ed-sub').focus({ preventScroll: true }), 80);
+    else if (!same) setTimeout(() => { const ta = $('ed-title'); ta.focus({ preventScroll: true }); ta.setSelectionRange(ta.value.length, ta.value.length); }, 80);
   }
   async function load(full) {
     const s = await window.api.getSnapshot();
@@ -90,7 +92,8 @@
     }
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
-    $('ed-subs').innerHTML = t.subs.map(x =>
+    const subs = [...t.subs.filter(x => !x.done), ...t.subs.filter(x => x.done)]; // open first (owner 2026-09-30); the note keeps its order
+    $('ed-subs').innerHTML = subs.map(x =>
       `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
   }
@@ -100,8 +103,9 @@
     $('ed-mark').textContent = activeState ? '[★]' : '[ ]';
     $('ed-mark').classList.toggle('now', activeState);
   }
-  // "will write" — the exact line the note gets (same serializer as the note; typed notation is honored)
-  let pvT = null, pvSeq = 0, last = null;
+  // compose — the exact line the note gets (same serializer as the note; typed notation is honored). It syncs the chips with
+  // typed tokens and guards the title; the visible "will write" row was removed (owner 2026-09-30)
+  let pvT = null, pvSeq = 0;
   function schedulePreview(ms = 80) { clearTimeout(pvT); pvT = setTimeout(updatePreview, ms); }
   async function updatePreview() {
     clearTimeout(pvT);
@@ -114,11 +118,9 @@
       fallback: { priority: prioCtl.value, due: dueCtl.value, active: activeState }
     });
     if (my !== pvSeq) return r;
-    last = r;
     prioCtl.set(r.priority); dueCtl.set(r.due ? { ...r.due, time: r.time } : null);
     if (r.active !== activeState) { activeState = r.active; paintActive(); }
-    $('ed-preview-line').textContent = r.ok ? r.line : T('ed.noTitle');
-    $('ed-preview-line').classList.toggle('bad', !r.ok);
+    $('ed-title').classList.toggle('invalid', !r.ok); // an empty title: the field turns red; the save flash says why
     return r;
   }
   // autosave: one save at a time, in order; typed text waits for a pause, picks save at once
@@ -230,23 +232,11 @@
     window.SFX.play('delete'); await window.api.deleteTask(ID, FILE); // undo lives in the window's toast
     dirty = false; close();
   });
-  // Complete — M1 on the preview line itself: the bracket ticks, a pen line strikes it, then the panel slides away
+  // Complete — the sound plays with the write, then the panel slides away (the preview-line strike went with the row)
   $('ed-complete').addEventListener('click', async () => {
     await saveNow();
     window.SFX.play('complete');
-    const line = $('ed-preview-line');
-    if (last && last.ok) line.textContent = last.line.replace('- [ ]', '- [x]');
-    line.classList.add('tt', 'striking');
-    try {
-      await Promise.all([
-        window.api.complete(ID, FILE),
-        window.Motion.play(line, [{ backgroundSize: '0% 1.5px' }, { backgroundSize: '100% 1.5px' }], { duration: 220, delay: 120 })
-      ]);
-      await new Promise(r => setTimeout(r, window.Motion.reduced ? 0 : 160));
-      close();
-    } catch (err) {
-      updatePreview();
-    } finally { line.classList.remove('tt', 'striking'); }
+    try { await window.api.complete(ID, FILE); close(); } catch (err) { updatePreview(); }
   });
 
   // ---------- share ----------
@@ -254,7 +244,7 @@
   // lists — never mixed. ONE selection across every page and list; the foot counts it and builds ONE message
   // (lib/share.js: a Work block, then a Personal block). A search filters the list you're on (picks elsewhere stay).
   // Long lists render a first batch and load more as you scroll.
-  let shSnap = null, fmt = 'text', page = 'work', sub = 'open', query = '', withPrio = false, withDates = false;
+  let shSnap = null, fmt = 'text', page = 'work', sub = 'open', query = '';
   const sel = new Set(); // keys: 'o:<id>' open, 'd:<id>' done — picks survive page switches while the app runs
   const folded = { now: false, open: false };
   // day filter (#12, owner 2026-10-05): All · Today · Yesterday · Pick… (a day or a range). Every opening starts on
@@ -278,11 +268,19 @@
   }
   const STEP = 30;
   let limit = STEP;
+  // Include toggles (owner 2026-09-30): Subtasks · Priority · Dates in BOTH formats, remembered PER format — Markdown starts
+  // with all on (the note as written), plain text with subtasks only
+  // subs is a MODE: 'all' | 'open' (done subtasks left out) | 'off' — the mini switch in the Subtasks part (owner 2026-09-30)
+  const opts = { md: { subs: 'all', prio: true, dates: true }, text: { subs: 'all', prio: false, dates: false } };
+  const asMode = v => (v === false || v === 'off' ? 'off' : v === 'open' ? 'open' : 'all'); // earlier builds stored true / false
   try { // per-viewer conveniences only
     const saved = JSON.parse(localStorage.getItem('share.opts') || '{}');
-    withPrio = !!saved.prio; withDates = !!saved.dates;
+    if (saved.md || saved.text) { for (const f of ['md', 'text']) Object.assign(opts[f], saved[f] || {}); }
+    else Object.assign(opts.text, { prio: !!saved.prio, dates: !!saved.dates, subs: saved.subs !== false }); // pre-2026-09-30 shape
+    for (const f of ['md', 'text']) opts[f].subs = asMode(opts[f].subs);
   } catch (e) {}
-  const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify({ prio: withPrio, dates: withDates })); } catch (e) {} };
+  const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify(opts)); } catch (e) {} };
+  const INC = [['sh-prio', 'prio'], ['sh-dates', 'dates']];
   // the format is a setting (shareFmt: 'text' | 'md'), so the island's quick Copy uses the same pick (owner 2026-09-29)
   const fmtFrom = snap => (snap && snap.settings && snap.settings.shareFmt === 'md' ? 'md' : 'text');
 
@@ -351,7 +349,10 @@
     $('fmt-seg').querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('sel', x.dataset.fmt === fmt));
     $('sh-day').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.day === dayMode; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('sh-day').querySelector('.pick-l').textContent = dayMode === 'pick' && pickA ? dayLabel() + ' ▾' : T('sh.day.pick');
-    for (const [id, v] of [['sh-prio', withPrio], ['sh-dates', withDates]]) { $(id).classList.toggle('sel', v); $(id).setAttribute('aria-pressed', v); $(id).hidden = fmt !== 'text'; } // Markdown is the note as written
+    for (const [id, k] of INC) { const v = !!opts[fmt][k]; $(id).classList.toggle('on', v); $(id).setAttribute('aria-pressed', v); }
+    const m = opts[fmt].subs;
+    $('sh-subs').classList.toggle('on', m !== 'off');
+    $('sh-subs').querySelectorAll('[data-subs]').forEach(b => { const s = b.dataset.subs === m; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
   }
   function syncShare() { // counts on every page / list + the total; zero selection: the buttons say so
     const on = notesOn(), all = {};
@@ -361,7 +362,7 @@
     $('sh-page').querySelectorAll('.seg-btn').forEach(b => cnt(b, all[b.dataset.page] ? all[b.dataset.page].open + all[b.dataset.page].done : 0));
     $('sh-sub').querySelectorAll('.seg-btn').forEach(b => cnt(b, all[page] ? all[page][b.dataset.sub] : 0));
     $('btn-copy').disabled = !n; $('btn-export').disabled = !n; $('btn-wa').disabled = !n;
-    $('sel-hint').textContent = n ? T('sh.selN', { n }) : T('sh.selHint');
+    $('sel-hint').textContent = n ? T('sh.selN', { n }) : ''; // owner 2026-09-30: no "select tasks" hint — the disabled buttons say it
     $('sel-clear-all').hidden = !n;
   }
   function buildText(k) {
@@ -370,7 +371,7 @@
       const L = lists(tag), p = arr => arr.filter(t => sel.has(keyOf(t)));
       return { name: T(tag === 'work' ? 'win.tab.work' : 'win.tab.personal'), done: p(L.done), now: p(L.now), open: p(L.open) };
     });
-    return window.ShareText.buildShare({ groups, fmt: k, withPrio, withDates, date: dayFilter() ? dayLabel() : today, day: dayFilter(),
+    return window.ShareText.buildShare({ groups, fmt: k, withPrio: opts[k].prio, withDates: opts[k].dates, withSubs: opts[k].subs, date: dayFilter() ? dayLabel() : today, day: dayFilter(),
       labels: { done: T('sh.wa.done'), now: T('sh.wa.now'), next: T('sh.wa.next') } });
   }
   const picked = () => notesOn().some(tag => { const L = lists(tag); return pickedIn(L.now) + pickedIn(L.open) + pickedIn(L.done); });
@@ -455,8 +456,12 @@
   });
   document.addEventListener('pointerdown', e => { if (!$('day-pop').hidden && !e.target.closest('#day-pop, #sh-day')) $('day-pop').hidden = true; });
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('day-pop').hidden) { e.stopPropagation(); $('day-pop').hidden = true; } }, true);
-  $('sh-prio').addEventListener('click', () => { withPrio = !withPrio; saveOpts(); paintControls(); });
-  $('sh-dates').addEventListener('click', () => { withDates = !withDates; saveOpts(); paintControls(); });
+  for (const [id, k] of INC) $(id).addEventListener('click', () => { opts[fmt][k] = !opts[fmt][k]; window.SFX.play('tick'); saveOpts(); paintControls(); });
+  $('sh-subs').addEventListener('click', e => {
+    const b = e.target.closest('[data-subs]');
+    if (!b || b.dataset.subs === opts[fmt].subs) return;
+    opts[fmt].subs = b.dataset.subs; window.SFX.play('tick'); saveOpts(); paintControls();
+  });
   const flashBtn = (b, text) => { const old = b.textContent; b.textContent = text; setTimeout(() => { b.textContent = old; }, 1200); };
   $('btn-copy').addEventListener('click', async () => {
     if (!picked()) return;
@@ -469,7 +474,7 @@
     if (!picked()) return;
     const res = await window.api.openWhatsApp(buildText('text'));
     window.SFX.play('tick');
-    $('share-note').textContent = res && res.ok ? T('sh.wa.opened') : T('sh.wa.fail');
+    $('share-note').textContent = !(res && res.ok) ? T('sh.wa.fail') : res.paste ? T('sh.wa.paste') : T('sh.wa.opened');
     $('share-note').title = '';
   });
   $('btn-export').addEventListener('click', async () => {

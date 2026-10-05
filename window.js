@@ -41,15 +41,39 @@ window.api.onWindowOpened(() => { resort(); refresh(); });
 
 // the list is patched per row (owner 2026-09-29: "everything in place while I'm editing"): a refresh, a Now toggle or a
 // fold only replaces the rows whose markup changed, so focus, hover and scroll stay where they are.
+// A changed row is MORPHED, not replaced (owner 2026-10-01: a priority click or an edit "looked like a re-render"): only
+// the nodes that differ change, so the rest state, the Edit tabs, hover and running CSS animations stay. A row whose id
+// changed (title / priority / due are part of it) takes over the element it had, at the same place.
 function patchList(parts) { // parts = [{ key, html }], each html ONE root element
   const list = $('task-list'), cur = [...list.children];
   const make = p => { const tpl = document.createElement('template'); tpl.innerHTML = p.html.trim(); const n = tpl.content.firstElementChild; n.dataset.key = p.key; n._html = p.html; return n; };
-  if (cur.length !== parts.length || cur.some((el, i) => el.dataset.key !== parts[i].key)) {
-    const byKey = new Map(cur.map(el => [el.dataset.key, el]));
-    list.replaceChildren(...parts.map(p => { const old = byKey.get(p.key); return old && old._html === p.html ? old : make(p); }));
-    return;
+  const byKey = new Map(cur.map(el => [el.dataset.key, el])), want = new Set(parts.map(p => p.key));
+  const next = parts.map((p, i) => {
+    let el = byKey.get(p.key);
+    if (!el && cur[i] && !want.has(cur[i].dataset.key)) el = cur[i]; // renamed: its old key is gone
+    if (!el) return make(p);
+    if (el._html === p.html && el.dataset.key === p.key) return el;
+    const n = make(p);
+    if (n.nodeName !== el.nodeName) return n;
+    morph(el, n); el._html = p.html;
+    return el;
+  });
+  if (next.length !== cur.length || next.some((el, i) => el !== cur[i])) list.replaceChildren(...next);
+}
+const KEEP_CLS = ['dwelt', 'fresh', 'dragging', 'drop-above']; // JS-only row states the markup never carries
+function morph(a, b) { // make live node `a` look like fresh node `b`, touching only what differs
+  if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
+  if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
+  for (const { name } of [...a.attributes]) if (!b.hasAttribute(name)) a.removeAttribute(name);
+  for (const { name, value } of [...b.attributes]) {
+    if (a.getAttribute(name) === value) continue;
+    const keep = name === 'class' ? KEEP_CLS.filter(c => a.classList.contains(c)) : [];
+    a.setAttribute(name, value);
+    if (keep.length) a.classList.add(...keep);
   }
-  cur.forEach((el, i) => { if (el._html !== parts[i].html) el.replaceWith(make(parts[i])); });
+  const ac = [...a.childNodes], bc = [...b.childNodes];
+  bc.forEach((n, i) => (i < ac.length ? morph(ac[i], n) : a.appendChild(n)));
+  ac.slice(bc.length).forEach(n => n.remove());
 }
 
 const closedRows = new Set(); // rows with details are OPEN by default (owner 2026-09-28); these were folded — survives refreshes
@@ -87,7 +111,7 @@ function rowHtml(t) {
       ${expandBody}
       ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
     </div>
-    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">${window.UI.icon('timer')}${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
+    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">${window.UI.icon('timer')}${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${t.priority ? bangCls(t.priority) : 'ghost'}" data-prio="${esc(t.priority || '')}" role="button" title="${esc(T('prio.click'))}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
   </div></div></div>`;
 }
 function renderList() {
@@ -113,7 +137,7 @@ function renderList() {
 }
 // ---- rest on a row: the corner Edit + Delete tabs (owner pick "D", 2026-09-28) and the full title arrive together.
 // The tasks window is where you edit, so the rest is short (REST_MS, owner 2026-09-28); the island keeps hoverSec.
-const REST_MS = 200;
+const REST_MS = 600; // owner 2026-09-30: was 200 — the tabs / peek / full title came too eagerly
 let restRow = null, restT = null, restId = null, restTab = null;
 const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySelector('.list-sheet'), {
   onEdit: r => window.Panels.edit(r.dataset.file, r.dataset.id),
@@ -165,7 +189,8 @@ function restOn(row) {
 }
 function restRestore() { // a re-render keeps the rested task (same id) rested
   if (!restId) return;
-  const again = [...document.querySelectorAll('#task-list .wrow')].find(r => r.dataset.id === restId);
+  const again = restRow && restRow.isConnected ? restRow // morphed in place (an edit may have renamed it)
+    : [...document.querySelectorAll('#task-list .wrow')].find(r => r.dataset.id === restId);
   if (again) restOn(again); else restClear();
 }
 // overdue never relies on color alone: "2 Sep · 23d late"
@@ -238,12 +263,14 @@ window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback 
 const T = (k, prm) => window.I18N.t(LANG, k, prm);
 function updateTabCounts() {
   if (!snap) return;
-  const n = name => { const s = snap.sections.find(x => x.name === name); return s ? s.items.length : 0; };
+  // sections are keyed by their ENGLISH name ('Work' / 'Personal'), never the translated label (Arabic read 0 — fixed 2026-09-30)
+  const n = tag => { const s = snap.sections.find(x => x.name.toLowerCase() === tag); return s ? s.items.length : 0; };
   // counts in mono; a broken source never reads as 0 — it reads "!"
-  const label = (tag, name) => fileErr(tag) ? `${name}<span class="cnt bad" title="${T('win.tab.err')}">!</span>` : `${name}<span class="cnt">${n(name)}</span>`;
+  const label = (tag, name) => fileErr(tag) ? `${name}<span class="cnt bad" title="${T('win.tab.err')}">!</span>` : `${name}<span class="cnt">${n(tag)}</span>`;
   $('tab-work').innerHTML = label('work', T('win.tab.work'));
   $('tab-personal').innerHTML = label('personal', T('win.tab.personal'));
   $('tab-done').innerHTML = `${T('win.tab.done')}<span class="cnt">${(snap.done || []).length}</span>`;
+  $('tab-settings').textContent = T('win.tab.settings'); // it never had a translation hook
   moveTabCursor(false);
 }
 // the liquid lens behind the active tab (owner 2026-09-28: "correct, not buggy"). It answers the PRESS: on pointer-down
@@ -321,9 +348,42 @@ async function refresh() {
   updateTabCounts();
   renderChrome();
   window.UI.renderUpdate($('btn-update'), snap && snap.update);
+  renderAbout();
   renderList();
 }
 window.addEventListener('focus', refresh); // no file watcher: coming back to the window re-reads the notes
+
+// ---- About + updates (owner 2026-10-01): version, links, Check now, and the live update status ----
+let checkingNow = false;
+function renderAbout() {
+  if (!snap) return;
+  $('about-ver').textContent = snap.appVersion || '';
+  const u = snap.update, c = snap.lastCheck, act = $('about-action');
+  const hhmm = ts => { const d = new Date(ts); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  let text = '', btn = '';
+  if (checkingNow) text = T('about.checking');
+  else if (u && u.status === 'ready') { text = T('about.ready', { v: u.version }); btn = T('upd.restart'); }
+  else if (u && u.status === 'downloading') text = T('about.downloading', { v: u.version, p: u.progress || 0 });
+  else if (u && u.status === 'failed') { text = T('about.failed', { v: u.version }); btn = T('about.openPage'); }
+  else if (u) { text = T('about.available', { v: u.version }); btn = T('upd.label'); }
+  else if (c && c.result === 'uptodate') text = T('about.uptodate', { t: hhmm(c.at) });
+  else if (c && c.result === 'error') text = T('about.error');
+  $('about-status-text').textContent = text;
+  act.hidden = !btn; act.textContent = btn;
+  act.classList.toggle('btn-accent', !!(u && u.status === 'ready')); act.classList.toggle('btn-soft', !(u && u.status === 'ready'));
+  $('btn-check-now').disabled = checkingNow || !!(u && u.status === 'downloading');
+}
+$('btn-check-now').addEventListener('click', async () => {
+  checkingNow = true; renderAbout(); window.SFX.play('tick');
+  try { await window.api.checkUpdate(); } finally { checkingNow = false; await refresh(); }
+});
+$('about-action').addEventListener('click', () => { window.SFX.play('tick'); window.api.openUpdate(); });
+$('about-notes').addEventListener('click', () => window.api.openAboutLink('notes'));
+$('about-repo').addEventListener('click', () => window.api.openAboutLink('repo'));
+function openAbout() { // tray → About…: Settings, scrolled to the About section
+  $('tab-settings').click();
+  setTimeout(() => $('set-about').scrollIntoView({ block: 'start', behavior: 'smooth' }), 80);
+}
 
 // M1 — ink strike: checkbox ticks, a pen line crosses the title, the row folds. Parallel to the write, never before it.
 async function completeWithInk(chk) {
@@ -399,14 +459,16 @@ $('task-list').addEventListener('keydown', async e => {
   if (k === 'Enter') { e.preventDefault(); window.Panels.edit(file, id); return; }
   if (k === ' ' || k === 'x') { e.preventDefault(); focusIndex = i; const chk = row.querySelector('.chk'); if (!chk.classList.contains('checked')) completeWithInk(chk); return; }
   if (k === '*' || k === 's') { e.preventDefault(); await toggleNow(id, file, row); return; }
-  if (['0', '1', '2', '3'].includes(k)) {
-    e.preventDefault();
-    const res = await window.api.updateTask(file, id, { priority: ['', '!', '!!', '!!!'][+k] || null });
-    if (res && res.id) renameId(id, res.id); // id changes with priority — keep its place and focus
-    window.SFX.play('tick');
-    await refresh();
-  }
+  if (['0', '1', '2', '3'].includes(k)) { e.preventDefault(); await setPriority(file, id, ['', '!', '!!', '!!!'][+k] || null); }
 });
+// priority from a key (0–3) or a click on the mark: a one-off session makes it undoable like every write (it wasn't before)
+const PRIO_NEXT = { '': '!', '!': '!!', '!!': '!!!', '!!!': '' };
+async function setPriority(file, id, priority) {
+  const res = await window.api.updateTask(file, id, { priority, session: 'wprio' + Date.now() });
+  if (res && res.id) renameId(id, res.id); // id changes with priority — keep its place and focus
+  window.SFX.play('tick');
+  await refresh();
+}
 function toggleRow(id) { // a click pins a row open / folded
   window.SFX.play('tick');
   closedRows.has(id) ? closedRows.delete(id) : closedRows.add(id);
@@ -439,6 +501,8 @@ async function toggleNow(id, file, row) { // the ☆ tab and the * / s keys: the
 async function onListAction(e) {
   const chk = e.target.closest('[data-chk]');
   if (chk) { if (!chk.classList.contains('checked')) completeWithInk(chk); return; }
+  const pr = e.target.closest('[data-prio]'); // the clickable priority mark (owner 2026-10-01): ! → !! → !!! → none
+  if (pr) { const row = pr.closest('.wrow'); await setPriority(row.dataset.file, row.dataset.id, PRIO_NEXT[pr.dataset.prio] || null); return; }
   const exp = e.target.closest('[data-exp]');
   if (exp) { toggleRow(exp.dataset.exp); return; }
   // subtask: its [ ] bracket ticks; the text opens the task's editor (owner 2026-09-28: the window is for editing)
@@ -593,8 +657,9 @@ $('btn-add').addEventListener('click', async () => {
   window.SFX.play('add');
   freshFrom = visibleIds();
   resetComposer();
-  $('new-title').focus();
   await refresh();
+  // the new task opens in the editor at once, cursor in "add subtask" — keep breaking it down (owner 2026-10-01)
+  if (res.id) window.Panels.edit(currentTab, res.id, { focus: 'sub' }); else $('new-title').focus();
 });
 
 // ---- tabs ----
@@ -612,6 +677,7 @@ for (const tab of ['work', 'personal', 'done']) $('tab-' + tab).addEventListener
   const asked = new URLSearchParams(location.search).get('tab');
   const saved = localStorage.getItem('ti-tab');
   if (asked === 'settings') setTimeout(() => $('tab-settings').click(), 0);
+  else if (asked === 'about') setTimeout(openAbout, 0);
   else if (/^new-(work|personal)$/.test(asked || '')) setTimeout(() => openNew(asked.slice(4)), 0);
   else if (saved === 'personal' || saved === 'done') showTab(saved);
 }
@@ -623,6 +689,7 @@ function openNew(tag) {
 }
 window.api.onShowTab(tab => {
   if (tab === 'settings') $('tab-settings').click();
+  else if (tab === 'about') openAbout();
   else if (/^new-(work|personal)$/.test(tab)) openNew(tab.slice(4));
   else if (['work', 'personal', 'done'].includes(tab)) $('tab-' + tab).click();
 });
@@ -821,7 +888,7 @@ async function saveSettings() {
     dismissSec: readNumber('set-dismiss', 5, 600, 7),
     undoSec: readNumber('set-undo', 5, 120, 5),
     hoverSec: readNumber('set-hover', 0.5, 10, 1),
-    shortcut: shortcutValue || 'Control+Alt+T',
+    shortcut: shortcutValue || 'Control+`',
     weekendAware: $('set-weekend').checked, weekendDays: $('set-weekend-days').value, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked, updateCheck: $('set-update').checked, hideFromCapture: $('set-capture').checked,
     focusByTime: $('set-focus').checked,
     mode: $('set-mode').value,
