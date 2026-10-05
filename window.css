@@ -365,8 +365,10 @@ h2.md-h { margin-bottom: var(--s-1); }
   padding: 10px 14px; font-size: var(--fs-2); color: var(--muted);
   animation: fadeUp var(--d-2) var(--ease-out) both;
 }
-#undo-toast { bottom: 44px; }
-.notice { bottom: 96px; color: var(--ink); z-index: 51; }
+/* #1 (owner 2026-10-05): the undo bubble floats just ABOVE the add-task box (--dock-h = window bottom → composer top,
+   set by window.js), so it never covers what you're typing; without a composer it sits above the status line */
+#undo-toast { bottom: calc(var(--dock-h, 36px) + 8px); }
+.notice { bottom: calc(var(--dock-h, 36px) + 60px); color: var(--ink); z-index: 51; }
 .notice.bad { border-color: var(--danger); color: var(--danger); }
 @keyframes fadeUp { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
 .undo-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 340px; }

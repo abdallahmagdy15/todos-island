@@ -843,6 +843,17 @@ function notice(msg, kind) {
   noticeT = setTimeout(() => { el.hidden = true; }, 4000);
 }
 
+// #1: keep floating bubbles above the composer — --dock-h = distance from the window's bottom to the composer's top
+// (or the status line's top when the composer is hidden: Done tab, Settings)
+function dockHeight() {
+  const c = $('composer'), st = $('statusline');
+  const top = c && !c.hidden && c.offsetParent ? c.getBoundingClientRect().top : st ? st.getBoundingClientRect().top : innerHeight - 36;
+  document.documentElement.style.setProperty('--dock-h', Math.max(0, Math.round(innerHeight - top)) + 'px');
+}
+new ResizeObserver(dockHeight).observe($('composer'));
+addEventListener('resize', dockHeight);
+new MutationObserver(dockHeight).observe($('composer'), { attributes: true, attributeFilter: ['hidden'] });
+
 // undo toast — shared UndoUI component; each action carries its own token, countdown end releases the entry
 window.api.onShowUndo(d => {
   window.UI.mountUndo($('undo-toast'), d, {
