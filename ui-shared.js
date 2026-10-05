@@ -514,8 +514,8 @@
     let star = null; // quick Now (owner 2026-09-29): ☆ stages the rested task as Now in one click, ★ = Not now
     if (onStar) {
       star = document.createElement('button');
-      star.type = 'button'; star.className = 'etab etab-star'; star.tabIndex = -1;
-      star.innerHTML = icon('star', 'etab-g') + '<span class="etab-t"></span>'; // Now keeps its word (owner 2026-09-29: "star with the word")
+      star.type = 'button'; star.className = 'etab etab-ic etab-star'; star.tabIndex = -1;
+      star.innerHTML = icon('star', 'etab-g'); // icon only like the others (owner 2026-10-05); the word is the tooltip
       host.appendChild(star);
     }
     // placed from the row's corner inward, so on screen they read ☆ Now · ✎ Edit · 🗑 (owner 2026-09-29: Now first)
@@ -563,7 +563,7 @@
       setNow(now) {
         if (!star) return;
         star.querySelector('.etab-g').classList.toggle('filled', now); // ★ filled = it is Now, ☆ outline = make it Now
-        star.querySelector('.etab-t').textContent = T(now ? 'etab.notNow' : 'etab.now');
+        const lb = T(now ? 'etab.notNow' : 'etab.now'); star.title = lb; star.setAttribute('aria-label', lb);
         star.classList.toggle('now', now);
       },
       get row() { return row; },

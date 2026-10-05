@@ -232,7 +232,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 /* minor tabs are icon only (owner 2026-10-05): a round 24 px button; the word is in the tooltip */
 .etab.etab-ic { width: 24px; height: 24px; padding: 0; justify-content: center; border-radius: 12px; }
 .etab.etab-ic .ic { width: 13px; height: 13px; stroke-width: 2; }
-.etab-star .etab-g { width: 12px; height: 12px; }
 .etab-star .etab-g.filled { fill: currentColor; }
 /* Apple-style time wheel (UI.timeWheel): a small popover anchored to the field; two snapping wheels behind ONE liquid
    lens band; items curl away in 3-D via a scroll-driven animation (runs on the compositor — no JS per frame). */
