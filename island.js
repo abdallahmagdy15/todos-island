@@ -11,6 +11,7 @@ let animating = 0, pendingSnap = null; // a snapshot arriving mid-animation wait
 const { esc, bangCls, inline, plain } = window.UI;
 const $ = id => document.getElementById(id);
 let LANG = 'en';
+window.UI.hydrateIcons(); // one icon set (ui-shared.js ICONS) for every window
 window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback — apply once at load, not only on a language change
 const T = (k, prm) => window.I18N.t(LANG, k, prm);
 
@@ -41,7 +42,7 @@ function rowHtml(t) {
   const timed = snap && snap.timer && snap.timer.id === t.id;
   return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" draggable="true">
     <div class="row-main"><span class="rtitle"><span class="tt">${inline(t.title)}</span></span>${detail}</div>
-    <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">⏱</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}</span>
+    <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}</span>
   </div></div></div>`;
 }
 
@@ -108,7 +109,7 @@ function secHtml(name, peek) {
   const label = esc(name === 'Work' ? T('isl.sec.work') : T('isl.sec.personal'));
   if (!peek) return `<div class="sec"><span class="hash">##</span> ${label}</div>`;
   const other = name === 'Work' ? T('isl.sec.personal') : T('isl.sec.work');
-  return `<button class="sec sec-peek${peekOther ? ' peeking' : ''}" data-peek type="button" title="${esc(T('isl.peek.title', { n: other }))}" aria-label="${esc(T('isl.peek.title', { n: other }))}"><span class="hash">##</span> ${label} <span class="swap" aria-hidden="true">⇄</span></button>`;
+  return `<button class="sec sec-peek${peekOther ? ' peeking' : ''}" data-peek type="button" title="${esc(T('isl.peek.title', { n: other }))}" aria-label="${esc(T('isl.peek.title', { n: other }))}"><span class="hash">##</span> ${label} <span class="swap" aria-hidden="true">${window.UI.icon('swap')}</span></button>`;
 }
 // ---- focus timer (#10 + #6): the ⏱ tab opens the arc dial; the top bar shows ⏱ + time left (click = stop) ----
 let timerIv = null;
@@ -214,7 +215,7 @@ function render() {
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
           <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${inline(a.title)}</span></span>
-          <span class="meta">${snap.timer && snap.timer.id === a.id ? `<span class="tmark" title="${esc(T('timer.on'))}">⏱</span>` : ''}${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
+          <span class="meta">${snap.timer && snap.timer.id === a.id ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
         </div>
         ${subs}
       </div></div></div>`;
@@ -239,7 +240,7 @@ function render() {
   // no button: a collapsed list with more behind it fades at its bottom edge (the hint), and scrolling loads the rest
   const hiddenCount = flat.filter(t => !t.active).length - shown;
   $('body').classList.toggle('has-more', !expanded && hiddenCount > 0);
-  if (expanded && hiddenCount > 0) html += `<div class="more-rest" data-open-tasks role="button">${esc(T('isl.expand.rest', { n: hiddenCount }))}<svg class="ic" viewBox="0 0 24 24"><path d="M7 17L17 7M8 7h9v9"/></svg></div>`;
+  if (expanded && hiddenCount > 0) html += `<div class="more-rest" data-open-tasks role="button">${esc(T('isl.expand.rest', { n: hiddenCount }))}${window.UI.icon('arrowUpRight')}</div>`;
   $('body').innerHTML = html;
   if (hoverRowId) { // hover-unfold survives snapshot re-renders (re-applied to the same task)
     const again = $('body').querySelector(`.row[data-id="${CSS.escape(hoverRowId)}"]`);

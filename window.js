@@ -69,7 +69,7 @@ function renderDone(q) { // Done tab: both files, restore or delete (both undoab
   patchList(items.map(d => ({ key: 'd:' + d.file + ':' + d.id, html: `
     <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(plain(d.title))}">
       <div class="wrow-main"><span class="wtitle"><span class="tt">${inline(d.title)}</span></span></div>
-      <span class="wmeta"><span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task"><svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg></button></span></span>
+      <span class="wmeta"><span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task">${window.UI.icon('trash')}</button></span></span>
     </div></div></div>` })).concat(items.length ? [] : [{ key: 'empty', html: `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>` }]));
 }
 function rowHtml(t) {
@@ -87,7 +87,7 @@ function rowHtml(t) {
       ${expandBody}
       ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
     </div>
-    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">⏱ ${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
+    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">${window.UI.icon('timer')}${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
   </div></div></div>`;
 }
 function renderList() {
@@ -223,6 +223,7 @@ function applyMode() {
   }
 }
 let LANG = 'en'; // resolved language from the snapshot; notation/dates/numerals never translate
+window.UI.hydrateIcons(); // one icon set (ui-shared.js ICONS) for every window
 window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback — apply once at load, not only on a language change
 const T = (k, prm) => window.I18N.t(LANG, k, prm);
 function updateTabCounts() {

@@ -37,6 +37,42 @@
   const iso = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
   const dayOffset = n => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate() + n); };
 
+  // ---- ONE icon set for the whole app (owner 2026-10-05: "unified design"): Lucide (ISC licence, lucide.dev) path
+  // data, 24×24, stroke = currentColor, so every window draws the same family. UI.icon(name) → an <svg class="ic">;
+  // static markup writes <svg class="ic" data-icon="name" viewBox="0 0 24 24"></svg> and UI.hydrateIcons() fills it.
+  const ICONS = {
+    plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
+    x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    check: '<path d="M20 6 9 17l-5-5"/>',
+    pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
+    share: '<path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>',
+    tasks: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+    pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+    trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
+    copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+    timer: '<path d="M10 2h4"/><path d="m12 14 3-3"/><circle cx="12" cy="14" r="8"/>',
+    star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+    chevronDown: '<path d="m6 9 6 6 6-6"/>',
+    chevronsUpDown: '<path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/>',
+    external: '<path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>',
+    arrowUpRight: '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
+    more: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+    file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
+    swap: '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
+    moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    // the copy wheel's petals (#5): open subtasks / all subtasks · today / all days · Markdown / plain text
+    subsOpen: '<rect x="3" y="4" width="6" height="6" rx="1.5"/><rect x="3" y="14" width="6" height="6" rx="1.5"/><path d="M13 7h8"/><path d="M13 17h8"/>',
+    subsAll: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+    today: '<path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/><circle cx="12" cy="15.5" r="1.6" fill="currentColor" stroke="none"/>',
+    allDays: '<path d="M12 12c-2-2.67-4-4-6-4a4 4 0 1 0 0 8c2 0 4-1.33 6-4Zm0 0c2 2.67 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.33-6 4Z"/>',
+    markdown: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 15V9l3 3 3-3v6"/><path d="M17 9v6"/><path d="m14.5 12.5 2.5 2.5 2.5-2.5"/>',
+    text: '<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>'
+  };
+  const icon = (name, cls = '') => `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
+  function hydrateIcons(root = document) {
+    root.querySelectorAll('svg[data-icon]').forEach(el => { if (!el.childElementCount) { el.innerHTML = ICONS[el.dataset.icon] || ''; el.setAttribute('aria-hidden', 'true'); } });
+  }
+
   // Priority chips — each chip wears its own bang hue (never the accent). onPick(p) fires on user clicks only.
   function prioChips(el, { onPick } = {}) {
     let value = null;
@@ -185,7 +221,7 @@
     .replace(RX_EM_U, '$1$2').replace(RX_EM_S, '$1$2');
 
   // ---- focus timer (owner 2026-10-05, tasks #10 + #6; demo pick C "arc dial") ----
-  const TIMER_IC = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2h4M19 6l1.5-1.5"/></svg>';
+  const TIMER_IC = icon('timer');
   // remaining time as notation: "1:42" (h:mm) from an hour up, "42m" below, "<1m" at the end
   function timerLeft(timer, now = Date.now()) {
     const ms = Math.max(0, timer.endsAt - now), m = Math.ceil(ms / 60000);
@@ -389,36 +425,37 @@
   // onDelete (tasks window only — the island never deletes) adds a trash tab beside Edit, same glass, same rest
   function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, onTimer, onLeave }) {
     const tab = document.createElement('button');
-    tab.type = 'button'; tab.className = 'etab'; tab.tabIndex = -1;
-    tab.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg><span class="etab-t"></span>';
+    // minor buttons are ICON ONLY (owner 2026-10-05); the name lives in the tooltip + aria label
+    tab.type = 'button'; tab.className = 'etab etab-ic'; tab.tabIndex = -1;
+    tab.innerHTML = icon('pencil');
     host.appendChild(tab);
     let del = null;
     if (onDelete) {
       del = document.createElement('button');
-      del.type = 'button'; del.className = 'etab etab-del'; del.tabIndex = -1;
-      del.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6"/></svg>';
+      del.type = 'button'; del.className = 'etab etab-ic etab-del'; del.tabIndex = -1;
+      del.innerHTML = icon('trash');
       host.appendChild(del);
     }
     let star = null; // quick Now (owner 2026-09-29): ☆ stages the rested task as Now in one click, ★ = Not now
     if (onStar) {
       star = document.createElement('button');
       star.type = 'button'; star.className = 'etab etab-star'; star.tabIndex = -1;
-      star.innerHTML = '<span class="etab-g" aria-hidden="true"></span><span class="etab-t"></span>';
+      star.innerHTML = icon('star', 'etab-g') + '<span class="etab-t"></span>'; // Now keeps its word (owner 2026-09-29: "star with the word")
       host.appendChild(star);
     }
     // placed from the row's corner inward, so on screen they read ☆ Now · ✎ Edit · 🗑 (owner 2026-09-29: Now first)
     let copy = null; // the island's quick Copy (owner 2026-09-29): the task as Markdown or plain text, one click
     if (onCopy) {
       copy = document.createElement('button');
-      copy.type = 'button'; copy.className = 'etab etab-copy'; copy.tabIndex = -1;
-      copy.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="etab-t"></span>';
+      copy.type = 'button'; copy.className = 'etab etab-ic etab-copy'; copy.tabIndex = -1;
+      copy.innerHTML = icon('copy');
       host.appendChild(copy);
     }
     let timer = null; // focus timer (#10): ⏱ opens the arc dial for the rested task
     if (onTimer) {
       timer = document.createElement('button');
-      timer.type = 'button'; timer.className = 'etab etab-timer'; timer.tabIndex = -1;
-      timer.innerHTML = `${TIMER_IC}<span class="etab-t"></span>`;
+      timer.type = 'button'; timer.className = 'etab etab-ic etab-timer'; timer.tabIndex = -1;
+      timer.innerHTML = icon('timer');
       host.appendChild(timer);
     }
     const tabs = [del, tab, timer, copy, star].filter(Boolean);
@@ -439,19 +476,18 @@
     const api = {
       show(r, label) {
         row = r;
-        tab.querySelector('.etab-t').textContent = T('etab.label');
         tab.title = label; tab.setAttribute('aria-label', label);
         if (del) { const dl = T('etab.del'); del.title = dl; del.setAttribute('aria-label', dl); }
         if (star) api.setNow(r.classList.contains('is-now'));
-        if (timer) { timer.querySelector('.etab-t').textContent = T('etab.timer'); timer.title = T('etab.timerTitle'); timer.setAttribute('aria-label', T('etab.timerTitle')); timer.classList.toggle('timing', r.classList.contains('timed')); }
-        if (copy) { copy.querySelector('.etab-t').textContent = T('etab.copy'); const cl = copyLabel ? copyLabel() : T('etab.copy'); copy.title = cl; copy.setAttribute('aria-label', cl); }
+        if (timer) { timer.title = T('etab.timerTitle'); timer.setAttribute('aria-label', T('etab.timerTitle')); timer.classList.toggle('timing', r.classList.contains('timed')); }
+        if (copy) { const cl = copyLabel ? copyLabel() : T('etab.copy'); copy.title = cl; copy.setAttribute('aria-label', cl); }
         tabs.forEach(t => t.classList.add('on')); place();
       },
       hide() { row = null; tabs.forEach(t => t.classList.remove('on')); },
       place,
       setNow(now) {
         if (!star) return;
-        star.querySelector('.etab-g').textContent = now ? '\u2605' : '\u2606';
+        star.querySelector('.etab-g').classList.toggle('filled', now); // ★ filled = it is Now, ☆ outline = make it Now
         star.querySelector('.etab-t').textContent = T(now ? 'etab.notNow' : 'etab.now');
         star.classList.toggle('now', now);
       },
@@ -468,8 +504,8 @@
       if (!row) return;
       const ok = await onCopy(row);
       if (ok === false) return;
-      const t = copy.querySelector('.etab-t'); t.textContent = T('etab.copied'); copy.classList.add('done');
-      setTimeout(() => { t.textContent = T('etab.copy'); copy.classList.remove('done'); }, 1100);
+      copy.innerHTML = icon('check'); copy.classList.add('done'); copy.title = T('etab.copied'); // the icon becomes a check
+      setTimeout(() => { copy.innerHTML = icon('copy'); copy.classList.remove('done'); copy.title = copyLabel ? copyLabel() : T('etab.copy'); }, 1100);
     });
     tabs.forEach(t => t.addEventListener('mouseleave', e => { if (row && !row.contains(e.relatedTarget) && !api.owns(e.relatedTarget) && onLeave) onLeave(); }));
     return api;
@@ -577,5 +613,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();

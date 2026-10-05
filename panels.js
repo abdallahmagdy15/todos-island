@@ -333,7 +333,7 @@
       for (const [k, label] of [['now', T('sh.sec.nowOpen')], ['open', T('sh.open')]]) {
         const arr = L[k].filter(hit);
         if (!arr.length) continue;
-        html += `<button class="sh-sec" type="button" data-fold="${k}" aria-expanded="${!folded[k]}"><svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg><span class="hash">##</span> ${esc(label)} <span class="cnt">${arr.length}</span></button>`;
+        html += `<button class="sh-sec" type="button" data-fold="${k}" aria-expanded="${!folded[k]}">${window.UI.icon('chevronDown', 'chev')}<span class="hash">##</span> ${esc(label)} <span class="cnt">${arr.length}</span></button>`;
         if (!folded[k]) html += take(arr).map(rowHtml).join('');
       }
     } else {

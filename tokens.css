@@ -229,6 +229,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .etab.on { opacity: 1; transform: none; pointer-events: auto; }
 .etab:hover, .etab:focus-visible { color: var(--accent); }
 .etab .ic { flex: none; width: 11px; height: 11px; stroke-width: 2.2; }
+/* minor tabs are icon only (owner 2026-10-05): a round 24 px button; the word is in the tooltip */
+.etab.etab-ic { width: 24px; height: 24px; padding: 0; justify-content: center; border-radius: 12px; }
+.etab.etab-ic .ic { width: 13px; height: 13px; stroke-width: 2; }
+.etab-star .etab-g { width: 12px; height: 12px; }
+.etab-star .etab-g.filled { fill: currentColor; }
 /* Apple-style time wheel (UI.timeWheel): a small popover anchored to the field; two snapping wheels behind ONE liquid
    lens band; items curl away in 3-D via a scroll-driven animation (runs on the compositor — no JS per frame). */
 .twheel {
@@ -297,7 +302,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .tring .bg { stroke: var(--rule); }
 .tring .fg { stroke: var(--accent); stroke-linecap: round; }
 .tleft { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-.tmark { color: var(--accent); }
+.tmark { color: var(--accent); display: inline-flex; align-items: center; gap: 3px; font-family: var(--font-mono); font-size: var(--fs-1); }
+.tmark .ic { width: 12px; height: 12px; stroke-width: 2.2; }
 /* the end alert: a soft gel bounce + an accent wash (owner pick "gel bounce"); transform only, never a filter */
 .gel-hit { animation: gelHit 900ms var(--ease-spring); position: relative; }
 .gel-wash { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); opacity: 0; pointer-events: none; animation: gelWash 1.8s ease-out; z-index: 0; }

@@ -19,7 +19,7 @@
     </nav>
     <button id="btn-update" class="upd" type="button" hidden><span class="upd-dot" aria-hidden="true"></span><span data-i18n="upd.label">Update</span></button>
     <button id="btn-share" class="hdr-btn" type="button" data-i18n-title="win.share.title" data-i18n-aria="win.share.aria">
-      <svg class="ic" viewBox="0 0 24 24"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4"/><path d="M12 2v13"/></svg>
+      <svg class="ic" data-icon="share" viewBox="0 0 24 24"></svg>
     </button>
   </header>
 
@@ -34,8 +34,8 @@
           <span class="search-count" id="search-count" aria-live="polite"></span>
           <button class="search-clear" id="search-clear" type="button" hidden data-i18n-aria="win.search.clear" data-i18n-title="win.search.clearTitle">&times;</button>
         </div>
-        <button class="btn-soft sm fold-all" id="btn-fold-all" type="button" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M7 9l5-5 5 5M7 15l5 5 5-5"/></svg><span class="fold-t"></span></button>
-        <button class="btn-soft sm open-note" id="btn-open-note" type="button" hidden><svg class="ic" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg><span data-i18n="win.openNote">Open note</span></button>
+        <button class="btn-soft sm fold-all" id="btn-fold-all" type="button" hidden><svg class="ic" data-icon="chevronsUpDown" viewBox="0 0 24 24"></svg><span class="fold-t"></span></button>
+        <button class="btn-soft sm open-note" id="btn-open-note" type="button" hidden><svg class="ic" data-icon="external" viewBox="0 0 24 24"></svg><span data-i18n="win.openNote">Open note</span></button>
         </div>
         <div class="list-head" id="done-head" hidden>
           <h3 class="md-h"><span class="hash">##</span> <span data-i18n="win.tab.done">Done</span> <span class="md-count" id="done-count"></span></h3>
@@ -51,7 +51,7 @@
             <div class="chips" id="new-prio" aria-label="Priority"></div></span>
             <span class="ctl-group"><span class="ctl-label" data-i18n="win.lbl.due">Due</span>
             <div class="chips" id="new-due" aria-label="Due date"></div></span>
-            <button id="btn-add" class="btn-accent" type="button"><svg class="ic" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span data-i18n="win.btn.add">Add</span></button>
+            <button id="btn-add" class="btn-accent" type="button"><svg class="ic" data-icon="plus" viewBox="0 0 24 24"></svg><span data-i18n="win.btn.add">Add</span></button>
           </div>
           <div class="composer-foot">
             <span class="composer-hint" id="new-hint" role="status" aria-live="polite"></span>
@@ -222,7 +222,7 @@
         <section class="sgroup">
         <button class="adv-toggle" id="adv-toggle" type="button" aria-expanded="false" aria-controls="set-advanced">
           <span class="hash">##</span> <span data-i18n="set.h.advanced">Advanced</span>
-          <svg class="ic chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+          <svg class="ic chev" data-icon="chevronDown" viewBox="0 0 24 24"></svg>
         </button>
         <div class="adv" id="set-advanced" hidden>
         <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.reminders">Reminders</span></h2>
@@ -305,7 +305,7 @@
       <span class="mark" id="ed-mark" aria-hidden="true"></span>
       <h2 class="side-title" id="side-title"></h2>
       <span id="ed-badge" class="badge" hidden></span>
-      <button class="hdr-btn side-x" id="side-close" type="button" data-i18n-title="side.close" data-i18n-aria="side.close"><svg class="ic" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      <button class="hdr-btn side-x" id="side-close" type="button" data-i18n-title="side.close" data-i18n-aria="side.close"><svg class="ic" data-icon="x" viewBox="0 0 24 24"></svg></button>
     </div>
     <div class="side-body" id="side-edit" hidden>
       <div class="side-scroll">
@@ -334,7 +334,7 @@
         <div class="ed-actions">
           <div class="menu-wrap">
             <button class="btn-soft btn-icon" id="ed-more" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="ed-menu" data-i18n-title="ed.more" data-i18n-aria="ed.more.aria">
-              <svg class="ic" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/></svg>
+              <svg class="ic" data-icon="more" viewBox="0 0 24 24"></svg>
             </button>
             <div class="menu" id="ed-menu" role="menu" hidden>
               <button role="menuitem" id="ed-up" type="button" data-i18n="ed.up">Move up</button>
@@ -345,7 +345,7 @@
           </div>
           <span class="saved" id="ed-saved" role="status" aria-live="polite"></span>
           <button class="btn-soft" id="ed-complete" type="button">
-            <svg class="ic" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg><span data-i18n="ed.complete">Complete</span>
+            <svg class="ic" data-icon="check" viewBox="0 0 24 24"></svg><span data-i18n="ed.complete">Complete</span>
           </button>
         </div>
       </div>
