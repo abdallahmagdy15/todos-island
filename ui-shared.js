@@ -334,97 +334,92 @@
     };
   }
 
-  // ---- the copy wheel itself (#5): built over the Copy tab, inside its host ----
-  const WHEEL_PETALS = [['subs', 'open', 'subsOpen', 'cw.subsOpen'], ['subs', 'all', 'subsAll', 'cw.subsAll'], ['day', 'today', 'today', 'cw.today'],
-    ['day', 'all', 'allDays', 'cw.allDays'], ['fmt', 'md', 'markdown', 'cw.md'], ['fmt', 'text', 'text', 'cw.text']];
-  const FAN_LEFT = [92, 126, 163, 197, 234, 268], FAN_DOWN = [0, 34, 71, 105, 142, 176]; // three pairs, a gap between pairs
-  function gooFilter() {
-    if (document.getElementById('ui-goo')) return;
-    const d = document.createElement('div');
-    d.innerHTML = '<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><filter id="ui-goo"><feGaussianBlur in="SourceGraphic" stdDeviation="3" result="b"/><feColorMatrix in="b" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter></defs></svg>';
-    document.body.appendChild(d.firstChild);
-  }
-  function copyWheelOpen(host, tab, { opts, onPick, onCopy, onClose }) {
-    gooFilter();
-    const R = 46, hb = host.getBoundingClientRect(), tb = tab.getBoundingClientRect();
-    const cx = tb.left + tb.width / 2 - hb.left + host.scrollLeft, cy = tb.top + tb.height / 2 - hb.top + host.scrollTop;
-    const angles = cy - R - 16 < 0 ? FAN_DOWN : FAN_LEFT; // no room above the row: fan downward instead
-    const el = document.createElement('div');
-    el.className = 'cwheel goo'; el.style.left = cx + 'px'; el.style.top = cy + 'px';
-    el.innerHTML = '<span class="cw-hit" aria-hidden="true"></span>' +
-      WHEEL_PETALS.map(([k, v, ic, label], i) => `<button class="cw-pet${opts[k] === v ? ' sel' : ''}" type="button" data-k="${k}" data-v="${v}" data-i="${i}" title="${esc(T(label))}" aria-label="${esc(T(label))}" aria-pressed="${opts[k] === v}">${icon(ic)}</button>`).join('') +
-      `<button class="cw-core" type="button" title="${esc(T('etab.copy'))}" aria-label="${esc(T('etab.copy'))}">${icon('copy')}</button>`;
+  // ---- popovers that hang under a row tab: the copy list (#5) and the running-timer pill (#10) ----
+  // Both: solid (no backdrop-filter, perf rule), centred under their tab and kept inside the host, close 1 s after the
+  // pointer leaves the pop AND its tab (coming back keeps it), on Esc, or on a click outside.
+  function underTab(host, tab, el, kind, onClose) {
+    const hb = host.getBoundingClientRect(), tb = tab.getBoundingClientRect();
     host.appendChild(el);
-    const pets = [...el.querySelectorAll('.cw-pet')], core = el.querySelector('.cw-core');
-    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const pos = a => [R * Math.cos(a * Math.PI / 180), R * Math.sin(a * Math.PI / 180)];
-    pets.forEach((p, i) => {
-      const [x, y] = pos(angles[i]), to = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px)`;
-      p.style.transform = to;
-      if (!reduced) p.animate([{ transform: 'translate(0, 0) scale(.6)' }, { transform: `translate(${(x * .55).toFixed(1)}px, ${(y * .55).toFixed(1)}px) scale(.85)`, offset: .45 }, { transform: to }],
-        { duration: 380, delay: i * 30, easing: 'cubic-bezier(.34, 1.5, .64, 1)', fill: 'backwards' });
-    });
-    // the drops separate, then the filter goes so the icons are crisp
-    const unGoo = setTimeout(() => el.classList.remove('goo'), reduced ? 0 : 520);
-    let closing = false;
-    const close = overTab => {
-      if (closing) return; closing = true; clearTimeout(unGoo);
-      el.classList.add('goo');
-      const anims = reduced ? [] : pets.map((p, i) => p.animate([{ transform: p.style.transform }, { transform: 'translate(0, 0) scale(.5)' }], { duration: 150, delay: (pets.length - 1 - i) * 10, easing: 'ease-in', fill: 'forwards' }).finished);
-      Promise.all(anims).catch(() => {}).then(() => { el.remove(); onClose && onClose(overTab); });
+    const w = el.offsetWidth;
+    el.style.top = (tb.bottom - hb.top + host.scrollTop + 6) + 'px';
+    el.style.left = Math.max(6, Math.min(hb.width - w - 6, tb.left - hb.left + tb.width / 2 - w / 2)) + 'px';
+    el.style.transformOrigin = `${Math.round(tb.left - hb.left + tb.width / 2 - parseFloat(el.style.left))}px 0`;
+    let t = null, done = false;
+    const api = {
+      el, kind,
+      hold() { clearTimeout(t); },
+      later() { clearTimeout(t); t = setTimeout(() => api.close(true), 1000); },
+      close(fromLeave) {
+        if (done) return; done = true; clearTimeout(t);
+        document.removeEventListener('pointerdown', outside, true); document.removeEventListener('keydown', esc, true);
+        el.classList.add('out'); setTimeout(() => el.remove(), 140);
+        if (onClose) onClose(fromLeave);
+      }
     };
-    el.addEventListener('pointerleave', e => close(!!(e.relatedTarget && tab.contains(e.relatedTarget))));
+    const outside = e => { if (!el.contains(e.target) && !tab.contains(e.target)) api.close(); };
+    const esc = e => { if (e.key === 'Escape') { e.stopPropagation(); api.close(); } };
+    setTimeout(() => { if (!done) { document.addEventListener('pointerdown', outside, true); document.addEventListener('keydown', esc, true); } }, 0);
+    el.addEventListener('pointerenter', () => api.hold());
+    el.addEventListener('pointerleave', e => { if (!tab.contains(e.relatedTarget)) api.later(); });
+    return api;
+  }
+  const COPY_GROUPS = [['subs', 'cw.grp.subs', [['open', 'subsOpen', 'cw.subsOpen'], ['all', 'subsAll', 'cw.subsAll']]],
+    ['day', 'cw.grp.day', [['today', 'today', 'cw.today'], ['all', 'allDays', 'cw.allDays']]],
+    ['fmt', 'cw.grp.fmt', [['md', 'markdown', 'cw.md'], ['text', 'text', 'cw.text']]]];
+  function copyListOpen(host, tab, { opts, onPick, onCopy, onClose }) {
+    const el = document.createElement('div');
+    el.className = 'clist'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('etab.copy'));
+    el.innerHTML = COPY_GROUPS.map(([k, g, two]) => `<div class="cl-grp">${esc(T(g))}</div><div class="cl-seg" role="radiogroup" data-k="${k}">${
+      two.map(([v, ic, lb]) => `<button type="button" role="radio" data-v="${v}" class="${opts[k] === v ? 'sel' : ''}" aria-checked="${opts[k] === v}">${icon(ic)}<span>${esc(T(lb))}</span></button>`).join('')}</div>`).join('') +
+      `<button class="cl-go" type="button">${icon('copy')}<span>${esc(T('etab.copy'))}</span></button>`;
+    const api = underTab(host, tab, el, 'copy', onClose);
     el.addEventListener('click', async e => {
       e.stopPropagation();
-      const p = e.target.closest('.cw-pet');
-      if (p) {
-        const k = p.dataset.k, v = p.dataset.v;
-        opts = { ...opts, [k]: v };
-        pets.filter(x => x.dataset.k === k).forEach(x => { const on = x === p; x.classList.toggle('sel', on); x.setAttribute('aria-pressed', on); });
-        if (!reduced) p.animate([{ transform: p.style.transform + ' scale(.8)' }, { transform: p.style.transform + ' scale(1.12)', offset: .55 }, { transform: p.style.transform }], { duration: 300, easing: 'cubic-bezier(.34, 1.45, .64, 1)' });
-        onPick(k, v);
-        return;
+      const b = e.target.closest('.cl-seg button');
+      if (b) {
+        const k = b.parentElement.dataset.k;
+        b.parentElement.querySelectorAll('button').forEach(x => { const on = x === b; x.classList.toggle('sel', on); x.setAttribute('aria-checked', on); });
+        onPick(k, b.dataset.v); return;
       }
-      if (e.target.closest('.cw-core')) {
+      const go = e.target.closest('.cl-go');
+      if (go) {
         const ok = await onCopy();
-        if (ok === false) { if (!reduced) core.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 240 }); return; } // nothing to copy (e.g. nothing today)
-        core.innerHTML = icon('check'); core.classList.add('done');
-        if (!reduced) core.animate([{ transform: 'scale(1)' }, { transform: 'scale(.86)' }, { transform: 'scale(1.1)' }, { transform: 'scale(1)' }], { duration: 380, easing: 'cubic-bezier(.34, 1.45, .64, 1)' });
-        setTimeout(() => close(false), 420);
+        if (ok === false) { go.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 240 }); return; } // nothing to copy (e.g. nothing today)
+        go.innerHTML = icon('check') + `<span>${esc(T('etab.copied'))}</span>`; go.classList.add('done');
+        setTimeout(() => api.close(), 380);
       }
     });
-    el.addEventListener('keydown', e => { if (e.key === 'Escape') { e.stopPropagation(); close(false); } });
-    return { el, close };
+    return api;
+  }
+  function timerPill(host, tab, tm, { onStop, onClose }) {
+    const r = 9, len = 2 * Math.PI * r;
+    const el = document.createElement('div');
+    el.className = 'tpill'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('timer.on'));
+    el.innerHTML = `<svg class="tp-ring" viewBox="0 0 24 24" aria-hidden="true"><circle class="bg" cx="12" cy="12" r="${r}"/><circle class="fg" cx="12" cy="12" r="${r}" stroke-dasharray="${len.toFixed(2)}"/></svg>
+      <div class="tp-txt"><div class="tp-left"></div><div class="tp-of"></div></div>
+      <button class="tp-stop" type="button">${icon('x')}<span>${esc(T('timer.stop'))}</span></button>`;
+    const paint = () => {
+      const k = Math.max(0, Math.min(1, (tm.endsAt - Date.now()) / (tm.total || 1)));
+      el.querySelector('.fg').style.strokeDashoffset = (len * (1 - k)).toFixed(2);
+      el.querySelector('.tp-left').textContent = timerLeft(tm);
+      el.querySelector('.tp-of').textContent = T('timer.leftOf', { t: fmtMin(Math.round((tm.total || 0) / 60000)) });
+    };
+    paint();
+    const iv = setInterval(paint, 1000);
+    const api = underTab(host, tab, el, 'pill', fromLeave => { clearInterval(iv); if (onClose) onClose(fromLeave); });
+    el.querySelector('.tp-stop').addEventListener('click', e => { e.stopPropagation(); api.close(); if (onStop) onStop(); });
+    return api;
   }
 
-  // Rest-copy (owner 2026-10-05, task #4): resting the pointer `ms` on a subtask's TEXT copies that subtask as plain
-  // words (no bangs, no ** _ ~~ <u> marks). A thin accent line charges under the text while you rest (so the copy is
-  // never a surprise), then "Copied ✓" flashes on the subtask. Leaving the text cancels. No note write.
-  // host: the list; copy(text) → Promise<boolean> (the window's copyText IPC).
-  function restCopy(host, { ms = 1000, copy } = {}) {
-    let timer = null, el = null;
-    const clear = () => { clearTimeout(timer); timer = null; if (el) el.classList.remove('rc-charge'); el = null; };
-    host.addEventListener('pointerover', e => {
-      const st = e.target.closest && e.target.closest('[data-sub] .st');
-      if (st === el) return;
-      clear();
-      if (!st || !host.contains(st) || e.pointerType === 'touch') return;
-      el = st;
-      el.style.setProperty('--rc-ms', ms + 'ms');
-      el.classList.add('rc-charge');
-      timer = setTimeout(async () => {
-        const row = st.closest('[data-sub]');
-        const done = el === st && row && await copy(plain(row.dataset.sub)).catch(() => false);
-        st.classList.remove('rc-charge');
-        if (!done || !row) return;
-        row.dataset.copied = T('etab.copied');
-        row.classList.remove('rc-copied'); void row.offsetWidth; row.classList.add('rc-copied');
-        clearTimeout(row._rcT); row._rcT = setTimeout(() => row.classList.remove('rc-copied'), 1400);
-      }, ms);
-    });
-    host.addEventListener('pointerout', e => { if (el && !(e.relatedTarget && el.contains(e.relatedTarget))) clear(); });
-    host.addEventListener('pointerdown', clear); // a click (tick / edit) is not a rest
-    return { clear };
+  // the subtask Copy button (owner 2026-10-05, pick D2; replaced copy-on-rest): an icon at the end of each subtask row
+  const subCopyHtml = () => `<button class="scopy" type="button" data-subcopy title="${esc(T('sub.copy'))}" aria-label="${esc(T('sub.copy'))}">${icon('copy')}</button>`;
+  // a click on it: copy that subtask as plain words (no bangs, no ** _ ~~ marks), the icon turns into a check
+  async function subCopyClick(btn, copy) {
+    const row = btn.closest('[data-sub]');
+    if (!row) return;
+    await copy(plain(row.dataset.sub));
+    btn.innerHTML = icon('check'); btn.classList.add('done');
+    setTimeout(() => { btn.innerHTML = icon('copy'); btn.classList.remove('done'); }, 1100);
   }
 
   // The formatting pop-up: select text in a task field → a small bar (B · I · S · U) above the selection; the same
@@ -507,43 +502,19 @@
   // pointer has RESTED on (its hoverSec dwell), so passing over rows on the way to another shows nothing. It floats over
   // the row's top edge, outside the row's own box, so it never takes layout width and never gets clipped by the row.
   // onDelete (tasks window only — the island never deletes) adds a trash tab beside Edit, same glass, same rest
-  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, copyWheel, onTimer, onLeave }) {
-    const tab = document.createElement('button');
-    // minor buttons are ICON ONLY (owner 2026-10-05); the name lives in the tooltip + aria label
-    tab.type = 'button'; tab.className = 'etab etab-ic'; tab.tabIndex = -1;
-    tab.innerHTML = icon('pencil');
-    host.appendChild(tab);
-    let del = null;
-    if (onDelete) {
-      del = document.createElement('button');
-      del.type = 'button'; del.className = 'etab etab-ic etab-del'; del.tabIndex = -1;
-      del.innerHTML = icon('trash');
-      host.appendChild(del);
-    }
-    let star = null; // quick Now (owner 2026-09-29): ☆ stages the rested task as Now in one click, ★ = Not now
-    if (onStar) {
-      star = document.createElement('button');
-      star.type = 'button'; star.className = 'etab etab-ic etab-star'; star.tabIndex = -1;
-      star.innerHTML = icon('star', 'etab-g'); // icon only like the others (owner 2026-10-05); the word is the tooltip
-      host.appendChild(star);
-    }
-    // placed from the row's corner inward, so on screen they read ☆ Now · ✎ Edit · 🗑 (owner 2026-09-29: Now first)
-    let copy = null; // the island's quick Copy (owner 2026-09-29): the task as Markdown or plain text, one click
-    if (onCopy) {
-      copy = document.createElement('button');
-      copy.type = 'button'; copy.className = 'etab etab-ic etab-copy'; copy.tabIndex = -1;
-      copy.innerHTML = '<span class="cw-fill" aria-hidden="true"></span>' + icon('copy');
-      host.appendChild(copy);
-    }
-    let timer = null; // focus timer (#10): ⏱ opens the arc dial for the rested task
-    if (onTimer) {
-      timer = document.createElement('button');
-      timer.type = 'button'; timer.className = 'etab etab-ic etab-timer'; timer.tabIndex = -1;
-      timer.innerHTML = icon('timer');
-      host.appendChild(timer);
-    }
+  // Row tabs (owner 2026-10-05, demo pick A2): icon + WORD again, a little closer together, a darker shadow under
+  // each so they read clearly over any row. Delete stays an icon (its word is the tooltip). Placed from the row's corner
+  // inward: Now · Copy · Timer · Edit · Delete in the tasks window, Copy · Timer · Edit in the island.
+  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, copyOpts, onTimer, timerOf, onTimerStop, onLeave }) {
+    const mk = (cls, html) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'etab ' + cls; b.tabIndex = -1; b.innerHTML = html; host.appendChild(b); return b; };
+    const tab = mk('etab-edit', icon('pencil') + '<span class="etab-t"></span>');
+    const del = onDelete ? mk('etab-ic etab-del', icon('trash')) : null;
+    const star = onStar ? mk('etab-star', icon('star', 'etab-g') + '<span class="etab-t"></span>') : null; // quick Now (owner 2026-09-29)
+    const copy = onCopy ? mk('etab-copy', '<span class="cw-fill" aria-hidden="true"></span>' + icon('copy') + '<span class="etab-t"></span>') : null;
+    const timer = onTimer ? mk('etab-timer', icon('timer') + '<span class="etab-t"></span>') : null; // focus timer (#10)
     const tabs = [del, tab, timer, copy, star].filter(Boolean);
-    let row = null;
+    const word = (b, w) => { b.querySelector('.etab-t').textContent = w; };
+    let row = null, pop = null; // pop = the copy list or the running-timer pill hanging under a tab
     const place = () => {
       if (!row || !row.isConnected) { api.hide(); return; }
       const h = host.getBoundingClientRect(), b = row.getBoundingClientRect(), rtl = getComputedStyle(host).direction === 'rtl';
@@ -551,74 +522,94 @@
       if (!b.height || b.bottom < h.top || b.top > h.bottom) { tabs.forEach(t => t.classList.remove('on')); return; }
       let edge = rtl ? b.left - h.left + 14 : h.right - b.right + 14;
       for (const t of tabs) { // the first sits at the corner; the rest line up just inside it
-        t.style.top = Math.max(2, b.top - h.top - 11) + 'px';
+        t.style.top = Math.max(2, b.top - h.top - 12) + 'px';
         t.style.right = rtl ? '' : edge + 'px';
         t.style.left = rtl ? edge + 'px' : '';
-        edge += t.offsetWidth + 6;
+        edge += t.offsetWidth + 4;
       }
     };
+    const paintTimer = () => {
+      if (!timer || !row) return;
+      const tm = timerOf ? timerOf(row) : null;
+      timer.classList.toggle('timing', !!tm);
+      word(timer, tm ? timerLeft(tm) : T('etab.timer')); // a running timer shows its time left on the tab
+      const tl = tm ? T('timer.chipTitle', { t: '', left: timerLeft(tm) }).replace(/^\W+/, '') : T('etab.timerTitle');
+      timer.title = tm ? T('timer.on') : T('etab.timerTitle'); timer.setAttribute('aria-label', tm ? T('timer.on') : tl);
+    };
+    const closePop = () => { if (pop) { const p = pop; pop = null; p.close(); } };
     const api = {
       show(r, label) {
+        if (row !== r) closePop();
         row = r;
-        tab.title = label; tab.setAttribute('aria-label', label);
+        word(tab, T('etab.label')); tab.title = label; tab.setAttribute('aria-label', label);
         if (del) { const dl = T('etab.del'); del.title = dl; del.setAttribute('aria-label', dl); }
         if (star) api.setNow(r.classList.contains('is-now'));
-        if (timer) { timer.title = T('etab.timerTitle'); timer.setAttribute('aria-label', T('etab.timerTitle')); timer.classList.toggle('timing', r.classList.contains('timed')); }
-        if (copy) { const cl = copyLabel ? copyLabel() : T('etab.copy'); copy.title = cl; copy.setAttribute('aria-label', cl); }
+        paintTimer();
+        if (copy) { word(copy, T('etab.copy')); const cl = copyLabel ? copyLabel() : T('etab.copy'); copy.title = cl; copy.setAttribute('aria-label', cl); }
         tabs.forEach(t => t.classList.add('on')); place();
       },
-      hide() { row = null; tabs.forEach(t => t.classList.remove('on')); },
+      hide() { closePop(); row = null; tabs.forEach(t => t.classList.remove('on')); },
       place,
       setNow(now) {
         if (!star) return;
         star.querySelector('.etab-g').classList.toggle('filled', now); // ★ filled = it is Now, ☆ outline = make it Now
-        const lb = T(now ? 'etab.notNow' : 'etab.now'); star.title = lb; star.setAttribute('aria-label', lb);
+        word(star, T(now ? 'etab.notNow' : 'etab.now'));
         star.classList.toggle('now', now);
       },
       get row() { return row; },
       get timerTab() { return timer; },
-      owns: el => !!el && el.nodeType === 1 && (tabs.some(t => t.contains(el)) || !!(wheel && wheel.el.contains(el)))
+      owns: el => !!el && el.nodeType === 1 && (tabs.some(t => t.contains(el)) || !!(pop && pop.el.contains(el)))
     };
-    // the copy wheel (#5, owner pick D "gooey petals"): hover Copy — NO timer, the tab fills with the accent and the
-    // moment it is full the petals squeeze out around it. The whole wheel area (a circle under the petals) counts as
-    // hover, so moving between petals never closes it.
-    let wheel = null;
-    if (copy && copyWheel) {
+    const leftAll = n => !(row && row.contains(n)) && !api.owns(n);
+    const popClosed = () => { pop = null; if (row && !row.matches(':hover') && onLeave) onLeave(); };
+    // ---- Copy (#5, owner pick E1): hover — NO timer — the tab fills with the accent, then a small list drops below it:
+    // Subtasks (open only · all) · Day (today · all days) · Format (Markdown · plain) + a Copy button. A plain click on
+    // the tab copies at once with the current choices.
+    if (copy && copyOpts) {
+      let over = false;
       const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
       copy.addEventListener('pointerenter', () => {
-        if (wheel || !row) return;
+        over = true;
+        if (pop && pop.kind === 'copy') { pop.hold(); return; }
+        if (!row) return;
         copy.classList.remove('filling'); void copy.offsetWidth; copy.classList.add('filling');
-        const go = () => { copy.classList.remove('filling'); if (row && copy.matches(':hover')) openWheel(); };
+        const go = () => { copy.classList.remove('filling'); if (over && row && !(pop && pop.kind === 'copy')) { closePop(); const r = row; pop = copyListOpen(host, copy, { opts: copyOpts.get(), onPick: (k, v) => copyOpts.set(k, v), onCopy: () => doCopy(r), onClose: popClosed }); } };
         if (reduced()) go(); else copy.querySelector('.cw-fill').addEventListener('animationend', go, { once: true });
       });
-      copy.addEventListener('pointerleave', e => { if (!wheel) copy.classList.remove('filling'); });
-      const openWheel = () => {
-        const r = row;
-        wheel = copyWheelOpen(host, copy, {
-          opts: copyWheel.get(),
-          onPick: (k, v) => copyWheel.set(k, v),
-          onCopy: () => onCopy(r),
-          onClose: overTab => { wheel = null; host.classList.remove('cw-open'); if (!overTab && row && !row.matches(':hover') && onLeave) onLeave(); }
-        });
-        host.classList.add('cw-open');
-      };
+      copy.addEventListener('pointerleave', e => { over = false; if (!pop) copy.classList.remove('filling'); else if (pop.kind === 'copy' && !pop.el.contains(e.relatedTarget)) pop.later(); });
+    }
+    const flashCopied = () => {
+      const swap = n => { const old = copy.querySelector('svg.ic'); if (old) old.outerHTML = icon(n); };
+      swap('check'); word(copy, T('etab.copied')); copy.classList.add('done');
+      setTimeout(() => { swap('copy'); word(copy, T('etab.copy')); copy.classList.remove('done'); }, 1100);
+    };
+    const doCopy = async r => { const ok = await onCopy(r); if (ok !== false && copy) flashCopied(); return ok; };
+    // ---- Timer: not running → a click opens the arc dial; running → hovering (or clicking) the tab shows the pill
+    // (ring · time left · Stop), owner pick F1. Both close 1 s after the pointer leaves.
+    if (timer) {
+      timer.addEventListener('pointerenter', () => {
+        const tm = row && timerOf ? timerOf(row) : null;
+        if (!tm) return;
+        if (pop && pop.kind === 'pill') { pop.hold(); return; }
+        closePop();
+        pop = timerPill(host, timer, tm, { onStop: () => onTimerStop && onTimerStop(), onClose: popClosed });
+      });
+      timer.addEventListener('pointerleave', e => { if (pop && pop.kind === 'pill' && !pop.el.contains(e.relatedTarget)) pop.later(); });
     }
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
     if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
     if (star) star.addEventListener('click', e => { e.stopPropagation(); if (row) onStar(row); });
-    if (timer) timer.addEventListener('click', e => { e.stopPropagation(); if (row) onTimer(row, timer); });
-    if (copy) copy.addEventListener('click', async e => {
+    if (timer) timer.addEventListener('click', e => {
       e.stopPropagation();
       if (!row) return;
-      const ok = await onCopy(row);
-      if (ok === false) return;
-      const swapIc = n => { const old = copy.querySelector('svg.ic'); if (old) old.outerHTML = icon(n); };
-      swapIc('check'); copy.classList.add('done'); copy.title = T('etab.copied'); // the icon becomes a check
-      setTimeout(() => { swapIc('copy'); copy.classList.remove('done'); copy.title = copyLabel ? copyLabel() : T('etab.copy'); }, 1100);
+      if (timerOf && timerOf(row)) { if (!pop) timer.dispatchEvent(new PointerEvent('pointerenter')); return; } // running: the pill, not a new dial
+      closePop(); onTimer(row, timer);
     });
-    tabs.forEach(t => t.addEventListener('mouseleave', e => { if (row && !row.contains(e.relatedTarget) && !api.owns(e.relatedTarget) && onLeave) onLeave(); }));
+    if (copy) copy.addEventListener('click', async e => { e.stopPropagation(); if (row) { closePop(); await doCopy(row); } });
+    tabs.forEach(t => t.addEventListener('mouseleave', e => { if (row && leftAll(e.relatedTarget) && !pop && onLeave) onLeave(); }));
     return api;
   }
+
 
   // Apple-style time wheel (owner 2026-09-28: "interactive, not only typing"). Clicking an HH:MM text field opens a
   // small popover with two snapping wheels (hours 00–23 · minutes 00–59) under it; the field stays typeable (a valid
@@ -722,5 +713,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, subCopyHtml, subCopyClick, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();

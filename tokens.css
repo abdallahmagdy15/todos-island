@@ -222,15 +222,18 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   /* PERF (owner 2026-09-28, measured): NO backdrop-filter — its first appearance cost a 63 ms + 28 ms hitch while
      Chromium built the blur pass. A near-solid glass fill reads the same on a 22 px tab. */
   color: var(--muted); background: color-mix(in srgb, var(--pill-bg) 94%, transparent);
-  box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 4px 12px -4px rgba(20, 30, 70, 0.28);
+  /* a darker shadow under each tab (owner 2026-10-05, pick A2) so they read clearly over any row */
+  box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 6px 14px -4px rgba(10, 15, 30, 0.45), 0 2px 4px rgba(10, 15, 30, 0.16);
   opacity: 0; transform: translateY(5px) scale(0.9); pointer-events: none; -webkit-app-region: no-drag;
   transition: opacity 150ms ease, transform 240ms var(--ease-spring), color var(--d-1) ease;
 }
 .etab.on { opacity: 1; transform: none; pointer-events: auto; }
 .etab:hover, .etab:focus-visible { color: var(--accent); }
 .etab .ic { flex: none; width: 11px; height: 11px; stroke-width: 2.2; }
-/* minor tabs are icon only (owner 2026-10-05): a round 24 px button; the word is in the tooltip */
+/* Delete is the one icon-only tab: a round button; its word is the tooltip */
 .etab.etab-ic { width: 24px; height: 24px; padding: 0; justify-content: center; border-radius: 12px; }
+.etab { height: 24px; border-radius: 12px; }
+.etab-timer.timing .etab-t { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .etab.etab-ic .ic { width: 13px; height: 13px; stroke-width: 2; }
 .etab-star .etab-g.filled { fill: currentColor; }
 /* Apple-style time wheel (UI.timeWheel): a small popover anchored to the field; two snapping wheels behind ONE liquid
@@ -275,7 +278,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 /* ---- focus timer (#10 + #6): the ⏱ tab, the arc dial, the ring chip and the end highlight ---- */
 .etab-timer.timing, .etab-timer:hover, .etab-timer:focus-visible { color: var(--accent); }
 .arcdial {
-  position: absolute; z-index: 90; width: 232px; padding: 10px 10px 12px; border-radius: 18px; text-align: center;
+  position: absolute; z-index: 90; width: 168px; padding: 8px 8px 10px; border-radius: 18px; /* smaller (owner 2026-10-05) */ text-align: center;
   background: var(--pill-bg); color: var(--ink); /* solid, like the time wheel: no backdrop-filter (perf rule) */
   box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 18px 40px -16px rgba(0, 0, 0, 0.45);
   transform-origin: 85% 0; animation: adIn 300ms var(--ease-spring) both; -webkit-app-region: no-drag;
@@ -289,10 +292,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .ad-val { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; }
 .ad-knob { fill: var(--pill-bg); stroke: var(--accent); stroke-width: 3; }
 .ad-svg:focus-visible .ad-knob { stroke-width: 4.5; }
-.ad-svg .tk { fill: var(--faint); font-family: var(--font-mono); font-size: 10px; }
-.ad-read { margin-top: -40px; font-family: var(--font-mono); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
-.ad-acts { display: flex; justify-content: center; gap: 8px; margin-top: 10px; }
-.ad-btn { height: 28px; padding: 0 14px; border: 0; border-radius: 14px; cursor: pointer; font-family: inherit; font-size: var(--fs-2); font-weight: 700; }
+.ad-svg .tk { fill: var(--faint); font-family: var(--font-mono); font-size: 13px; }
+.ad-read { margin-top: -30px; font-family: var(--font-mono); font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ad-acts { display: flex; justify-content: center; gap: 6px; margin-top: 8px; }
+.ad-btn { height: 26px; padding: 0 12px; border: 0; border-radius: 14px; cursor: pointer; font-family: inherit; font-size: var(--fs-2); font-weight: 700; }
 .ad-go { background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 .ad-stop { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--rule); }
 .ad-stop:hover { color: var(--danger, var(--p3)); }
@@ -309,16 +312,6 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @keyframes gelHit { 0% { transform: scale(1); } 22% { transform: scale(1.035, .965); } 48% { transform: scale(.988, 1.016); } 72% { transform: scale(1.006, .996); } 100% { transform: scale(1); } }
 @keyframes gelWash { 14% { opacity: .2; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .arcdial, .arcdial.out { animation: none; } .gel-hit { animation: none; } .gel-wash { animation-duration: 2.4s; } }
-/* rest-copy on a subtask (#4, UI.restCopy): an accent hairline charges under the text, then "Copied ✓" flashes at its end */
-[data-sub] .st { background: linear-gradient(var(--accent), var(--accent)) 0 100% / 0 1.5px no-repeat; }
-[data-sub] .st.rc-charge { background-size: 100% 1.5px; transition: background-size var(--rc-ms, 1000ms) linear; }
-[data-sub].rc-copied { position: relative; }
-[data-sub].rc-copied::after {
-  content: attr(data-copied); margin-inline-start: 8px; align-self: center; white-space: nowrap;
-  font-size: var(--fs-1); font-weight: 650; color: var(--accent); animation: rcFlash 1.4s var(--ease-out) both;
-}
-@keyframes rcFlash { 0% { opacity: 0; transform: translateX(-4px); } 15%, 75% { opacity: 1; transform: none; } 100% { opacity: 0; } }
-@media (prefers-reduced-motion: reduce) { [data-sub] .st.rc-charge { transition: none; } [data-sub].rc-copied::after { animation: none; } }
 .etab-star:hover, .etab-star:focus-visible, .etab-star.now { color: var(--accent); }
 .etab-del:hover, .etab-del:focus-visible { color: var(--danger); }
 @media (prefers-reduced-motion: reduce) { .etab { transform: none; transition: opacity 120ms ease; } }
@@ -353,24 +346,47 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @keyframes fmtIn { from { opacity: 0; transform: translateY(3px) scale(0.96); } }
 @media (prefers-reduced-motion: reduce) { .fmtbar { animation: none; } }
 
-/* ---- the copy wheel (#5, owner pick D "gooey petals"): hover Copy → it fills with the accent → icon petals squeeze out ---- */
-.etab-copy { position: absolute; overflow: hidden; isolation: isolate; }
-.etab-copy .ic { position: relative; z-index: 1; transition: color 120ms ease; }
+/* ---- Copy: hover fills the tab with the accent (no timer), then the copy list drops below it (#5, owner pick E1) ---- */
+.etab-copy { overflow: hidden; isolation: isolate; }
+.etab-copy .ic, .etab-copy .etab-t { position: relative; z-index: 1; transition: color 120ms ease; }
 .cw-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); transform: scale(0); pointer-events: none; }
 .etab-copy.filling .cw-fill { animation: cwFill 220ms cubic-bezier(.3, .7, .4, 1) forwards; }
-.etab-copy.filling .ic { color: var(--accent-ink); }
-@keyframes cwFill { to { transform: scale(1); } }
-.cw-open > .etab { opacity: 0 !important; pointer-events: none !important; } /* the other tabs step aside while the wheel is open */
-.cwheel { position: absolute; z-index: 95; width: 0; height: 0; -webkit-app-region: no-drag; }
-.cwheel.goo { filter: url(#ui-goo); }
-.cw-hit { position: absolute; left: -68px; top: -68px; width: 136px; height: 136px; border-radius: 50%; } /* the hover area: gaps between petals count */
-.cw-core, .cw-pet { position: absolute; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; cursor: pointer; font: inherit; }
-.cw-core { left: -14px; top: -14px; width: 28px; height: 28px; z-index: 2; color: var(--accent-ink); background: var(--accent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 4px 12px -4px rgba(20, 30, 70, .4); }
-.cw-pet { left: -13px; top: -13px; width: 26px; height: 26px; z-index: 1; color: var(--muted); background: var(--pill-bg);
-  box-shadow: inset 0 0 0 1px var(--rim-hi), 0 0 0 1px var(--rule), 0 4px 10px -4px rgba(20, 30, 70, .35); }
-.cw-pet:hover { color: var(--ink); }
-.cw-pet.sel { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--pill-bg)); box-shadow: inset 0 0 0 1.5px var(--accent-border), 0 4px 10px -4px rgba(20, 30, 70, .35); }
-.cw-core .ic, .cw-pet .ic { width: 13px; height: 13px; stroke-width: 2; }
-.cw-pet:focus-visible, .cw-core:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .etab-copy.filling .cw-fill { animation: none; transform: scale(1); } }
+.etab-copy.filling .ic, .etab-copy.filling .etab-t { color: var(--accent-ink); }
+@keyframes cwFill { to { transform: scale(1.3); } }
+/* the popovers under a tab: the copy list and the running-timer pill — solid (no backdrop-filter, perf rule) */
+.clist, .tpill {
+  position: absolute; z-index: 95; background: var(--pill-bg); color: var(--ink); -webkit-app-region: no-drag;
+  box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 14px 30px -12px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .12);
+  animation: popDrop 220ms var(--ease-spring) both;
+}
+.clist.out, .tpill.out { animation: popOut 140ms ease-in both; }
+@keyframes popDrop { from { opacity: 0; transform: translateY(-6px) scale(.94); } }
+@keyframes popOut { to { opacity: 0; transform: scale(.95); } }
+.clist { width: 216px; padding: 6px; border-radius: 14px; }
+.cl-grp { padding: 6px 6px 3px; font-size: 10px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
+.cl-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 2px; border-radius: 10px; background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.cl-seg button { display: flex; align-items: center; justify-content: center; gap: 5px; height: 26px; padding: 0 4px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-family: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.cl-seg button:hover { color: var(--ink); }
+.cl-seg button.sel { background: var(--pill-bg); color: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .18), inset 0 0 0 1px var(--accent-border); }
+.cl-seg .ic, .cl-go .ic, .tp-stop .ic { width: 12px; height: 12px; stroke-width: 2; flex: none; }
+.cl-go { display: flex; align-items: center; justify-content: center; gap: 6px; width: 100%; height: 30px; margin-top: 7px; border: 0; border-radius: 9px; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink); font-family: inherit; font-size: var(--fs-2); font-weight: 700; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3); }
+.tpill { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 10px; border-radius: 22px; white-space: nowrap; }
+.tp-ring { width: 24px; height: 24px; transform: rotate(-90deg); flex: none; }
+.tp-ring circle { fill: none; stroke-width: 3; }
+.tp-ring .bg { stroke: var(--rule); }
+.tp-ring .fg { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
+.tp-left { font-family: var(--font-mono); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tp-of { font-size: 10px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+.tp-stop { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 12px; border: 0; border-radius: 14px; cursor: pointer; font-family: inherit; font-size: var(--fs-2); font-weight: 700;
+  color: var(--danger, var(--p3)); background: color-mix(in srgb, var(--danger, var(--p3)) 12%, var(--pill-bg)); }
+.tp-stop:hover { color: var(--pill-bg); background: var(--danger, var(--p3)); }
+/* the subtask Copy button (owner pick D2): icon only, at the end of the subtask row, shown on hover at once */
+.scopy { flex: none; display: inline-grid; place-items: center; width: 22px; height: 22px; margin-inline-start: auto; padding: 0; border: 0; border-radius: 11px; cursor: pointer;
+  color: var(--muted); background: var(--pill-bg); opacity: 0; transform: scale(.85); pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--rim-hi), 0 0 0 1px var(--rule), 0 4px 10px -4px rgba(10, 15, 30, .4);
+  transition: opacity 120ms ease, transform 200ms var(--ease-spring), color 120ms ease; }
+.scopy .ic { width: 12px; height: 12px; stroke-width: 2; }
+[data-sub]:hover .scopy, .scopy:focus-visible { opacity: 1; transform: none; pointer-events: auto; }
+.scopy:hover, .scopy.done { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .etab-copy.filling .cw-fill { animation: none; transform: scale(1.3); } .clist, .tpill, .clist.out, .tpill.out { animation: none; } }

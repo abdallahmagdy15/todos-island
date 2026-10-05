@@ -27,7 +27,7 @@ function dueHtml(t) {
 const RANK_SUB = { '!!!': 3, '!!': 2, '!': 1 };
 const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : '';
 function subsHtml(subs, attrs = '') {
-  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span></div>`;
+  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
   const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
   const fold = done.length ? `<div class="subs-done"><div class="sd-sum">${esc(T('isl.sub.doneN', { n: done.length }))}</div><div class="sd-wrap"><div class="sd-in">${done.map(one).join('')}</div></div></div>` : '';
@@ -88,8 +88,9 @@ let resizeT = null;
 // the window's height: the pill, or further down while the timer dial hangs below it
 let dial = null;
 const islandH = () => {
-  const cw = $('wrap').querySelector(':scope > .cwheel'); // the copy wheel can hang below the pill too
-  return Math.max($('wrap').offsetHeight, dial && dial.el.isConnected ? dial.el.offsetTop + dial.el.offsetHeight + 12 : 0, cw ? cw.offsetTop + 76 : 0);
+  // the copy list / running-timer pill can hang below the pill too
+  const pops = [...$('wrap').querySelectorAll(':scope > .clist, :scope > .tpill')].map(el => el.offsetTop + el.offsetHeight + 12);
+  return Math.max($('wrap').offsetHeight, dial && dial.el.isConnected ? dial.el.offsetTop + dial.el.offsetHeight + 12 : 0, ...pops);
 };
 new MutationObserver(() => scheduleResize(0)).observe($('wrap'), { childList: true }); // a wheel / dial came or went
 function scheduleResize(delay = 0) {
@@ -319,7 +320,9 @@ const etab = window.UI.editTab($('wrap'), {
     window.SFX.play('tick');
     return true;
   },
-  copyWheel: { get: () => copyPrefs.get(), set: (k, v) => copyPrefs.set(k, v) },
+  copyOpts: { get: () => copyPrefs.get(), set: (k, v) => copyPrefs.set(k, v) },
+  timerOf: r => (snap && snap.timer && snap.timer.id === (r.dataset.id || r.dataset.card) ? snap.timer : null),
+  onTimerStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); },
   onTimer: (r, tab) => openDial(r, tab),
   copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
   onLeave: () => clearHover()
@@ -333,8 +336,6 @@ function clearHover() {
   scheduleResize(300);
 }
 $('body').addEventListener('scroll', () => etab.place());
-// rest 1 s on a subtask's text → copy it as plain words (#4, owner 2026-10-05)
-window.UI.restCopy($('body'), { ms: 1000, copy: async t => { await window.api.copyText(t); window.SFX.play('tick'); return true; } });
 $('body').addEventListener('mouseover', e => {
   const row = e.target.closest('.row, .active-card');
   if (!row || row === hoverRow) return;
@@ -407,6 +408,8 @@ $('body').addEventListener('dragend', () => {
 
 // clicks never write as a side effect of looking: row = open the editor; explicit [ ] / ☆ / Done / Not now controls write
 document.addEventListener('click', e => {
+  const sc = e.target.closest('[data-subcopy]');
+  if (sc) { e.stopPropagation(); window.UI.subCopyClick(sc, async t => { await window.api.copyText(t); window.SFX.play('tick'); }); return; }
   if (e.target.closest('[data-peek]')) { flipPeek(); return; }
   if (e.target.closest('[data-open-tasks]')) { window.SFX.play('tick'); window.api.openWindow(); retract(); return; }
   if (e.target.closest('[data-open-settings]')) { window.api.openWindow('settings'); return; }

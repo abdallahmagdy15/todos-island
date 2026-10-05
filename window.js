@@ -77,7 +77,7 @@ function rowHtml(t) {
   const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (!closedRows.has(t.id) || t.id === peekId);
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span></div>`).join('')}
+    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
@@ -115,8 +115,6 @@ function renderList() {
 // The tasks window is where you edit, so the rest is short (REST_MS, owner 2026-09-28); the island keeps hoverSec.
 const REST_MS = 200;
 let restRow = null, restT = null, restId = null, restTab = null;
-// rest 1 s on a subtask's text → copy it as plain words (#4, owner 2026-10-05); the click still opens the editor
-window.UI.restCopy(document.querySelector('.list-sheet'), { ms: 1000, copy: async t => { await window.api.copyText(t); window.SFX.play('tick'); return true; } });
 const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySelector('.list-sheet'), {
   onEdit: r => window.Panels.edit(r.dataset.file, r.dataset.id),
   onStar: r => toggleNow(r.dataset.id, r.dataset.file, r),
@@ -129,7 +127,9 @@ const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySe
     if (!text) return false;
     await window.api.copyText(text); window.SFX.play('tick'); return true;
   },
-  copyWheel: { get: () => copyPrefs.get(), set: (k, v) => copyPrefs.set(k, v) },
+  copyOpts: { get: () => copyPrefs.get(), set: (k, v) => copyPrefs.set(k, v) },
+  timerOf: r => (snap && snap.timer && snap.timer.id === r.dataset.id ? snap.timer : null),
+  onTimerStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); await refresh(); },
   copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
   onLeave: () => restClear()
 }));
@@ -444,6 +444,8 @@ async function onListAction(e) {
   // subtask: its [ ] bracket ticks; the text opens the task's editor (owner 2026-09-28: the window is for editing)
   const sub = e.target.closest('[data-sub]');
   if (sub) {
+    const sc = e.target.closest('[data-subcopy]'); // the subtask Copy button (pick D2): copy, don't open the editor
+    if (sc) { window.UI.subCopyClick(sc, async t => { await window.api.copyText(t); window.SFX.play('tick'); }); return; }
     if (e.target.closest('[data-subtick]')) { window.SFX.play('tick'); await window.api.toggleSubtask(sub.dataset.file, sub.dataset.parent, sub.dataset.sub, 'win' + Date.now()); await refresh(); } // a one-off session = its own Undo
     else window.Panels.edit(sub.dataset.file, sub.dataset.parent);
     return;
