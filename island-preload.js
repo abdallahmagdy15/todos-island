@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld('api', {
   copyText: text => ipcRenderer.invoke('copy-text', text), // the quick Copy tab
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
   reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
+  timerStart: (file, id, title, min) => ipcRenderer.invoke('timer-start', file, id, title, min),
+  timerStop: () => ipcRenderer.invoke('timer-stop'),
+  onTimerEnded: cb => ipcRenderer.on('timer-ended', (_e, d) => cb(d)),
   hide: () => ipcRenderer.send('hide-island'),
   resize: (h, top) => ipcRenderer.send('island-size', h, top)
 });

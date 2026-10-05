@@ -184,6 +184,99 @@
     .replace(/\*\*(?!\s)(.+?)(?<!\s)\*\*/g, '$1').replace(/~~(?!\s)(.+?)(?<!\s)~~/g, '$1').replace(/<u>(.+?)<\/u>/g, '$1')
     .replace(RX_EM_U, '$1$2').replace(RX_EM_S, '$1$2');
 
+  // ---- focus timer (owner 2026-10-05, tasks #10 + #6; demo pick C "arc dial") ----
+  const TIMER_IC = '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M10 2h4M19 6l1.5-1.5"/></svg>';
+  // remaining time as notation: "1:42" (h:mm) from an hour up, "42m" below, "<1m" at the end
+  function timerLeft(timer, now = Date.now()) {
+    const ms = Math.max(0, timer.endsAt - now), m = Math.ceil(ms / 60000);
+    if (ms < 60000) return '<1m';
+    return m >= 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}` : `${m}m`;
+  }
+  const fmtMin = m => (m < 60 ? `${m}m` : `${Math.floor(m / 60)}h${m % 60 ? String(m % 60).padStart(2, '0') : ''}`);
+  // a small ring chip: ⏱ + the time left; the ring drains as the timer runs
+  function timerChip(timer) {
+    const k = Math.max(0, Math.min(1, (timer.endsAt - Date.now()) / (timer.total || 1))), c = 2 * Math.PI * 5.5;
+    return `<svg class="tring" viewBox="0 0 14 14" aria-hidden="true"><circle class="bg" cx="7" cy="7" r="5.5"/><circle class="fg" cx="7" cy="7" r="5.5" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - k)).toFixed(2)}"/></svg><span class="tleft">${timerLeft(timer)}</span>`;
+  }
+  // The arc dial: a half circle you drag around (5-minute steps up to 4 h; on release it snaps to 15m · 30m · 45m ·
+  // 1h · 1h30 · 2h · 3h · 4h when within 5 minutes). It sweeps in from 0 to the current value. Mouse wheel / arrow keys
+  // step 5 minutes; Enter starts. host = the positioned container; anchor = the ⏱ tab it grows out of.
+  const DIAL_MAX = 240, DIAL_SNAP = [15, 30, 45, 60, 90, 120, 180, 240];
+  let dialOpen = null;
+  function arcDial(host, anchor, { minutes = 120, running = false, onStart, onStop, onClose } = {}) {
+    if (dialOpen) dialOpen.close();
+    const W = 210, cx = 105, cy = 104, r = 82;
+    const pt = m => { const a = Math.PI + (m / DIAL_MAX) * Math.PI; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+    const path = m => { const [x, y] = pt(Math.max(0.5, m)); return `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}`; };
+    const ticks = [0, 60, 120, 180, 240].map(m => { const a = Math.PI + (m / DIAL_MAX) * Math.PI; return `<text class="tk" x="${(cx + (r + 15) * Math.cos(a)).toFixed(1)}" y="${(cy + (r + 15) * Math.sin(a) + 3).toFixed(1)}" text-anchor="middle">${m / 60}h</text>`; }).join('');
+    const el = document.createElement('div');
+    el.className = 'arcdial'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('timer.aria'));
+    el.innerHTML = `<svg viewBox="0 -16 ${W} 128" class="ad-svg" tabindex="0" role="slider" aria-valuemin="5" aria-valuemax="${DIAL_MAX}" aria-label="${esc(T('timer.aria'))}"><path class="ad-trk" d="${path(DIAL_MAX)}"/><path class="ad-val"/>${ticks}<circle class="ad-knob" r="9"/></svg>
+      <div class="ad-read" aria-live="polite"></div>
+      <div class="ad-acts">${running ? `<button class="ad-btn ad-stop" type="button">${esc(T('timer.stop'))}</button>` : ''}<button class="ad-btn ad-go" type="button">${esc(T('timer.start'))}</button></div>`;
+    host.appendChild(el);
+    const svg = el.querySelector('.ad-svg'), val = el.querySelector('.ad-val'), knob = el.querySelector('.ad-knob'), read = el.querySelector('.ad-read');
+    let value = Math.max(5, Math.min(DIAL_MAX, minutes));
+    const set = m => {
+      value = m; val.setAttribute('d', path(m)); const [x, y] = pt(m); knob.setAttribute('cx', x.toFixed(1)); knob.setAttribute('cy', y.toFixed(1));
+      read.textContent = fmtMin(Math.round(m)); svg.setAttribute('aria-valuenow', Math.round(m)); svg.setAttribute('aria-valuetext', fmtMin(Math.round(m)));
+    };
+    // place it under the anchor, end-aligned (RTL: start-aligned), inside the host
+    const hb = host.getBoundingClientRect(), ab = anchor.getBoundingClientRect(), rtl = getComputedStyle(host).direction === 'rtl';
+    el.style.top = (ab.bottom - hb.top + host.scrollTop + 6) + 'px';
+    if (rtl) el.style.left = Math.max(6, ab.left - hb.left) + 'px'; else el.style.right = Math.max(6, hb.right - ab.right) + 'px';
+    // the sweep: 0 → value, critically damped (no motion when reduced)
+    const target = value;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) set(target);
+    else { let t0 = 0; requestAnimationFrame(function step(ts) { if (!el.isConnected) return; t0 = t0 || ts; const k = Math.min(1, (ts - t0) / 520), e = 1 - Math.pow(1 - k, 3); set(Math.max(1, target * e)); if (k < 1) requestAnimationFrame(step); else set(target); }); }
+    const snapTo = () => { const near = DIAL_SNAP.find(p => Math.abs(p - value) <= 5); set(near || Math.round(value / 5) * 5); };
+    const fromEvt = e => {
+      const b = svg.getBoundingClientRect(), x = (e.clientX - b.left) / b.width * W, y = (e.clientY - b.top) / b.height * 128 - 16;
+      let a = Math.atan2(y - cy, x - cx); // -π..π; the dial is the upper half (a in -π..0)
+      if (a > 0) a = x < cx ? -Math.PI : 0;
+      return Math.max(5, Math.min(DIAL_MAX, Math.round((a + Math.PI) / Math.PI * DIAL_MAX / 5) * 5));
+    };
+    svg.addEventListener('pointerdown', e => {
+      e.preventDefault(); svg.setPointerCapture(e.pointerId); set(fromEvt(e));
+      const mv = ev => set(fromEvt(ev));
+      svg.addEventListener('pointermove', mv);
+      svg.addEventListener('pointerup', () => { svg.removeEventListener('pointermove', mv); snapTo(); }, { once: true });
+    });
+    svg.addEventListener('wheel', e => { e.preventDefault(); set(Math.max(5, Math.min(DIAL_MAX, Math.round(value / 5) * 5 + (e.deltaY < 0 ? 5 : -5)))); }, { passive: false });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); set(Math.min(DIAL_MAX, Math.round(value / 5) * 5 + 5)); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); set(Math.max(5, Math.round(value / 5) * 5 - 5)); }
+      else if (e.key === 'Enter') { e.preventDefault(); el.querySelector('.ad-go').click(); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); api.close(); }
+    });
+    el.querySelector('.ad-go').addEventListener('click', e => { e.stopPropagation(); const m = Math.round(value); api.close(); if (onStart) onStart(m); });
+    const stop = el.querySelector('.ad-stop');
+    if (stop) stop.addEventListener('click', e => { e.stopPropagation(); api.close(); if (onStop) onStop(); });
+    const outside = e => { if (!el.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) api.close(); };
+    setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
+    const api = {
+      el,
+      close() {
+        if (!el.isConnected) return;
+        document.removeEventListener('pointerdown', outside, true);
+        el.classList.add('out');
+        setTimeout(() => el.remove(), 140);
+        if (dialOpen === api) dialOpen = null;
+        if (onClose) onClose();
+      }
+    };
+    dialOpen = api;
+    svg.focus({ preventScroll: true });
+    return api;
+  }
+  // the end alert (#6): a soft gel bounce + an accent wash on the task's row / card (owner pick "gel bounce")
+  function gelHit(el) {
+    if (!el) return;
+    el.classList.remove('gel-hit'); void el.offsetWidth; el.classList.add('gel-hit');
+    const wash = document.createElement('span'); wash.className = 'gel-wash'; wash.setAttribute('aria-hidden', 'true'); el.appendChild(wash);
+    setTimeout(() => { el.classList.remove('gel-hit'); wash.remove(); }, 2600);
+  }
+
   // Rest-copy (owner 2026-10-05, task #4): resting the pointer `ms` on a subtask's TEXT copies that subtask as plain
   // words (no bangs, no ** _ ~~ <u> marks). A thin accent line charges under the text while you rest (so the copy is
   // never a surprise), then "Copied ✓" flashes on the subtask. Leaving the text cancels. No note write.
@@ -294,7 +387,7 @@
   // pointer has RESTED on (its hoverSec dwell), so passing over rows on the way to another shows nothing. It floats over
   // the row's top edge, outside the row's own box, so it never takes layout width and never gets clipped by the row.
   // onDelete (tasks window only — the island never deletes) adds a trash tab beside Edit, same glass, same rest
-  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, onLeave }) {
+  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, onTimer, onLeave }) {
     const tab = document.createElement('button');
     tab.type = 'button'; tab.className = 'etab'; tab.tabIndex = -1;
     tab.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><path d="M17 3l4 4L8 20l-5 1 1-5L17 3z"/></svg><span class="etab-t"></span>';
@@ -321,7 +414,14 @@
       copy.innerHTML = '<svg class="ic" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/></svg><span class="etab-t"></span>';
       host.appendChild(copy);
     }
-    const tabs = [del, tab, copy, star].filter(Boolean);
+    let timer = null; // focus timer (#10): ⏱ opens the arc dial for the rested task
+    if (onTimer) {
+      timer = document.createElement('button');
+      timer.type = 'button'; timer.className = 'etab etab-timer'; timer.tabIndex = -1;
+      timer.innerHTML = `${TIMER_IC}<span class="etab-t"></span>`;
+      host.appendChild(timer);
+    }
+    const tabs = [del, tab, timer, copy, star].filter(Boolean);
     let row = null;
     const place = () => {
       if (!row || !row.isConnected) { api.hide(); return; }
@@ -343,6 +443,7 @@
         tab.title = label; tab.setAttribute('aria-label', label);
         if (del) { const dl = T('etab.del'); del.title = dl; del.setAttribute('aria-label', dl); }
         if (star) api.setNow(r.classList.contains('is-now'));
+        if (timer) { timer.querySelector('.etab-t').textContent = T('etab.timer'); timer.title = T('etab.timerTitle'); timer.setAttribute('aria-label', T('etab.timerTitle')); timer.classList.toggle('timing', r.classList.contains('timed')); }
         if (copy) { copy.querySelector('.etab-t').textContent = T('etab.copy'); const cl = copyLabel ? copyLabel() : T('etab.copy'); copy.title = cl; copy.setAttribute('aria-label', cl); }
         tabs.forEach(t => t.classList.add('on')); place();
       },
@@ -355,11 +456,13 @@
         star.classList.toggle('now', now);
       },
       get row() { return row; },
+      get timerTab() { return timer; },
       owns: el => !!el && el.nodeType === 1 && tabs.some(t => t.contains(el))
     };
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
     if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
     if (star) star.addEventListener('click', e => { e.stopPropagation(); if (row) onStar(row); });
+    if (timer) timer.addEventListener('click', e => { e.stopPropagation(); if (row) onTimer(row, timer); });
     if (copy) copy.addEventListener('click', async e => {
       e.stopPropagation();
       if (!row) return;
@@ -474,5 +577,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, fmtTime, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();

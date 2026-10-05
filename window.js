@@ -73,20 +73,21 @@ function renderDone(q) { // Done tab: both files, restore or delete (both undoab
     </div></div></div>` })).concat(items.length ? [] : [{ key: 'empty', html: `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>` }]));
 }
 function rowHtml(t) {
+  const timed = !!(snap && snap.timer && snap.timer.id === t.id); // focus timer (#10) running on this task
   const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (!closedRows.has(t.id) || t.id === peekId);
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
     ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span></div>`).join('')}
   </div></div>` : '';
   return `
-  <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
+  <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
     <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(plain(t.title))}"></button>
     <div class="wrow-main">
       <span class="wtitle"><span class="tt">${inline(t.title)}</span></span>
       ${expandBody}
       ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
     </div>
-    <span class="wmeta"><span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
+    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">⏱ ${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${bangCls(t.priority)}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
   </div></div></div>`;
 }
 function renderList() {
@@ -120,8 +121,22 @@ const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySe
   onEdit: r => window.Panels.edit(r.dataset.file, r.dataset.id),
   onStar: r => toggleNow(r.dataset.id, r.dataset.file, r),
   onDelete: async r => { window.SFX.play('delete'); restClear(); await window.api.deleteTask(r.dataset.id, r.dataset.file); await refresh(); },
+  onTimer: (r, tab) => openDial(r, tab),
   onLeave: () => restClear()
 }));
+// focus timer (#10): the ⏱ tab opens the arc dial (UI.arcDial) under the tab, inside the list sheet
+function openDial(r, tab) {
+  const id = r.dataset.id, file = r.dataset.file;
+  const t = snap && snap.sections.flatMap(x => x.items).find(x => x.id === id);
+  if (!t) return;
+  let last = 120; try { last = +localStorage.getItem('timer.last') || 120; } catch (e) {}
+  const running = !!(snap.timer && snap.timer.id === id);
+  window.UI.arcDial(document.querySelector('.list-sheet'), tab, {
+    minutes: running ? Math.round(snap.timer.total / 60000) : last, running,
+    onStart: async m => { try { localStorage.setItem('timer.last', String(m)); } catch (e) {} window.SFX.play('starOn'); await window.api.timerStart(file, id, t.title, m); await refresh(); },
+    onStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); await refresh(); }
+  });
+}
 // resting on a FOLDED row also peeks it open (owner 2026-09-29): its notes + subtasks show with the tabs, and fold back
 // when the pointer leaves. A click while peeking pins it open.
 let peekId = null, noPeekId = null;

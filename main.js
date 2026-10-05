@@ -183,7 +183,7 @@ function snapshot() {
   // Done: newest done first (the u stamp = done date); unstamped done tasks keep note order after them.
   // Work notes already file each newly done task at the top of ## Done, so the note reads in the same order.
   const done = [...work.done, ...personal.done].sort((a, b) => b.updatedTs - a.updatedTs);
-  return { sections, errors, sources, lastWrite, done, workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update };
+  return { sections, errors, sources, lastWrite, done, workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update, timer: state.timer || null };
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
@@ -721,6 +721,7 @@ ipcMain.handle('update-task', (_e, file, id, patch) => {
   const t = f.findById(id);
   const starToggled = t && patch.active !== undefined && !!patch.active !== !!t.active; // editor's ★ path counts as a star interaction
   f.update(id, { title: patch.title, priority: patch.priority, due, time, active: patch.active });
+  if (t && state.timer && state.timer.file === file && state.timer.id === id) { state.timer.id = f.id(t); state.timer.title = t.title; saveState(); } // the timer follows an edited task
   if (patch.desc !== undefined) f.setNotes(id, patch.desc);
   if (patch.session && t) {
     const changed = f.text() !== textBefore; // captureBlock holds RAW lines (re-serialized only on save) — compare the real output
@@ -820,6 +821,43 @@ ipcMain.handle('open-whatsapp', async (_e, text) => {
     return { ok: true, via: hasApp ? 'app' : 'web' };
   } catch (e) { LOG('WHATSAPP-FAIL ' + e.message); return { ok: false }; }
 });
+// ---- focus timer (owner 2026-10-05, tasks #10 + #6): "work on this task for the next N minutes" ----
+// App state only (state.json), never the note: it isn't a task attribute. ONE timer at a time (a new one replaces it).
+// When it ends the island pops ONCE (showInactive: never steals focus), pinned, with a chime, and the task gets the gel
+// highlight. Nothing else: no repeat, no auto-switch — the user switches tasks by hand. The night guard doesn't apply
+// (the user set it). It survives a restart: boot re-arms it, and a timer that ended while the app was closed is dropped.
+let timerT = null;
+function armTimer() {
+  clearTimeout(timerT); timerT = null;
+  const t = state.timer;
+  if (!t) return;
+  const left = t.endsAt - Date.now();
+  if (left <= -60000) { state.timer = null; saveState(); return; } // ended long ago (app was closed): stale, drop it quietly
+  timerT = setTimeout(left > 2 ** 31 - 1 ? armTimer : timerEnded, Math.min(Math.max(0, left), 2 ** 31 - 1));
+}
+function timerEnded() {
+  const t = state.timer;
+  state.timer = null; saveState();
+  if (!t) return;
+  LOG(`TIMER-END ${t.title}`);
+  showIsland();
+  if (island) island.webContents.send('timer-ended', { id: t.id, file: t.file, title: t.title });
+  if (mainWin) mainWin.webContents.send('tasks-changed');
+}
+ipcMain.handle('timer-start', (_e, file, id, title, minutes) => {
+  const min = Number(minutes);
+  if (!['work', 'personal'].includes(file) || !(min > 0 && min <= 12 * 60)) return { ok: false };
+  // E2E: TODO_ISLAND_TIMER_SEC shortens every timer to that many seconds, so a run can watch one end
+  const sec = process.env.TODO_ISLAND_TIMER_SEC || (process.env.TODO_ISLAND_UNDO_TEST ? 2 : 0);
+  const ms = sec ? +sec * 1000 : min * 60000;
+  state.timer = { file, id: String(id), title: String(title || ''), endsAt: Date.now() + ms, total: ms };
+  saveState(); armTimer(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
+  return { ok: true, timer: state.timer };
+});
+ipcMain.handle('timer-stop', () => {
+  state.timer = null; saveState(); armTimer(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
+  return { ok: true };
+});
 ipcMain.handle('copy-text', async (_e, text) => { await clipboard.writeText(String(text || '')); return true; }); // Electron 44 clipboard is async — await so the invoke resolves after the write
 ipcMain.handle('open-note', (_e, file) => {
   shell.openPath(file === 'work' ? state.settings.workPath : state.settings.personalPath);
@@ -841,6 +879,7 @@ else {
     }
     createIsland();
     createTray();
+    armTimer(); // a focus timer from before a restart keeps running
     registerShortcut();
     setTimeout(checkForUpdate, 8000); setInterval(checkForUpdate, 24 * 3600e3); // after boot settles; a tray app runs for days
     if (state.onboarded && state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
@@ -986,6 +1025,9 @@ else {
           // Share pages (owner 2026-09-29): pick on Work/Open, switch to Work/Done, pick there → ONE selection, one message
           await shStep('share-pages-one-selection', `(async()=>{ const w=ms=>new Promise(r=>setTimeout(r,ms)); document.getElementById('sel-clear-all').click(); await w(150); const pg=document.querySelector('#sh-page [data-page=work]'); if(pg) pg.click(); document.querySelector('#sh-sub [data-sub=open]').click(); await w(200); const o=document.querySelector('#share-list .sh-row'); if(!o) return 'no-open-row'; o.click(); document.querySelector('#sh-sub [data-sub=done]').click(); await w(200); const d=document.querySelector('#share-list .sh-row'); if(d) d.click(); await w(100); const hint=document.getElementById('sel-hint').textContent; const subCnt=[...document.querySelectorAll('#sh-sub .cnt')].map(c=>c.textContent).join('/'); document.querySelector('#fmt-seg [data-fmt=text]').click(); document.getElementById('btn-wa').click(); await w(500); document.querySelector('#sh-sub [data-sub=open]').click(); return 'hint=['+hint+'] openDone='+subCnt+' doneRow='+!!d; })()`);
           await shStep('share-day-filter', `(async()=>{ const w=ms=>new Promise(r=>setTimeout(r,ms)); const off=()=>document.querySelectorAll('#share-list .sh-row.off').length; const def=document.querySelector('#sh-day .seg-btn.sel').dataset.day; document.querySelector('#sh-day [data-day=all]').click(); await w(150); const offAll=off(); document.querySelector('#sh-day [data-day=today]').click(); await w(150); return 'default='+def+' offAll='+offAll+' offToday='+off()+' rows='+document.querySelectorAll('#share-list .sh-row').length; })()`);
+          await shStep('timer-start', `(async()=>{ const r=document.querySelector('#task-list .wrow'); if(!r) return 'no-row'; const res=await window.api.timerStart(r.dataset.file, r.dataset.id, 'e2e', 30); return 'ok='+res.ok; })()`);
+          await new Promise(r => setTimeout(r, 3200));
+          LOG('UTEST timer-end-pop: timer=' + (state.timer ? 'STILL RUNNING' : 'ended') + ' island=' + (island && island.isVisible() ? 'shown' : 'hidden'));
           LOG('CLIP-MD: ' + String((await clipboard.readText()) || '').split('\\n').join(' | ').slice(0, 160));
           await closePanel();
           if (process.env.TODO_ISLAND_USERDATA) { // sandbox only: a vanished note must be admitted honestly, in both surfaces
