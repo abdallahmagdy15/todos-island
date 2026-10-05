@@ -272,11 +272,12 @@
       if (a > 0) a = x < cx ? -Math.PI : 0;
       return Math.max(5, Math.min(DIAL_MAX, Math.round((a + Math.PI) / Math.PI * DIAL_MAX / 5) * 5));
     };
+    let dragging = false;
     svg.addEventListener('pointerdown', e => {
-      e.preventDefault(); svg.setPointerCapture(e.pointerId); set(fromEvt(e));
+      e.preventDefault(); svg.setPointerCapture(e.pointerId); set(fromEvt(e)); dragging = true;
       const mv = ev => set(fromEvt(ev));
       svg.addEventListener('pointermove', mv);
-      svg.addEventListener('pointerup', () => { svg.removeEventListener('pointermove', mv); snapTo(); }, { once: true });
+      svg.addEventListener('pointerup', ev => { svg.removeEventListener('pointermove', mv); snapTo(); dragging = false; if (!el.contains(document.elementFromPoint(ev.clientX, ev.clientY))) away({ relatedTarget: null }); }, { once: true });
     });
     svg.addEventListener('wheel', e => { e.preventDefault(); set(Math.max(5, Math.min(DIAL_MAX, Math.round(value / 5) * 5 + (e.deltaY < 0 ? 5 : -5)))); }, { passive: false });
     el.addEventListener('keydown', e => {
@@ -289,12 +290,20 @@
     const stop = el.querySelector('.ad-stop');
     if (stop) stop.addEventListener('click', e => { e.stopPropagation(); api.close(); if (onStop) onStop(); });
     const outside = e => { if (!el.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) api.close(); };
+    // hover out → it dismisses itself after 1 s (owner 2026-10-05); coming back (dial or its tab) within that second keeps it
+    let leaveT = null;
+    const inside = n => !!n && (el.contains(n) || anchor.contains(n));
+    const away = e => { if (dragging || inside(e.relatedTarget)) return; clearTimeout(leaveT); leaveT = setTimeout(() => api.close(), 1000); };
+    const back = () => clearTimeout(leaveT);
+    el.addEventListener('pointerleave', away); anchor.addEventListener('pointerleave', away);
+    el.addEventListener('pointerenter', back); anchor.addEventListener('pointerenter', back);
     setTimeout(() => document.addEventListener('pointerdown', outside, true), 0);
     const api = {
       el,
       close() {
         if (!el.isConnected) return;
         document.removeEventListener('pointerdown', outside, true);
+        clearTimeout(leaveT); anchor.removeEventListener('pointerleave', away); anchor.removeEventListener('pointerenter', back);
         el.classList.add('out');
         setTimeout(() => el.remove(), 140);
         if (dialOpen === api) dialOpen = null;
