@@ -88,7 +88,8 @@ A "no" on any of these → propose it to the owner, don't build it.
 	- [ ] subtask (indented checkbox)
 ```
 
-- Leading meta tokens, any order: `/now` active (working on it now, multiple allowed; any case) · `!`/`!!`/`!!!` priority · `D Mon` due (year auto-inferred; rolls to next year if >45 days past), then `--` and the title.
+- Leading meta tokens, any order: `/now` active (working on it now, multiple allowed; any case) · `!`/`!!`/`!!!` priority · `D Mon` due (year auto-inferred; rolls to next year if >45 days past) with an optional time (`2pm`), then `--` and the title.
+- **Due time (owner 2026-10-05, task #7):** an optional time right after the date: `28 Sep 2pm`, `28 Sep 2:30pm`; 24 h `28 Sep 14:30` is read too. The app WRITES the 12 h form (`fmtTime`). A bare time with no date (`2pm -- Call`) means today; it must be followed by a separator or another token so a title like "9am standup" stays a title. The composer turns a typed bare time into today's date. Task field `time` (minutes after midnight); `resolveDue(due, time)` (no time = noon, as before); the id gains `@<min>` only when a time is set (old ids unchanged); snapshot `dueText` includes it (`28 Sep 2pm`), plus `dueTime`. The due control has an optional time field (`.dtime`, the time wheel; `UI.normTime` also reads `2pm`). Display only + sorting: **no alert from a due time** (owner: alerts belong to the focus timer). Tests: parse.test "#7 due time", compose.test "#7 due time".
 - **v3 (owner 2026-09-29):** the app WRITES `/now` and ` -- ` (fmtTask). Why: a bare leading `*` rendered as a bullet / indent in Markdown viewers, and the wide dash `—` can't be typed on a keyboard. The parser still READS v2 forever: `*` = Now, and `-`, `--` or `—` after the tokens. Unchanged lines stay byte-identical (old style stays until the app rewrites that line). Tests: parse.test "v3: …", "separators read", compose.test "typed /now".
 - Three task states: open / active (`/now`, legacy `*`) / done (ticked; work notes move it under `## Done`)
 - Subtask = indented `- [ ]` (tab or 2+ spaces; a single leading space is still top-level)
@@ -101,7 +102,7 @@ A "no" on any of these → propose it to the owner, don't build it.
   - **Ordering (snapshot in main.js; island + tasks window use it; Share lists latest-updated first, owner 2026-09-29):** Now first → due date (soonest; none last) → priority → last edit (newest). Ties keep note order (stable sort), so drag-reorder now only decides among tasks that tie on all of these. **Done list:** newest done first by u; unstamped done tasks keep note order after them. Work notes also FILE each newly done task at the top of `## Done`, so the note reads in that order.
   - The editor's "will write" preview shows the task line without the hidden stamp (the stamp is added at write time).
 - Parser also accepts legacy trailing styles (`— !! — due:2026-09-24`) and always WRITES v2.1
-- **Invariant:** unchanged tasks emit their raw line verbatim → clean round-trip is byte-identical. Every parse.js change must keep `npm test` green (51 parser asserts, incl. stamps and subtask stamps; the two real-note round-trip tests activate via `TODO_WORK_NOTE`/`TODO_PERSONAL_NOTE` env vars).
+- **Invariant:** unchanged tasks emit their raw line verbatim → clean round-trip is byte-identical. Every parse.js change must keep `npm test` green (52 parser asserts, incl. stamps and subtask stamps; the two real-note round-trip tests activate via `TODO_WORK_NOTE`/`TODO_PERSONAL_NOTE` env vars).
 
 ## Reminder scheduling (v1.3)
 

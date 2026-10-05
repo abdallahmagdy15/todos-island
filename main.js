@@ -4,7 +4,9 @@
 const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, net } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { NoteFile, resolveDue, MONTHS, stampMs } = require('./lib/parse.js');
+const { NoteFile, resolveDue, MONTHS, stampMs, fmtTime, parseDueText } = require('./lib/parse.js');
+// the due as the note writes it: "28 Sep", "28 Sep 2pm", or a bare "2pm" (= today) (#7)
+const dueTextOf = t => [t.due ? `${t.due.d} ${t.due.m}` : null, t.time != null ? fmtTime(t.time) : null].filter(Boolean).join(' ') || null;
 const { composeTask } = require('./lib/compose.js');
 const { planSetup, NOTE_NAME } = require('./lib/setup.js');
 const { makePngBuffer } = require('./lib/icon.js');
@@ -130,8 +132,8 @@ function snapshot() {
   const collect = (f, group) => f.topTasks().filter(t => !t.checked).map(t => ({
     id: f.id(t), file: group, title: t.title, // raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, active: !!t.active,
-    dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
-      dueTs: t.due ? resolveDue(t.due) : null,
+    dueText: dueTextOf(t), dueTime: t.time != null ? fmtTime(t.time) : null,
+      dueTs: t.due || t.time != null ? resolveDue(t.due, t.time) : null,
       notes: f.notesOf(t),
       subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
@@ -139,7 +141,7 @@ function snapshot() {
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
     id: f.id(t), file: group, title: t.title, // raw: **bold** etc. render in the app (UI.inline)
-    priority: t.priority, dueText: t.due ? `${t.due.d} ${t.due.m}` : null,
+    priority: t.priority, dueText: dueTextOf(t),
     notes: f.notesOf(t),
     subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
     lines: f.blockLines(t),
@@ -702,21 +704,23 @@ function subtaskWrite(file, parentId, session, mutate) {
   else { f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed'); }
   return { ok: true, changed: true };
 }
+// "28 Sep 2pm" / "28 Sep" / "" → { due, time } for the note; 31 Feb clamps to 28/29 Feb; a bare time gets today's date
+function dueFromText(text) {
+  const r = parseDueText(text);
+  if (r.due) {
+    const mi = MONTHS.indexOf(r.due.m) + 1;
+    r.due.d = Math.min(r.due.d, new Date(new Date().getFullYear(), mi, 0).getDate());
+  } else if (r.time != null) { const n = new Date(); r.due = { d: n.getDate(), m: MONTHS[n.getMonth()] }; }
+  return { due: r.due, time: r.due ? r.time : null };
+}
 ipcMain.handle('update-task', (_e, file, id, patch) => {
   const f = fileFor(file);
   const before = patch.session ? f.captureBlock(id) : null, textBefore = patch.session ? f.text() : null;
-  let due = undefined;
-  if (patch.dueText !== undefined) {
-    const m = String(patch.dueText || '').match(/^(\d{1,2})\s+([A-Za-z]{3})/);
-    if (m) {
-      const mi = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(m[2][0].toUpperCase() + m[2].slice(1).toLowerCase()) + 1;
-      const dim = new Date(new Date().getFullYear(), mi, 0).getDate(); // clamp: 31 Feb → 28/29 Feb
-      due = { d: Math.min(+m[1], dim), m: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() };
-    } else due = null;
-  }
+  let due = undefined, time = undefined;
+  if (patch.dueText !== undefined) ({ due, time } = dueFromText(patch.dueText));
   const t = f.findById(id);
   const starToggled = t && patch.active !== undefined && !!patch.active !== !!t.active; // editor's ★ path counts as a star interaction
-  f.update(id, { title: patch.title, priority: patch.priority, due, active: patch.active });
+  f.update(id, { title: patch.title, priority: patch.priority, due, time, active: patch.active });
   if (patch.desc !== undefined) f.setNotes(id, patch.desc);
   if (patch.session && t) {
     const changed = f.text() !== textBefore; // captureBlock holds RAW lines (re-serialized only on save) — compare the real output
@@ -736,8 +740,8 @@ ipcMain.handle('compose-task', (_e, data) => composeTask(data || {})); // live "
 ipcMain.handle('add-task', (_e, file, data) => {
   if (file !== 'work' && file !== 'personal') return { ok: false };
   const f = fileFor(file);
-  const m = String(data.dueText || '').match(/^(\d{1,2})\s+([A-Za-z]{3})/);
-  const t = f.addTask({ title: data.title, priority: data.priority || null, active: !!data.active, due: m ? { d: +m[1], m: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() } : null });
+  const { due, time } = dueFromText(data.dueText);
+  const t = f.addTask({ title: data.title, priority: data.priority || null, active: !!data.active, due, time });
   if (t && data.desc && data.desc.length) f.setNotes(f.id(t), data.desc);
   f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: !!t, id: t ? f.id(t) : null };

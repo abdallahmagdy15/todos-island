@@ -43,6 +43,7 @@ To set priority, a due date or the task you're on, just type it at the start of 
 | `--` | separates the marks from the title |
 | `!` `!!` `!!!` | priority: low, medium, high |
 | `26 Sep` | due date (the year is worked out for you) |
+| `26 Sep 2pm` | due date with a time (`2:30pm` and `14:30` work too; a time alone, like `2pm --`, means today) |
 | indented `- [ ]` | a subtask; `- [ ] !! -- call Sam` gives it a priority too (subtasks take `!` `!!` `!!!` only) |
 | indented plain text | a description |
 

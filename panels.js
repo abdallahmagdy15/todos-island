@@ -115,7 +115,7 @@
     });
     if (my !== pvSeq) return r;
     last = r;
-    prioCtl.set(r.priority); dueCtl.set(r.due);
+    prioCtl.set(r.priority); dueCtl.set(r.due ? { ...r.due, time: r.time } : null);
     if (r.active !== activeState) { activeState = r.active; paintActive(); }
     $('ed-preview-line').textContent = r.ok ? r.line : T('ed.noTitle');
     $('ed-preview-line').classList.toggle('bad', !r.ok);

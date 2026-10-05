@@ -240,6 +240,8 @@ const STRINGS_AR = {
   'dc.tomorrow': 'غدًا',
   'dc.pick': 'اختر…',
   'dc.pickAria': 'اختر تاريخًا',
+  'dc.time': 'الوقت',
+  'dc.timeAria': 'وقت الاستحقاق (اختياري)، مثل 2pm',
   'prio.none': 'بلا أولوية',
   'prio.low': 'منخفضة',
   'prio.medium': 'متوسطة',

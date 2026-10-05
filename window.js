@@ -150,7 +150,7 @@ function daysLate(t) {
   return Math.round((today0.getTime() - (t.dueTs - 12 * 3600e3)) / 864e5); // dueTs is noon of the due day
 }
 // the meta shows the SHORT form only (owner 2026-09-28): today = "today", overdue = the date ⇄ "Nd late" in one slot
-const dueHtml = t => t.dueState === 'overdue' && t.dueTs ? window.UI.lateFlip(t.dueText, t.dueTs) : esc(t.dueState === 'today' ? 'today' : t.dueText);
+const dueHtml = t => t.dueState === 'overdue' && t.dueTs ? window.UI.lateFlip(t.dueText, t.dueTs) : esc(t.dueState === 'today' ? (t.dueTime ? 'today ' + t.dueTime : 'today') : t.dueText);
 const dueLabel = t => (t.dueState === 'overdue' ? `${t.dueText} \u00B7 ${daysLate(t)}d late` : t.dueState === 'today' ? `${t.dueText} \u00B7 today` : t.dueText);
 const PRIO_NAME = { '!!!': 'high', '!!': 'medium', '!': 'low' };
 const rowLabel = t => [plain(t.title), t.priority && `${PRIO_NAME[t.priority]} priority`, t.dueText && `due ${dueLabel(t)}`, t.active && 'Now'].filter(Boolean).join(', ');
@@ -501,7 +501,7 @@ async function updatePreview() {
   const r = await window.api.composeTask({ text: $('new-title').value, priority: composer.prio, due: composer.due });
   if (my !== composer.seq) return r; // a newer keystroke already asked
   composer.result = r;
-  prioCtl.set(r.priority); dueCtl.set(r.due); // chips mirror the final truth: typed token unless a chip was clicked
+  prioCtl.set(r.priority); dueCtl.set(r.due ? { ...r.due, time: r.time } : null); // chips mirror the final truth: typed token unless a chip was clicked
   return r;
 }
 function resetComposer() {

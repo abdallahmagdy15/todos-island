@@ -240,6 +240,8 @@ const STRINGS_EN = {
   'dc.tomorrow': 'Tomorrow',
   'dc.pick': 'Pick…',
   'dc.pickAria': 'Pick a date',
+  'dc.time': 'time',
+  'dc.timeAria': 'Due time (optional), like 2pm',
   'prio.none': 'No priority',
   'prio.low': 'Low',
   'prio.medium': 'Medium',

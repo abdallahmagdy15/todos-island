@@ -19,7 +19,7 @@ function dueHtml(t) {
   const cls = t.dueState === 'today' ? 'due today' : t.dueState === 'overdue' ? 'due overdue' : 'due';
   // overdue never relies on color alone: the date and "Nd late" swap in one slot (UI.lateFlip)
   if (t.dueState === 'overdue' && t.dueTs) return `<span class="${cls}">${window.UI.lateFlip(t.dueText, t.dueTs)}</span>`;
-  return `<span class="${cls}">${esc(t.dueState === 'today' ? T('isl.due.today') : t.dueText)}</span>`;
+  return `<span class="${cls}">${esc(t.dueState === 'today' ? T('isl.due.today') + (t.dueTime ? ' ' + t.dueTime : '') : t.dueText)}</span>`;
 }
 // subtasks: the note's own [ ] / [x] brackets (like the parent task). Open ones always show; done ones fold behind
 // one quiet "[x] N done" line and unfold while the pointer rests on it (owner, 2026-09-27).

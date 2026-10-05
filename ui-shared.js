@@ -7,19 +7,32 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const bangCls = p => ({ '!!!': 'p3', '!!': 'p2', '!': 'p1' }[p] || 'p0');
   const dueOf = dt => ({ d: dt.getDate(), m: MONTHS[dt.getMonth()] });
-  const dueText = d => (d ? `${d.d} ${d.m}` : null);
+  // due time (#7, owner 2026-10-05): minutes after midnight, written 12 h like the note ("2pm", "2:30pm")
+  const fmtTime = min => { if (min == null) return ''; const h = Math.floor(min / 60), mi = min % 60; return `${h % 12 || 12}${mi ? ':' + String(mi).padStart(2, '0') : ''}${h < 12 ? 'am' : 'pm'}`; };
+  const timeMin = s => { const t = normTime(s); return t ? +t.slice(0, 2) * 60 + +t.slice(3, 5) : null; };
+  const dueText = d => (d ? `${d.d} ${d.m}${d.time != null ? ' ' + fmtTime(d.time) : ''}` : null);
   const parseDueText = s => {
-    const m = String(s || '').match(/^(\d{1,2})\s+([A-Za-z]{3})/);
-    return m ? { d: +m[1], m: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase() } : null;
+    const m = String(s || '').match(/^(\d{1,2})\s+([A-Za-z]{3})[A-Za-z]*\.?(?:\s+(.+))?$/);
+    if (!m) return null;
+    const time = m[3] ? timeMin(m[3]) : null;
+    return { d: +m[1], m: m[2][0].toUpperCase() + m[2].slice(1).toLowerCase(), ...(time != null ? { time } : {}) };
   };
   // a typed time → "HH:MM" (24 h, Western digits) or null: "9" · "930" · "0930" · "9:30" · "09.30" · Arabic-Indic digits
-  const normTime = s => {
+  // also "2pm" · "2:30 pm" · "12am" (the due-time field shows the note's 12 h form)
+  function normTime(s) {
     const w = String(s || '').trim().replace(/[٠-٩۰-۹]/g, c => String(c.charCodeAt(0) & 0xF));
+    const ap = w.match(/^(\d{1,2})(?:[:.](\d{2}))?\s?([ap])\.?m\.?$/i);
+    if (ap) {
+      const h12 = +ap[1], mi12 = ap[2] === undefined ? 0 : +ap[2];
+      if (h12 < 1 || h12 > 12 || mi12 > 59) return null;
+      const h24 = h12 % 12 + (ap[3].toLowerCase() === 'p' ? 12 : 0);
+      return `${String(h24).padStart(2, '0')}:${String(mi12).padStart(2, '0')}`;
+    }
     const m = w.match(/^(\d{1,2})(?:[:.]?(\d{2}))?$/);
     if (!m) return null;
     const h = +m[1], mi = m[2] === undefined ? 0 : +m[2];
     return h < 24 && mi < 60 ? `${String(h).padStart(2, '0')}:${String(mi).padStart(2, '0')}` : null;
-  };
+  }
   const sameDue = (a, b) => !!a && !!b && a.d === b.d && a.m === b.m;
   const iso = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
   const dayOffset = n => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth(), t.getDate() + n); };
@@ -55,11 +68,23 @@
       <span class="pick-wrap">
         <button class="chip dchip dpick" data-due="pick" type="button" role="radio" aria-label="${esc(T('dc.pickAria'))}">${T('dc.pick')}</button>
         <input class="date-proxy" type="date" tabindex="-1" aria-hidden="true">
-      </span>`;
+      </span>
+      <input class="time-in dtime" type="text" inputmode="numeric" lang="en" dir="ltr" placeholder="${esc(T('dc.time'))}" aria-label="${esc(T('dc.timeAria'))}" title="${esc(T('dc.timeAria'))}">`;
     const proxy = el.querySelector('.date-proxy');
+    // optional time (#7): typed ("2pm", "14:30") or the time wheel; no date yet → today (owner: a time alone means today)
+    const tf = el.querySelector('.dtime');
+    timeWheel(tf);
+    tf.addEventListener('change', () => {
+      const raw = tf.value.trim();
+      const tm = raw ? timeMin(raw) : null;
+      if (raw && tm == null) { tf.value = value && value.time != null ? fmtTime(value.time) : ''; return; }
+      const base = value ? { d: value.d, m: value.m } : (tm != null ? dueOf(dayOffset(0)) : null);
+      set(base ? (tm != null ? { ...base, time: tm } : base) : null, true);
+    });
     const kindOf = v => (!v ? 'none' : sameDue(v, dueOf(dayOffset(0))) ? 'today' : sameDue(v, dueOf(dayOffset(1))) ? 'tomorrow' : 'pick');
     const paint = () => {
       const k = kindOf(value);
+      if (document.activeElement !== tf) tf.value = value && value.time != null ? fmtTime(value.time) : '';
       el.querySelectorAll('.dchip').forEach(c => { const on = c.dataset.due === k; c.classList.toggle('sel', on); c.setAttribute('aria-checked', on); });
       const pick = el.querySelector('.dpick');
       pick.textContent = k === 'pick' ? dueText(value) : T('dc.pick');
@@ -70,9 +95,10 @@
       const c = e.target.closest('.dchip');
       if (!c) return;
       const k = c.dataset.due;
+      const keep = d => (value && value.time != null ? { ...d, time: value.time } : d); // a new day keeps the chosen time
       if (k === 'none') return set(null, true);
-      if (k === 'today') return set(dueOf(dayOffset(0)), true);
-      if (k === 'tomorrow') return set(dueOf(dayOffset(1)), true);
+      if (k === 'today') return set(keep(dueOf(dayOffset(0))), true);
+      if (k === 'tomorrow') return set(keep(dueOf(dayOffset(1))), true);
       proxy.min = iso(dayOffset(-45)); // the note infers the year: >45 days back would read as next year
       if (value) { const mi = MONTHS.indexOf(value.m); if (mi >= 0) proxy.value = iso(new Date(new Date().getFullYear(), mi, value.d)); }
       try { proxy.showPicker(); } catch (err) { proxy.focus(); proxy.click(); }
@@ -80,7 +106,7 @@
     proxy.addEventListener('change', () => {
       if (!proxy.value) return;
       const [y, m, d] = proxy.value.split('-').map(Number);
-      set(dueOf(new Date(y, m - 1, d)), true);
+      set(value && value.time != null ? { ...dueOf(new Date(y, m - 1, d)), time: value.time } : dueOf(new Date(y, m - 1, d)), true);
     });
     paint();
     return { get value() { return value; }, set: v => set(v || null, false) };
@@ -448,5 +474,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, fmtTime, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, restCopy, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();
