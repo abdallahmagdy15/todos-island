@@ -126,6 +126,7 @@ const STRINGS_AR = {
   'isl.head.count': '{m} مفتوحة',
   'isl.sec.now': 'نشطة الآن',
   'isl.sec.work': 'العمل',
+  'isl.peek.title': 'ألقِ نظرة على {n} (حتى تختفي الجزيرة)',
   'isl.sec.personal': 'الشخصي',
   'isl.btn.done': 'تم',
   'isl.btn.notNow': 'ليس الآن',

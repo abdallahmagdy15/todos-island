@@ -126,6 +126,7 @@ const STRINGS_EN = {
   'isl.head.count': '{m} open',
   'isl.sec.now': 'Active now',
   'isl.sec.work': 'Work',
+  'isl.peek.title': 'Peek at {n} (until the island hides)',
   'isl.sec.personal': 'Personal',
   'isl.btn.done': 'Done',
   'isl.btn.notNow': 'Not now',

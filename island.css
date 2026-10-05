@@ -104,6 +104,13 @@ body.pinned .gl-arc { transform: none !important; transition: none !important; }
 }
 .sec .hash { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
 .sec::after { content: ''; flex: 1; height: 1px; background: var(--rule-soft); align-self: center; }
+/* peek switch (#9): with focus-by-time the header is a button — click flips to the other note for this showing */
+button.sec-peek { width: 100%; border: 0; background: transparent; font-family: inherit; text-align: start; cursor: pointer; border-radius: var(--r-1); }
+.sec-peek .swap { font-family: var(--font-sans); font-weight: 400; color: var(--faint); transition: color 160ms ease, transform 260ms var(--ease-out); order: 2; margin-inline-start: 6px; }
+.sec-peek::after { order: 1; }
+.sec-peek:hover, .sec-peek:focus-visible { color: var(--ink); }
+.sec-peek:hover .swap, .sec-peek:focus-visible .swap, .sec-peek.peeking .swap { color: var(--accent); }
+.sec-peek:hover .swap { transform: rotate(180deg); }
 
 .fold { display: grid; grid-template-rows: 1fr; } /* M1: rows fold away via grid rows, never height */
 .fold-in { min-height: 0; overflow: hidden; }

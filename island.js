@@ -98,6 +98,31 @@ function renderSkeleton() {
   document.body.classList.remove('expanded');
   requestAnimationFrame(() => window.api.resize($('wrap').offsetHeight));
 }
+// the note header; with focus-by-time it is the peek switch (⇄ = flip to the other note for this showing)
+let peekOther = false;
+function secHtml(name, peek) {
+  const label = esc(name === 'Work' ? T('isl.sec.work') : T('isl.sec.personal'));
+  if (!peek) return `<div class="sec"><span class="hash">##</span> ${label}</div>`;
+  const other = name === 'Work' ? T('isl.sec.personal') : T('isl.sec.work');
+  return `<button class="sec sec-peek${peekOther ? ' peeking' : ''}" data-peek type="button" title="${esc(T('isl.peek.title', { n: other }))}" aria-label="${esc(T('isl.peek.title', { n: other }))}"><span class="hash">##</span> ${label} <span class="swap" aria-hidden="true">⇄</span></button>`;
+}
+// card flip (owner pick A): the list turns on a horizontal hinge, the other note comes up on its back, a small overshoot
+async function flipPeek() {
+  if (animating) return;
+  const body = $('body');
+  animating++;
+  window.SFX.play('tick');
+  try {
+    await window.Motion.play(body, [{ transform: 'perspective(900px) rotateX(0)', opacity: 1 }, { transform: 'perspective(900px) rotateX(-90deg)', opacity: 0.6 }], { duration: 170, easing: window.Motion.EASE_IN });
+    peekOther = !peekOther;
+    render();
+    await window.Motion.play(body, [{ transform: 'perspective(900px) rotateX(90deg)', opacity: 0.6 }, { transform: 'perspective(900px) rotateX(-8deg)', opacity: 1, offset: 0.7 }, { transform: 'perspective(900px) rotateX(0)', opacity: 1 }], { duration: 380, easing: window.Motion.EASE_OUT });
+  } finally {
+    body.getAnimations().forEach(a => a.cancel()); // never leave a filled transform on the list
+    animating--;
+    flush();
+  }
+}
 function render() {
   if (!snap) { renderSkeleton(); return; }
   const hoverRowId = hoverRow ? hoverRow.dataset.id : null;
@@ -108,7 +133,9 @@ function render() {
   let sections = snap.sections;
   // focus-by-time only makes sense with both notes — a one-note user would get an empty island half the day
   const focus = snap.settings.focusByTime && (snap.settings.mode || 'both') === 'both';
-  if (focus) sections = sections.filter(s => s.name === (snap.workday ? 'Work' : 'Personal'));
+  // peek (owner 2026-10-05, task #9): a click on the "## Work/Personal" header flips to the OTHER note for this showing
+  const timeNote = snap.workday ? 'Work' : 'Personal';
+  if (focus) sections = sections.filter(s => s.name === (peekOther ? (timeNote === 'Work' ? 'Personal' : 'Work') : timeNote));
   const flat = sections.flatMap(s => s.items);
   const total = flat.length;
   const actives = flat.filter(t => t.active);
@@ -156,8 +183,8 @@ function render() {
     const rest = sec.items.filter(t => !t.active);
     const items = rest.slice(0, budget);
     budget -= items.length; shown += items.length;
-    if (!items.length) continue;
-    html += `<div class="sec"><span class="hash">##</span> ${esc(sec.name === 'Work' ? T('isl.sec.work') : T('isl.sec.personal'))}</div>` + items.map(rowHtml).join('');
+    if (!items.length && !focus) continue;
+    html += secHtml(sec.name, focus) + items.map(rowHtml).join('');
   }
   // no button: a collapsed list with more behind it fades at its bottom edge (the hint), and scrolling loads the rest
   const hiddenCount = flat.filter(t => !t.active).length - shown;
@@ -320,6 +347,7 @@ $('body').addEventListener('dragend', () => {
 
 // clicks never write as a side effect of looking: row = open the editor; explicit [ ] / ☆ / Done / Not now controls write
 document.addEventListener('click', e => {
+  if (e.target.closest('[data-peek]')) { flipPeek(); return; }
   if (e.target.closest('[data-open-tasks]')) { window.SFX.play('tick'); window.api.openWindow(); retract(); return; }
   if (e.target.closest('[data-open-settings]')) { window.api.openWindow('settings'); return; }
   const sub = e.target.closest('[data-sub]');
@@ -376,6 +404,7 @@ let retracting = false;
 function retract() {
   if (retracting) return;
   retracting = true;
+  peekOther = false; // a peek lasts one showing: the next pop is the time-based note again
   islandHovered = false; counting = false; // a hidden window never gets its mouseleave
   clearHover(); // …so the rested row and its Edit tab reset too
   clearTimeout(dismissT);
@@ -392,6 +421,7 @@ function editFromIsland(file, id) {
 }
 window.api.onShown(info => {
   retracting = false;
+  if (peekOther) { peekOther = false; if (snap) render(); }
   if (expanded) { expanded = false; if (snap) render(); } // each appearance starts with the few (owner 2026-09-28)
   $('body').scrollTop = 0;
   // hover is only trusted if the island was already up; a fresh pop starts un-hovered and counts down at once
