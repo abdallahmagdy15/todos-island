@@ -205,6 +205,7 @@ const STRINGS_AR = {
   'sh.subs.offTitle': "بدون مهام فرعية",
   'sh.opt.prio': "الأولوية",
   'sh.opt.dates': "التواريخ",
+  'sh.opt.title': "خيارات الرسالة",
   'sh.day': "اليوم",
   'sh.day.all': "الكل",
   'sh.day.today': "اليوم",

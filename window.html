@@ -374,6 +374,22 @@
           <button class="seg-btn sel" data-sub="open" type="button" role="radio"><span data-i18n="sh.open">Open</span><span class="cnt"></span></button>
           <button class="seg-btn" data-sub="done" type="button" role="radio"><span data-i18n="sh.sec.done">Done</span><span class="cnt"></span></button>
         </div>
+        <!-- day filter (#12, owner 2026-10-05; layout A 2026-10-06, demo design-demos/share-layout.html): a chip in the ONE
+             filter bar; its menu holds the segments, and Pick… opens the small calendar inside the same menu -->
+        <div class="sh-popwrap">
+          <button id="sh-day-btn" class="chip sh-chip" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="day-menu">
+            <span class="k" data-i18n="sh.day">Day</span><span class="v" id="sh-day-val"></span><svg class="ic" data-icon="chevronDown" viewBox="0 0 24 24"></svg>
+          </button>
+          <div class="sh-pop down" id="day-menu" role="dialog" data-i18n-aria="sh.day" hidden>
+            <div class="seg" id="sh-day" role="radiogroup">
+              <button class="seg-btn" data-day="all" type="button" role="radio" data-i18n="sh.day.all">All</button>
+              <button class="seg-btn sel" data-day="today" type="button" role="radio" data-i18n="sh.day.today">Today</button>
+              <button class="seg-btn" data-day="yday" type="button" role="radio" data-i18n="sh.day.yday">Yesterday</button>
+              <button class="seg-btn" data-day="pick" type="button" role="radio"><span class="pick-l" data-i18n="sh.day.pick">Pick…</span></button>
+            </div>
+            <div class="day-pop" id="day-pop" hidden></div>
+          </div>
+        </div>
       </div>
       <div class="sh-tools">
         <div class="search-box sh-search">
@@ -385,39 +401,35 @@
       </div>
       <div class="side-scroll" id="share-list"></div>
       <div class="side-foot">
-        <!-- day filter (#12, owner 2026-10-05, pick "quick segments"): only what changed on that day, by the hidden stamps -->
-        <div class="sh-opts sh-dayrow">
-          <span class="ctl-label" data-i18n="sh.day">Day</span>
-          <div class="seg" id="sh-day" role="radiogroup">
-            <button class="seg-btn" data-day="all" type="button" role="radio" data-i18n="sh.day.all">All</button>
-            <button class="seg-btn sel" data-day="today" type="button" role="radio" data-i18n="sh.day.today">Today</button>
-            <button class="seg-btn" data-day="yday" type="button" role="radio" data-i18n="sh.day.yday">Yesterday</button>
-            <button class="seg-btn" data-day="pick" type="button" role="radio" aria-haspopup="dialog"><span class="pick-l" data-i18n="sh.day.pick">Pick…</span></button>
-          </div>
-          <div class="day-pop" id="day-pop" role="dialog" hidden></div>
-        </div>
-        <div class="sh-opts">
-          <div class="seg" id="fmt-seg">
-            <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
-            <button class="seg-btn sel" data-fmt="text" type="button" data-i18n="sh.fmt.text">Plain text</button>
-          </div>
-          <!-- Include (owner 2026-09-30, demo design-demos/share-toggles.html pick B + glyphs): one capsule, a tick per part -->
-          <div class="inc" role="group" data-i18n-aria="sh.opt.include">
-            <!-- Subtasks = a mini switch All · Open · Off (owner 2026-09-30, demo design-demos/share-done-subs.html pick B) -->
-            <span class="inc-part on" id="sh-subs"><span class="opt-g">[ ]</span><span data-i18n="sh.opt.subs">Subtasks</span>
-              <span class="inc-mini" role="radiogroup" data-i18n-aria="sh.opt.subs">
-                <button type="button" role="radio" data-subs="all" data-i18n="sh.subs.all" data-i18n-title="sh.subs.allTitle">All</button>
-                <button type="button" role="radio" data-subs="open" data-i18n="sh.subs.open" data-i18n-title="sh.subs.openTitle">Open</button>
-                <button type="button" role="radio" data-subs="off" data-i18n="sh.subs.off" data-i18n-title="sh.subs.offTitle">Off</button>
-              </span>
-            </span>
-            <button class="inc-b" id="sh-prio" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g p">!!</span><span data-i18n="sh.opt.prio">Priority</span></button>
-            <button class="inc-b" id="sh-dates" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g d">28 Sep</span><span data-i18n="sh.opt.dates">Dates</span></button>
-          </div>
-        </div>
-        <!-- owner 2026-09-30: no separate status row — the pick count (+ × clear-all) and notes sit at the start of the button row -->
+        <!-- owner 2026-09-30: no separate status row — the pick count (+ × clear-all) and notes sit at the start of the button row.
+             Layout A (owner 2026-10-06): the foot is ONE row; format + include fold into the options button beside Export -->
         <div class="ed-actions sh-actions">
           <span class="sh-status"><span class="sel-hint" id="sel-hint"></span><button id="sel-clear-all" class="search-clear sel-x" type="button" hidden data-i18n-aria="sh.clearAll" data-i18n-title="sh.clearAll">&times;</button><span id="share-note" class="note-inline" role="status"></span></span>
+          <div class="sh-popwrap" id="sh-opt-wrap">
+            <button id="sh-opt-btn" class="btn-soft sh-optbtn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="sh-opt-pop" data-i18n-title="sh.opt.title">
+              <span class="sh-optsum" id="sh-opt-sum"></span><svg class="ic" data-icon="chevronDown" viewBox="0 0 24 24"></svg>
+            </button>
+            <div class="sh-pop up" id="sh-opt-pop" role="dialog" data-i18n-aria="sh.opt.title" hidden>
+              <div class="seg" id="fmt-seg">
+                <button class="seg-btn" data-fmt="md" type="button">Markdown</button>
+                <button class="seg-btn sel" data-fmt="text" type="button" data-i18n="sh.fmt.text">Plain text</button>
+              </div>
+              <!-- Include (owner 2026-09-30, demo design-demos/share-toggles.html pick B + glyphs): one capsule, a tick per part;
+                   stacked as a column inside the options pop (layout A) -->
+              <div class="inc inc-col" role="group" data-i18n-aria="sh.opt.include">
+                <!-- Subtasks = a mini switch All · Open · Off (owner 2026-09-30, demo design-demos/share-done-subs.html pick B) -->
+                <span class="inc-part on" id="sh-subs"><span class="opt-g">[ ]</span><span data-i18n="sh.opt.subs">Subtasks</span>
+                  <span class="inc-mini" role="radiogroup" data-i18n-aria="sh.opt.subs">
+                    <button type="button" role="radio" data-subs="all" data-i18n="sh.subs.all" data-i18n-title="sh.subs.allTitle">All</button>
+                    <button type="button" role="radio" data-subs="open" data-i18n="sh.subs.open" data-i18n-title="sh.subs.openTitle">Open</button>
+                    <button type="button" role="radio" data-subs="off" data-i18n="sh.subs.off" data-i18n-title="sh.subs.offTitle">Off</button>
+                  </span>
+                </span>
+                <button class="inc-b" id="sh-prio" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g p">!!</span><span data-i18n="sh.opt.prio">Priority</span></button>
+                <button class="inc-b" id="sh-dates" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g d">28 Sep</span><span data-i18n="sh.opt.dates">Dates</span></button>
+              </div>
+            </div>
+          </div>
           <button id="btn-export" class="btn-soft" type="button" disabled data-i18n="sh.export">Export .md</button>
           <button id="btn-wa" class="btn-soft" type="button" disabled data-i18n="sh.wa">WhatsApp</button>
           <button id="btn-copy" class="btn-accent" type="button" disabled data-i18n="sh.copy">Copy</button>

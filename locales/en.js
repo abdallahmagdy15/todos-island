@@ -205,6 +205,7 @@ const STRINGS_EN = {
   'sh.subs.offTitle': "No subtasks",
   'sh.opt.prio': "Priority",
   'sh.opt.dates': "Dates",
+  'sh.opt.title': "Message options",
   'sh.day': "Day",
   'sh.day.all': "All",
   'sh.day.today': "Today",

@@ -642,8 +642,6 @@ button.sh-sec:hover { color: var(--ink); }
 .sh-tools .seg-btn .cnt:empty { display: none; }
 .sh-search #sh-search { flex: 1; min-width: 0; height: 30px; padding-block: 0; padding-inline: 12px 34px; }
 .sh-search .search-clear { top: 2px; }
-.sh-opts { display: flex; align-items: center; gap: var(--s-2); flex-wrap: wrap; }
-.sh-opts .seg { margin-inline-end: auto; }
 /* Include capsule (owner 2026-09-30, demo share-toggles.html B + glyphs): ONE clear-glass capsule split by hairlines;
    each part = tick · glyph · name, toggles on its own; "on" = accent tick + a faint accent fill */
 .inc { display: inline-flex; border-radius: calc(var(--r-2) - 1px); overflow: hidden; background: var(--sheen), var(--ctl);
@@ -658,6 +656,7 @@ button.sh-sec:hover { color: var(--ink); }
 .inc-tick { flex: none; width: 13px; height: 13px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px currentColor; display: grid; place-items: center; }
 .inc-b.on .inc-tick { background: var(--accent); box-shadow: none; }
 .inc-b.on .inc-tick::after { content: ""; width: 6px; height: 3px; margin-top: -2px; border: solid #fff; border-width: 0 0 2px 2px; transform: rotate(-45deg); }
+.inc .opt-g { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
 .inc .opt-g.p { color: var(--p2); }
 .inc .opt-g.d { color: var(--accent); }
 .inc-b:not(.on) .opt-g { opacity: .55; }
@@ -672,18 +671,45 @@ button.sh-sec:hover { color: var(--ink); }
 .inc-mini button.sel { color: var(--ink); background: linear-gradient(var(--lq-top), var(--lq-bot)); box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), 0 1px 2px var(--drop); }
 .inc-mini button:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 #sel-clear-all { flex: none; white-space: nowrap; }
-/* day filter (#12): the segments + a small calendar that opens ABOVE the foot (solid, like the time wheel) */
-.sh-dayrow { position: relative; }
-.sh-dayrow .seg { margin-inline-end: 0; }
-.sh-dayrow .pick-l { white-space: nowrap; font-variant-numeric: tabular-nums; }
-.sh-row.off { opacity: .45; }
-.day-pop {
-  position: absolute; bottom: calc(100% + 6px); inset-inline-end: 0; z-index: 30; width: 252px; padding: 10px; border-radius: 14px;
+/* Layout A (owner 2026-10-06, demo design-demos/share-layout.html): ONE filter bar on top (note · list · Day chip), the foot
+   is ONE row; the day segments + calendar and the format + include options live in two small solid pops (like the time wheel) */
+.sh-popwrap { position: relative; flex: none; }
+.sh-pop {
+  position: absolute; inset-inline-end: 0; z-index: 30; padding: 10px; border-radius: 14px; display: flex; flex-direction: column; gap: 8px;
   background: var(--pill-bg); color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 18px 40px -16px rgba(0, 0, 0, 0.45);
-  transform-origin: 80% 100%; animation: dayPop 240ms var(--ease-spring) both;
+  animation: dayPop 240ms var(--ease-spring) both;
 }
+.sh-pop.down { top: calc(100% + 6px); transform-origin: 80% 0; animation-name: dayDrop; }
+.sh-pop.up { bottom: calc(100% + 6px); transform-origin: 80% 100%; }
 @keyframes dayPop { from { opacity: 0; transform: scale(.92) translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes dayDrop { from { opacity: 0; transform: scale(.92) translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .sh-pop { animation: none; } }
+.sh-pop .seg { margin-inline-end: 0; }
+#sh-day .pick-l { white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* the Day chip: a quiet label + the chosen day, a chevron that turns while its menu is open */
+.sh-chip { gap: 6px; height: 30px; padding-inline: 10px 8px; white-space: nowrap; }
+.sh-chip .k { color: var(--faint); }
+.sh-chip .v { color: var(--ink); font-variant-numeric: tabular-nums; }
+.sh-chip .ic, .sh-optbtn .ic { width: 13px; height: 13px; stroke-width: 2.2; color: var(--faint); transition: transform var(--d-2) var(--ease-out); }
+.sh-chip[aria-expanded="true"] .ic { transform: rotate(180deg); }
+.sh-optbtn[aria-expanded="false"] .ic { transform: rotate(180deg); } /* it opens UP: the chevron points up while closed */
+/* the options button names the message setup: "Plain text · [ ] · !! · 28 Sep" */
+.sh-optbtn { display: inline-flex; align-items: center; gap: 6px; max-width: 230px; }
+.sh-optsum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-optsum .opt-g { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 700; color: var(--faint); }
+.sh-optsum .opt-g.p { color: var(--p2); }
+.sh-optsum .opt-g.d { color: var(--accent); }
+#sh-opt-pop { width: 248px; }
+#sh-opt-pop #fmt-seg { display: flex; } #sh-opt-pop #fmt-seg .seg-btn { flex: 1; justify-content: center; }
+/* inside the pop the include capsule is a column: one line per part */
+.inc-col { flex-direction: column; }
+.inc-col > * { justify-content: flex-start; height: 32px; }
+.inc-col > .inc-part .inc-mini { margin-inline-start: auto; }
+.inc-col > * + *, .inc-col > .inc-part + .inc-b { border-inline-start: 0; border-top: 1px solid var(--rule); }
+.sh-row.off { opacity: .45; }
+/* the calendar opens INSIDE the day menu, under the segments */
+.day-pop { width: 252px; padding-top: 8px; border-top: 1px solid var(--rule-soft); }
 .dcal-head { display: flex; align-items: center; justify-content: space-between; font-weight: 650; font-size: var(--fs-2); padding: 0 2px 6px; }
 .dcal-nav { width: 26px; height: 26px; border: 0; border-radius: var(--r-1); background: transparent; color: var(--muted); cursor: pointer; font-size: var(--fs-3); }
 .dcal-nav:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
@@ -698,9 +724,6 @@ button.sh-sec:hover { color: var(--ink); }
 .dcal button.has::after { content: ""; position: absolute; left: 50%; bottom: 1px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--accent); }
 .dcal button.end.has::after { background: var(--accent-ink); }
 .dcal-hint { margin-top: 6px; font-size: var(--fs-1); color: var(--faint); }
-@media (prefers-reduced-motion: reduce) { .day-pop { animation: none; } }
-.sh-opts .opt-g { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
-.sh-opts .chip.sel .opt-g { color: var(--accent); }
 .sh-sec .hash, .sh-sec .cnt { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
 .sh-sec::after { content: ""; flex: 1; height: 1px; background: var(--rule-soft); align-self: center; }
 .sh-row { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin: 1px 0; border-radius: var(--r-3); cursor: pointer; transition: background var(--d-1) ease, box-shadow var(--d-1) ease; }
@@ -729,6 +752,6 @@ button.sh-sec:hover { color: var(--ink); }
 .sh-status .sel-x { position: static; flex: none; width: 22px; height: 22px; font-size: var(--fs-3); }
 .sel-hint { font-size: var(--fs-2); color: var(--faint); white-space: nowrap; }
 .note-inline { font-size: var(--fs-2); color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-#btn-export { margin-inline-start: auto; }
+#sh-opt-wrap { margin-inline-start: auto; }
 /* the undo bubble's button is the accent gel, like the island's (owner pick T1) */
 #undo-toast .undo-btn { background: var(--accent); color: var(--accent-ink); border-radius: 13px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }

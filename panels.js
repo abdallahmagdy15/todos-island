@@ -291,7 +291,7 @@
     shSnap = await window.api.getSnapshot();
     if (shSnap && shSnap.lang && shSnap.lang !== LANG) setLang(shSnap.lang);
     fmt = fmtFrom(shSnap);
-    dayMode = 'today'; pickA = pickB = null; $('day-pop').hidden = true;
+    dayMode = 'today'; pickA = pickB = null; closePops();
     limit = STEP; $('share-list').scrollTop = 0;
     paintControls(); renderShare();
   }
@@ -349,11 +349,17 @@
     $('sh-sub').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.sub === sub; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('fmt-seg').querySelectorAll('.seg-btn').forEach(x => x.classList.toggle('sel', x.dataset.fmt === fmt));
     $('sh-day').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.day === dayMode; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
-    $('sh-day').querySelector('.pick-l').textContent = dayMode === 'pick' && pickA ? dayLabel() + ' ▾' : T('sh.day.pick');
+    $('sh-day').querySelector('.pick-l').textContent = dayMode === 'pick' && pickA ? dayLabel() : T('sh.day.pick');
+    $('sh-day-val').textContent = dayMode === 'pick' && pickA ? dayLabel() : T({ all: 'sh.day.all', today: 'sh.day.today', yday: 'sh.day.yday' }[dayMode] || 'sh.day.today');
     for (const [id, k] of INC) { const v = !!opts[fmt][k]; $(id).classList.toggle('on', v); $(id).setAttribute('aria-pressed', v); }
     const m = opts[fmt].subs;
     $('sh-subs').classList.toggle('on', m !== 'off');
     $('sh-subs').querySelectorAll('[data-subs]').forEach(b => { const s = b.dataset.subs === m; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
+    // the options button names the setup in marks: "Plain text · [ ] · !! · 28 Sep" (glyphs over words)
+    const g = (cls, x) => `<span class="opt-g ${cls}">${esc(x)}</span>`;
+    $('sh-opt-sum').innerHTML = [esc(fmt === 'md' ? 'Markdown' : T('sh.fmt.text')),
+      m === 'all' ? g('', '[ ]') : m === 'open' ? g('', '[ ]') + ' ' + esc(T('sh.subs.open')) : '',
+      opts[fmt].prio ? g('p', '!!') : '', opts[fmt].dates ? g('d', '28 Sep') : ''].filter(Boolean).join(' · ');
   }
   function syncShare() { // counts on every page / list + the total; zero selection: the buttons say so
     const on = notesOn(), all = {};
@@ -429,6 +435,22 @@
     const nextOff = new Date(m.getFullYear(), m.getMonth() + 1, 1).getTime() > today;
     pop.innerHTML = `<div class="dcal-head"><button class="dcal-nav" data-nav="-1" type="button" aria-label="${esc(T('sh.day.prev'))}">‹</button><span>${esc(m.toLocaleDateString(LANG === 'ar' ? 'ar' : 'en', { month: 'long', year: 'numeric' }).replace(/[٠-٩]/g, c => String(c.charCodeAt(0) & 0xF)))}</span><button class="dcal-nav" data-nav="1" type="button" aria-label="${esc(T('sh.day.next'))}"${nextOff ? ' disabled' : ''}>›</button></div><div class="dcal">${cells}</div><div class="dcal-hint">${esc(T('sh.day.hint'))}</div>`;
   }
+  // ---- the two pops (layout A): the Day chip's menu drops below the filter bar, the options pop rises above the foot ----
+  const POPS = [['sh-day-btn', 'day-menu'], ['sh-opt-btn', 'sh-opt-pop']];
+  function setPop(btnId, open) {
+    const [b, pop] = [$(btnId), $(POPS.find(p => p[0] === btnId)[1])];
+    pop.hidden = !open; b.setAttribute('aria-expanded', open);
+    if (!open && btnId === 'sh-day-btn') $('day-pop').hidden = true; // the calendar lives inside the day menu
+  }
+  function closePops() { for (const [b] of POPS) setPop(b, false); }
+  for (const [b, p] of POPS) $(b).addEventListener('click', () => { const open = $(p).hidden; closePops(); setPop(b, open); });
+  document.addEventListener('pointerdown', e => {
+    for (const [b, p] of POPS) if (!$(p).hidden && !e.target.closest(`#${b}, #${p}`)) setPop(b, false);
+  });
+  document.addEventListener('keydown', e => {
+    const open = POPS.find(([, p]) => !$(p).hidden);
+    if (e.key === 'Escape' && open) { e.stopPropagation(); setPop(open[0], false); $(open[0]).focus(); }
+  }, true);
   let anchorTs = null;
   const applyDay = () => { paintControls(); renderShare(); };
   $('sh-day').addEventListener('click', e => {
@@ -440,7 +462,7 @@
       calMonth = midnight(pickA || new Date()); calMonth.setDate(1); anchorTs = null;
       drawCal(); pop.hidden = false; return;
     }
-    $('day-pop').hidden = true;
+    setPop('sh-day-btn', false); // a quick day closes the menu
     if (b.dataset.day === dayMode) return;
     dayMode = b.dataset.day; window.SFX.play('tick'); applyDay();
   });
@@ -453,10 +475,8 @@
     if (anchorTs === null) { anchorTs = ts; pickA = new Date(ts); pickB = null; } // first click: that day
     else { pickA = new Date(Math.min(anchorTs, ts)); pickB = new Date(Math.max(anchorTs, ts)); anchorTs = null; } // second: the span
     dayMode = 'pick'; window.SFX.play('tick'); drawCal(); applyDay();
-    if (anchorTs === null) setTimeout(() => { $('day-pop').hidden = true; }, 380); // a finished span closes the calendar
+    if (anchorTs === null) setTimeout(() => setPop('sh-day-btn', false), 380); // a finished span closes the menu
   });
-  document.addEventListener('pointerdown', e => { if (!$('day-pop').hidden && !e.target.closest('#day-pop, #sh-day')) $('day-pop').hidden = true; });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('day-pop').hidden) { e.stopPropagation(); $('day-pop').hidden = true; } }, true);
   for (const [id, k] of INC) $(id).addEventListener('click', () => { opts[fmt][k] = !opts[fmt][k]; window.SFX.play('tick'); saveOpts(); paintControls(); });
   $('sh-subs').addEventListener('click', e => {
     const b = e.target.closest('[data-subs]');
