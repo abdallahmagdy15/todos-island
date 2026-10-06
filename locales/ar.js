@@ -264,6 +264,7 @@ const STRINGS_AR = {
   'u.completed': 'أُنجزت',
   'u.cleared': 'أُفرغت',
   'u.undo': 'تراجع',
+  'u.undoTitle': 'تراجع (Ctrl+Z)',
   'u.secs': '{n}ث',
   'u.reset': 'تمت إعادة ضبط الإعدادات',
 

@@ -278,24 +278,19 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .more-rest:hover { color: var(--accent); }
 .more-rest .ic { width: 11px; height: 11px; stroke-width: 2.2; }
 
-/* undo bar — rendered by UI.mountUndo (shared with the tasks window). It FLOATS at the pill's bottom (owner 2026-09-28):
-   out of the flow, so showing or hiding it never grows or shrinks the island. */
+/* undo — rendered by UI.mountUndo (shared with the tasks window). Owner 2026-10-06 (pick T1): it lives IN the top bar,
+   laid over the title row for its seconds, so it never covers a row and never changes the island's height. */
+.pill-top { position: relative; }
 #undo-bar {
-  position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 5; overflow: hidden;
-  padding: 9px 13px; display: flex; align-items: center; gap: 10px;
-  background: var(--pill-bg); border: 1px solid var(--pill-border); box-shadow: 0 8px 20px -10px rgba(0, 0, 0, 0.45);
-  border-radius: var(--r-inner); font-size: var(--fs-2); color: var(--muted);
-  animation: fadeUp var(--d-2) var(--ease-out) both;
+  position: absolute; inset: 7px 12px 4px; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 0 4px 0 8px;
+  background: var(--pill-bg); border-radius: var(--r-inner); font-size: var(--fs-2); color: var(--muted);
+  box-shadow: inset 0 0 0 1px var(--pill-border);
 }
-.undo-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.undo-btn {
-  border: 0; background: transparent; color: var(--accent); font-family: inherit;
-  font-weight: 700; font-size: var(--fs-2); cursor: pointer; padding: 2px 6px; border-radius: var(--r-1);
+.pill-top button.undo-btn { /* the top-bar icon-button rule would square it to 28×28 */
+  width: auto; height: 24px; padding: 0 11px; border-radius: 12px; font-family: inherit; font-weight: 700; font-size: var(--fs-2);
+  background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
-.undo-btn:hover { background: var(--accent-soft); }
-.undo-count { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); font-variant-numeric: tabular-nums; }
-.undo-progress { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; }
-.undo-fill { display: block; height: 100%; width: 100%; background: var(--accent); transform-origin: left; }
+.pill-top button.undo-btn:hover { background: var(--accent); color: var(--accent-ink); filter: brightness(1.08); }
 /* the Update pill keeps its own shape — the icon-button rule above would square it to 28×28 */
 .pill-top button.upd { width: auto; height: 24px; padding: 0 10px 0 8px; border-radius: 12px; color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
 .pill-top button.upd:hover { color: var(--ok); background: color-mix(in srgb, var(--ok) 22%, transparent); }

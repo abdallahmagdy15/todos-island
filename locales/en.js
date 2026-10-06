@@ -264,6 +264,7 @@ const STRINGS_EN = {
   'u.completed': 'Completed',
   'u.cleared': 'Cleared',
   'u.undo': 'Undo',
+  'u.undoTitle': 'Undo (Ctrl+Z)',
   'u.secs': '{n}s',
   'u.reset': 'Settings reset',
 

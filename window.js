@@ -139,6 +139,14 @@ function renderList() {
 // The tasks window is where you edit, so the rest is short (REST_MS, owner 2026-09-28); the island keeps hoverSec.
 const REST_MS = 600; // owner 2026-09-30: was 200 — the tabs / peek / full title came too eagerly
 let restRow = null, restT = null, restId = null, restTab = null;
+// ONE hover rule (owner 2026-10-06, pick H-B, same as the island): leaving the rested row keeps its tabs L1_GRACE; passing
+// over another row only starts that row's rest (restCand), the old row keeps its tabs until it lands; a pop open = lock.
+const L1_GRACE = 1000;
+let restCand = null, restGraceT = null;
+function restGraceLater() {
+  clearTimeout(restGraceT);
+  restGraceT = setTimeout(() => { if (editTabEl().busy()) { restGraceLater(); return; } restClear(); }, L1_GRACE);
+}
 const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySelector('.list-sheet'), {
   onEdit: r => window.Panels.edit(r.dataset.file, r.dataset.id),
   onStar: r => toggleNow(r.dataset.id, r.dataset.file, r),
@@ -155,7 +163,8 @@ const editTabEl = () => restTab || (restTab = window.UI.editTab(document.querySe
   timerOf: r => (snap && snap.timer && snap.timer.id === r.dataset.id ? snap.timer : null),
   onTimerStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); await refresh(); },
   copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
-  onLeave: () => restClear()
+  onLeave: () => restGraceLater(), // off the tabs / a closed pop: the same L1 grace as leaving the row
+  onEnter: () => { clearTimeout(restGraceT); clearTimeout(restT); restCand = null; }
 }));
 const copyPrefs = window.UI.copyPrefs(() => (snap && snap.settings.shareFmt === 'md' ? 'md' : 'text'), f => { if (snap) snap.settings.shareFmt = f; window.api.saveSettings({ shareFmt: f }); });
 // focus timer (#10): the ⏱ tab opens the arc dial (UI.arcDial) under the tab, inside the list sheet
@@ -175,7 +184,7 @@ function openDial(r, tab) {
 // when the pointer leaves. A click while peeking pins it open.
 let peekId = null, noPeekId = null;
 function restClear() {
-  clearTimeout(restT);
+  clearTimeout(restT); clearTimeout(restGraceT); restCand = null;
   noPeekId = null;
   if (peekId) { const id = peekId; peekId = null; if (closedRows.has(id)) rowInPlace(id); }
   document.querySelectorAll('.wrow.dwelt').forEach(r => r.classList.remove('dwelt'));
@@ -428,17 +437,27 @@ $('btn-fold-all').addEventListener('click', () => {
 });
 $('task-list').addEventListener('mouseover', e => {
   const row = e.target.closest('.wrow');
-  if (!row || row === restRow) return;
-  restClear(); restRow = row; // resting starts now; restOn lands after REST_MS
+  if (!row) return;
+  if (row === restRow) { clearTimeout(restGraceT); if (restCand && restCand !== row) { clearTimeout(restT); restCand = null; } return; }
+  if (row === restCand) return;
+  if (editTabEl().busy()) return; // lock: a pop is open
+  clearTimeout(restT);
+  if (restRow) restGraceLater();
+  restCand = row; // resting starts now; restOn lands after REST_MS
   const id = row.dataset.id;
   restT = setTimeout(() => { // a refresh during the rest re-renders the rows: follow the same task, not the old element
     const r = row.isConnected ? row : [...document.querySelectorAll('#task-list .wrow')].find(x => x.dataset.id === id);
-    if (r) restOn(r);
+    restCand = null;
+    if (!r) return;
+    if (restRow && restRow !== r) restClear();
+    restOn(r);
   }, REST_MS);
 });
 $('task-list').addEventListener('mouseout', e => {
   const row = e.target.closest('.wrow');
-  if (row && row === restRow && !row.contains(e.relatedTarget) && !editTabEl().owns(e.relatedTarget)) restClear();
+  if (!row || row.contains(e.relatedTarget) || editTabEl().owns(e.relatedTarget)) return;
+  if (row === restCand) { clearTimeout(restT); restCand = null; return; } // left before the rest landed
+  if (row === restRow) restGraceLater();
 });
 $('task-list').addEventListener('scroll', () => editTabEl().place());
 // keyboard focus is intent: the focused row rests at once
@@ -521,6 +540,7 @@ async function onListAction(e) {
   // row click = open / fold its notes + subtasks (the ⌄ button is gone); a row with nothing to open goes to the editor
   const row = e.target.closest('.wrow');
   if (!row || row.classList.contains('done')) return;
+  if (editTabEl().justHid()) return; // a click meant for a tab that just hid (H6)
   if (row.classList.contains('has-detail')) { toggleRow(row.dataset.id); return; }
   window.Panels.edit(row.dataset.file, row.dataset.id);
 }
@@ -613,6 +633,7 @@ $('search').addEventListener('input', onSearch);
 $('search').addEventListener('keydown', e => { if (e.key === 'Escape' && $('search').value) { e.stopPropagation(); $('search').value = ''; onSearch(); } });
 $('search-clear').addEventListener('click', () => { $('search').value = ''; onSearch(); $('search').focus(); });
 document.addEventListener('keydown', e => {
+  if (window.UI.undoKey(e, $('undo-toast'))) return; // Ctrl+Z = the bubble's Undo (a text field keeps its own)
   if (e.key === 'Escape' && !$('keys-pop').hidden) { toggleKeys(false); return; }
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.target.closest('input, textarea, select, [contenteditable], .recorder')) return;
