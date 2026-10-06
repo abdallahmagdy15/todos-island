@@ -180,17 +180,22 @@
 
   // Undo bubble — one component for the window toast and the island bar.
   // d = { token, kind, label, starring, left }; the entry is released (onExpire) when the countdown ends.
-  // THE undo bubble (owner 2026-10-06, pick T1): it lives IN the top bar — the bar's title turns into "Deleted: X · ring ·
-  // Undo" for its seconds, so it never covers a row. The ring drains; hovering the bubble pauses it (best practice), and so
+  // THE undo bubble (owner 2026-10-06, pick T1 "title swap", as in the demo): it lives IN the top bar — the bar's own
+  // content (title, mark, count, buttons) slides out and "Deleted: X · ring · Undo" slides into the same line for its
+  // seconds (the parent gets .undo-on; CSS does the swap), so it never covers a row. The ring drains; hovering the bubble pauses it (best practice), and so
   // does pause(true) (the island holds it while tucked away). Ctrl+Z clicks [data-undo] (island.js / window.js).
   function mountUndo(el, d, { onUndo, onExpire } = {}) {
     if (el._undo) el._undo.dispose();
+    clearTimeout(el._outT); el.classList.remove('out');
     const R = 7.5, LEN = 2 * Math.PI * R, total = Math.max(1, d.left) * 1000;
-    el.innerHTML = `<span class="undo-label">${esc(undoText(d))}</span>
+    const txt = undoText(d), at = d.label ? txt.indexOf(d.label) : -1; // the task's name in bold, like the demo
+    const label = at < 0 ? esc(txt) : esc(txt.slice(0, at)) + '<b>' + esc(d.label) + '</b>' + esc(txt.slice(at + d.label.length));
+    el.innerHTML = `<span class="undo-label">${label}</span>
       <svg class="undo-ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="bg" cx="10" cy="10" r="${R}"/><circle class="fg" cx="10" cy="10" r="${R}" stroke-dasharray="${LEN.toFixed(2)}"/></svg>
       <button class="undo-btn" data-undo type="button" title="${esc(T('u.undoTitle'))}">${T('u.undo')}</button>`;
     el.hidden = false;
     el.classList.add('on');
+    if (el.parentElement) el.parentElement.classList.add('undo-on');
     const fg = el.querySelector('.undo-ring .fg');
     let left = total, prev = performance.now(), hover = false, held = false, raf = 0, gone = false;
     const frame = now => {
@@ -198,7 +203,7 @@
       if (!hover && !held) left -= now - prev;
       prev = now;
       fg.style.strokeDashoffset = (LEN * (1 - Math.max(0, left) / total)).toFixed(2);
-      if (left <= 0) { dispose(); el.hidden = true; if (onExpire) onExpire(d.token); return; }
+      if (left <= 0) { dispose(); swapBack(); if (onExpire) onExpire(d.token); return; }
       raf = requestAnimationFrame(frame);
     };
     // rAF stops in a hidden window: a timer keeps the clock honest there (it only drains when not held)
@@ -206,8 +211,14 @@
     raf = requestAnimationFrame(frame);
     const enter = () => { hover = true; }, leave = () => { hover = false; };
     el.addEventListener('pointerenter', enter); el.addEventListener('pointerleave', leave);
-    const dispose = () => { gone = true; cancelAnimationFrame(raf); clearInterval(backstop); el.removeEventListener('pointerenter', enter); el.removeEventListener('pointerleave', leave); el.classList.remove('on'); el._undo = null; };
-    el.querySelector('[data-undo]').addEventListener('click', () => { dispose(); el.hidden = true; if (onUndo) onUndo(d.token); });
+    const dispose = () => { gone = true; cancelAnimationFrame(raf); clearInterval(backstop); el.removeEventListener('pointerenter', enter); el.removeEventListener('pointerleave', leave); el._undo = null; };
+    // the swap back: the undo line slides away and the bar's own content returns
+    const swapBack = () => {
+      el.classList.remove('on'); el.classList.add('out');
+      if (el.parentElement) el.parentElement.classList.remove('undo-on');
+      el._outT = setTimeout(() => { el.hidden = true; el.classList.remove('out'); }, 180);
+    };
+    el.querySelector('[data-undo]').addEventListener('click', () => { dispose(); swapBack(); if (onUndo) onUndo(d.token); });
     el._undo = { dispose, pause: on => { held = !!on; prev = performance.now(); } };
     return el._undo;
   }

@@ -349,18 +349,18 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 /* ---- Copy: hover fills the tab with the accent (no timer), then the copy list drops below it (#5, owner pick E1) ---- */
 .etab-copy { overflow: hidden; isolation: isolate; }
 .etab-copy .ic, .etab-copy .etab-t { position: relative; z-index: 1; transition: color 120ms ease; }
-.cw-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); transform: scale(0); pointer-events: none; }
-.etab-copy.filling .cw-fill { animation: cwFill 500ms cubic-bezier(.4, 0, .6, 1) forwards; } /* = L2 "in" (editTab L2_IN) */
-.etab-copy.filling .ic, .etab-copy.filling .etab-t { color: var(--accent-ink); }
-@keyframes cwFill { to { transform: scale(1.3); } }
+.cw-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); opacity: .22; transform: scaleX(0); transform-origin: left; pointer-events: none; }
+[dir="rtl"] .cw-fill { transform-origin: right; }
+.etab-copy.filling .cw-fill { animation: cwFill 500ms linear forwards; } /* the demo's charge: a soft sweep over L2 "in" (editTab L2_IN) */
+@keyframes cwFill { to { transform: scaleX(1); } }
 /* the popovers under a tab: the copy list and the running-timer pill — solid (no backdrop-filter, perf rule) */
 .clist, .tpill {
   position: absolute; z-index: 95; background: var(--pill-bg); color: var(--ink); -webkit-app-region: no-drag;
   box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 14px 30px -12px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .12);
-  animation: popDrop 220ms var(--ease-spring) both;
+  animation: popDrop 200ms cubic-bezier(.3, 1.3, .5, 1) both; /* the demo's drop */
 }
 .clist.out, .tpill.out { animation: popOut 140ms ease-in both; }
-@keyframes popDrop { from { opacity: 0; transform: translateY(-6px) scale(.94); } }
+@keyframes popDrop { from { opacity: 0; transform: translateY(-5px) scale(.95); } }
 @keyframes popOut { to { opacity: 0; transform: scale(.95); } }
 .clist { width: 150px; padding: 4px; border-radius: 12px; } /* small (owner 2026-10-05) */
 .cl-grp { padding: 4px 4px 2px; font-size: 8.5px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
@@ -389,14 +389,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .scopy .ic { width: 12px; height: 12px; stroke-width: 2; }
 [data-sub]:hover .scopy { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition-delay: 1s, 1s, 0s, 1s; }
 .scopy:hover, .scopy.done { color: var(--accent); }
-@media (prefers-reduced-motion: reduce) { .etab-copy.filling .cw-fill { animation: none; transform: scale(1.3); } .clist, .tpill, .clist.out, .tpill.out { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .etab-copy.filling .cw-fill { animation: none; transform: scaleX(1); } .clist, .tpill, .clist.out, .tpill.out { animation: none; } }
 
-/* ---- the undo bubble's parts (UI.mountUndo; island top bar + window header, owner 2026-10-06 pick T1) ---- */
+/* ---- the undo swap (UI.mountUndo; island top bar + window header, owner 2026-10-06 pick T1 "title swap") ----
+   The bar's own children slide down and fade; the undo line comes in from above on the same spring as the demo. */
+.pill-top > :not(#undo-bar), header > :not(#undo-toast) { transition: opacity 180ms ease, transform 260ms var(--ease-spring), background var(--d-1) ease, color var(--d-1) ease, box-shadow var(--d-1) ease; }
+.undo-on > :not(#undo-bar):not(#undo-toast) { opacity: 0; transform: translateY(6px); pointer-events: none; }
 #undo-bar.on, #undo-toast.on { animation: undoIn 260ms var(--ease-spring) both; }
+#undo-bar.out, #undo-toast.out { animation: undoOut 180ms ease-in both; }
 @keyframes undoIn { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes undoOut { to { opacity: 0; transform: translateY(-6px); } }
 .undo-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.undo-label b { color: var(--ink); font-weight: 650; }
 .undo-ring { width: 16px; height: 16px; flex: none; transform: rotate(-90deg); }
 .undo-ring circle { fill: none; stroke-width: 2.6; }
 .undo-ring .bg { stroke: var(--rule); }
 .undo-ring .fg { stroke: var(--accent); stroke-linecap: round; }
-@media (prefers-reduced-motion: reduce) { #undo-bar.on, #undo-toast.on { animation: none; } }
+@media (prefers-reduced-motion: reduce) { #undo-bar.on, #undo-toast.on, #undo-bar.out, #undo-toast.out { animation: none; } .undo-on > :not(#undo-bar):not(#undo-toast) { transform: none; } }
