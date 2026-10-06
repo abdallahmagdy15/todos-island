@@ -123,7 +123,6 @@ const STRINGS_AR = {
 
   'isl.head.active': '{n}★ · {m} مفتوحة',
   'isl.head.count': '{m} مفتوحة',
-  'isl.sec.now': 'نشطة الآن',
   'isl.sec.work': 'العمل',
   'isl.peek.title': 'ألقِ نظرة على {n} (حتى تختفي الجزيرة)',
   'isl.sec.personal': 'الشخصي',
@@ -147,6 +146,7 @@ const STRINGS_AR = {
   'isl.err.banner': 'تعذّرت قراءة {f} — هل نُقل أو أُعيدت تسميته؟',
   'isl.err.open': 'فتح الإعدادات',
   'isl.sub.doneN': "[x] {n} منجزة",
+  'isl.sub.moreN': "[ ] {n} أخرى",
   'isl.btn.notNowAria': "ليس الآن: {t}",
   'isl.add.title': "أضف مهمة",
   'isl.sub.badge': '{a}/{b} مهام فرعية',
@@ -264,6 +264,7 @@ const STRINGS_AR = {
   'u.completed': 'أُنجزت',
   'u.cleared': 'أُفرغت',
   'u.undo': 'تراجع',
+  'u.undoTitle': 'تراجع (Ctrl+Z)',
   'u.secs': '{n}ث',
   'u.reset': 'تمت إعادة ضبط الإعدادات',
 

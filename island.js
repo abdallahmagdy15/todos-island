@@ -26,12 +26,15 @@ function dueHtml(t) {
 // one quiet "[x] N done" line and unfold while the pointer rests on it (owner, 2026-09-27).
 const RANK_SUB = { '!!!': 3, '!!': 2, '!': 1 };
 const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : '';
+const OPEN_SHOW = 2;
 function subsHtml(subs, attrs = '') {
   const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
   const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
-  const fold = done.length ? `<div class="subs-done"><div class="sd-sum">${esc(T('isl.sub.doneN', { n: done.length }))}</div><div class="sd-wrap"><div class="sd-in">${done.map(one).join('')}</div></div></div>` : '';
-  return open.map(one).join('') + fold;
+  const foldOf = (arr, key) => (arr.length ? `<div class="subs-done"><div class="sd-sum">${esc(T(key, { n: arr.length }))}</div><div class="sd-wrap"><div class="sd-in">${arr.map(one).join('')}</div></div></div>` : '');
+  // a task never eats the island (owner 2026-10-06: "I need to see the top 3"): the first OPEN_SHOW open subtasks show,
+  // the rest fold behind one "[ ] N more" line that opens on a rest — the same fold as the done ones
+  return open.slice(0, OPEN_SHOW).map(one).join('') + foldOf(open.slice(OPEN_SHOW), 'isl.sub.moreN') + foldOf(done, 'isl.sub.doneN');
 }
 // priority sits on the right with the date. It is CLICKABLE (owner 2026-10-01): ! → !! → !!! → none, undoable.
 // No priority → an empty ghost mark that draws a faint "!" only on the row you rest on (CSS ::before), so nothing shifts.
@@ -81,7 +84,7 @@ const hasErrors = () => !!(snap && snap.errors && snap.errors.length);
 
 function renderUndo() {
   const bar = $('undo-bar');
-  if (!snap.undo) { if (bar._undo) bar._undo.dispose(); bar.hidden = true; bar.dataset.token = ''; return; }
+  if (!snap.undo) { if (bar._undo) bar._undo.dispose(); if (!bar.hidden && !bar.classList.contains('out')) { bar.classList.remove('on'); bar.parentElement.classList.remove('undo-on'); bar.hidden = true; } bar.dataset.token = ''; return; }
   if (bar.dataset.token === snap.undo.token && !bar.hidden) return; // same bubble — keep its countdown running
   bar.dataset.token = snap.undo.token;
   window.UI.mountUndo(bar, snap.undo, {
@@ -221,11 +224,10 @@ function render() {
     html += snap.errors.map(e =>
       `<div class="err-banner" role="alert"><span>${esc(T('isl.err.banner', { f: e.name || e.path }))}</span><button data-open-settings type="button">${T('isl.err.open')}</button></div>`).join('');
   }
-  if (actives.length) {
-    html += `<div class="sec"><span class="hash">##</span> ${esc(T('isl.sec.now'))}</div>`;
-    for (const a of actives) {
-      const subs = a.subs.length ? `<div class="ac-subs">${subsHtml(a.subs, ` data-parent="${esc(a.id)}" data-file="${a.file}"`)}</div>` : '';
-      html += `<div class="fold"><div class="fold-in"><div class="active-card rim${snap.timer && snap.timer.id === a.id ? ' timed' : ''}" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
+  // owner 2026-10-06: the note's "## Work / ## Personal" header leads, ABOVE its Now card(s); then that note's rows
+  const cardHtml = a => {
+    const subs = a.subs.length ? `<div class="ac-subs">${subsHtml(a.subs, ` data-parent="${esc(a.id)}" data-file="${a.file}"`)}</div>` : '';
+    return `<div class="fold"><div class="fold-in"><div class="active-card rim${snap.timer && snap.timer.id === a.id ? ' timed' : ''}" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
           <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${inline(a.title)}</span></span>
@@ -233,24 +235,23 @@ function render() {
         </div>
         ${subs}
       </div></div></div>`;
-    }
-  } else if (!total && !errs) {
-    html += `<div class="hint">${focus
-      ? (snap.workday ? T('isl.hint.emptyWork') : T('isl.hint.emptyPersonal'))
-      : T('isl.hint.empty')}</div>`;
-  } else if (total) {
-    html += `<div class="hint">${esc(T('isl.hint.star')).replace(/\[ \]/g, '<span class="kbd">[ ]</span>')}</div>`;
-  }
+  };
+  const hint = actives.length ? '' : !total && !errs
+    ? `<div class="hint">${focus ? (snap.workday ? T('isl.hint.emptyWork') : T('isl.hint.emptyPersonal')) : T('isl.hint.empty')}</div>`
+    : total ? `<div class="hint">${esc(T('isl.hint.star')).replace(/\[ \]/g, '<span class="kbd">[ ]</span>')}</div>` : '';
 
   // collapsed: ISLAND_FEW tasks in all; expanded (you scrolled): ISLAND_CAP, scrolling inside #body's cap
-  let budget = expanded ? ISLAND_CAP : ISLAND_FEW, shown = 0;
+  let budget = expanded ? ISLAND_CAP : ISLAND_FEW, shown = 0, hinted = false;
   for (const sec of sections) {
-    const rest = sec.items.filter(t => !t.active);
-    const items = rest.slice(0, budget);
+    const acts = sec.items.filter(t => t.active);
+    const items = sec.items.filter(t => !t.active).slice(0, budget);
     budget -= items.length; shown += items.length;
-    if (!items.length && !focus) continue;
-    html += secHtml(sec.name, focus) + items.map(rowHtml).join('');
+    if (!acts.length && !items.length && !focus) continue;
+    html += secHtml(sec.name, focus);
+    if (!hinted) { html += hint; hinted = true; }
+    html += acts.map(cardHtml).join('') + items.map(rowHtml).join('');
   }
+  if (!hinted) html += hint;
   // no button: a collapsed list with more behind it fades at its bottom edge (the hint), and scrolling loads the rest
   const hiddenCount = flat.filter(t => !t.active).length - shown;
   $('body').classList.toggle('has-more', !expanded && hiddenCount > 0);
@@ -335,31 +336,58 @@ const etab = window.UI.editTab($('wrap'), {
   onTimerStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); },
   onTimer: (r, tab) => openDial(r, tab),
   copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
-  onLeave: () => clearHover()
+  onLeave: () => graceLater(), // off the tabs / a closed pop: the same L1 grace as leaving the row
+  onEnter: () => { clearTimeout(graceT); cancelCand(); }
 });
 const showEdit = r => etab.show(r, T('isl.btn.editAria', { t: r.querySelector('.tt').textContent }));
 const TAB_REST_MS = 800; // owner 2026-09-30: the Edit / Copy tabs arrive after 0.8 s (or sooner if hoverSec is shorter)
-let tabT = null;
+// ONE hover rule (owner 2026-10-06, pick H-B): L1 = rest on a row → its tabs (and the unfold). Leaving keeps them for
+// L1_GRACE (back on the row, its tabs or a pop cancels it); passing over another row only STARTS that row's rest — the
+// old row keeps its tabs and its unfold until the new rest lands (no shift under the pointer); while a pop is open
+// (copy list, timer pill, dial) other rows can't take the hover at all (lock).
+const L1_GRACE = 1000;
+let tabT = null, graceT = null, candRow = null, overRow = null;
 function clearHover() {
-  clearTimeout(hoverT); clearTimeout(tabT);
+  clearTimeout(hoverT); clearTimeout(tabT); clearTimeout(graceT);
   $('body').querySelectorAll('.hovered, .dwelling').forEach(r => r.classList.remove('hovered', 'dwelling'));
-  hoverRow = null;
+  hoverRow = null; candRow = null;
   etab.hide();
   scheduleResize(300);
+}
+function graceLater() {
+  clearTimeout(graceT);
+  graceT = setTimeout(() => { if (etab.busy()) { graceLater(); return; } clearHover(); }, L1_GRACE);
+}
+function cancelCand() {
+  if (candRow && candRow !== hoverRow) candRow.classList.remove('dwelling');
+  clearTimeout(hoverT); clearTimeout(tabT); candRow = null;
+}
+function promote(row) { // the new rest landed: it takes the tabs, the old row folds now (the pointer is already elsewhere)
+  clearTimeout(graceT);
+  if (hoverRow && hoverRow !== row) { hoverRow.classList.remove('hovered', 'dwelling'); scheduleResize(300); }
+  hoverRow = row;
+  showEdit(row);
 }
 $('body').addEventListener('scroll', () => etab.place());
 $('body').addEventListener('mouseover', e => {
   const row = e.target.closest('.row, .active-card');
-  if (!row || row === hoverRow) return;
-  clearHover();
-  hoverRow = row;
+  if (!row) return;
+  overRow = row;
+  if (row === hoverRow) { clearTimeout(graceT); if (candRow && candRow !== row) cancelCand(); return; }
+  if (row === candRow) return;
+  if (etab.busy()) return; // lock
+  cancelCand();
+  if (hoverRow) graceLater();
+  candRow = row;
   const sec = Math.max(0.2, (snap && snap.settings.hoverSec) || 1);
   if (row.matches('.row') && (row.querySelector('.rd-wrap') || row.querySelector('.rtitle').scrollHeight > row.querySelector('.rtitle').clientHeight + 1)) {
     row.style.setProperty('--dwell', sec + 's');
-    requestAnimationFrame(() => row.classList.add('dwelling')); // M3 — the charge is visible, so the unfold never surprises
+    requestAnimationFrame(() => { if (candRow === row) row.classList.add('dwelling'); }); // M3 — the charge is visible, so the unfold never surprises
   }
-  tabT = setTimeout(() => { if (hoverRow === row) showEdit(row); }, Math.min(TAB_REST_MS, sec * 1000));
+  tabT = setTimeout(() => { if (candRow === row && overRow === row) promote(row); }, Math.min(TAB_REST_MS, sec * 1000));
   hoverT = setTimeout(() => {
+    if (candRow !== row || overRow !== row) return;
+    if (hoverRow !== row) promote(row);
     row.classList.remove('dwelling');
     row.classList.add('hovered');
     showEdit(row); // re-places the tabs on the unfolded row
@@ -371,7 +399,11 @@ $('body').addEventListener('mouseover', e => { const sd = e.target.closest('.sub
 $('body').addEventListener('mouseout', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
 $('body').addEventListener('mouseout', e => {
   const row = e.target.closest('.row, .active-card');
-  if (row && hoverRow === row && !row.contains(e.relatedTarget) && !etab.owns(e.relatedTarget)) clearHover();
+  if (!row || row.contains(e.relatedTarget)) return;
+  if (overRow === row) overRow = null;
+  if (etab.owns(e.relatedTarget)) return; // onto its tabs / pop: nothing changes
+  if (row === candRow && row !== hoverRow) { cancelCand(); return; } // left before the rest landed
+  if (row === hoverRow) graceLater();
 });
 
 // scroll = more: the collapsed list is short enough not to scroll, so a wheel-down on it is the ask
@@ -462,7 +494,7 @@ document.addEventListener('click', e => {
   const unstar = e.target.closest('[data-unstar]');
   if (unstar) { window.SFX.play('starOff'); window.api.toggleActive(unstar.dataset.unstar, unstar.dataset.file); return; }
   const row = e.target.closest('.row');
-  if (row) { window.SFX.play('starOn'); window.api.toggleActive(row.dataset.id, row.dataset.file); return; } // row click = stage as Now
+  if (row) { if (etab.justHid()) return; window.SFX.play('starOn'); window.api.toggleActive(row.dataset.id, row.dataset.file); return; } // row click = stage as Now (not a click meant for a tab that just hid)
 });
 
 
@@ -494,6 +526,7 @@ function retract() {
   peekOther = false; // a peek lasts one showing: the next pop is the time-based note again
   islandHovered = false; counting = false; // a hidden window never gets its mouseleave
   clearHover(); // …so the rested row and its Edit tab reset too
+  if ($('undo-bar')._undo) $('undo-bar')._undo.pause(true); // a tuck holds the undo: its ring waits for the next show
   clearTimeout(dismissT);
   const anim = window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
   // backstop: the window must really hide even if the animation stalls, or the next shortcut press only "dismisses"
@@ -508,6 +541,7 @@ function editFromIsland(file, id) {
 }
 window.api.onShown(info => {
   retracting = false;
+  if ($('undo-bar')._undo) $('undo-bar')._undo.pause(false);
   peekOther = false; // a peek lasts one showing
   expanded = false; frozenOrder = null; // each appearance starts with the few (owner 2026-09-28), freshly sorted (2026-10-01)
   if (snap) render();
@@ -683,6 +717,7 @@ window.addEventListener('blur', () => {
   armDismiss();
 });
 document.addEventListener('keydown', e => {
+  if (window.UI.undoKey(e, $('undo-bar'))) return; // Ctrl+Z = the bubble's Undo
   if (e.key === 'Escape') { retract(); return; }
   const el = document.activeElement && document.activeElement.closest ? document.activeElement.closest('[data-nav]') : null;
   if (!el || e.target !== el) return;

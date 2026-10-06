@@ -296,7 +296,8 @@
     paintControls(); renderShare();
   }
   const notesOn = () => { const m = (shSnap && shSnap.settings.mode) || 'both'; return m === 'both' ? ['work', 'personal'] : [m]; };
-  const byUpdate = arr => [...arr].sort((a, b) => (b.updatedTs || 0) - (a.updatedTs || 0)); // latest-updated first
+  // newest activity first (owner 2026-10-06): a task's newest created/updated stamp, its own or any subtask's; ties keep order
+  const byUpdate = arr => arr.map((t, i) => [t, i, window.ShareText.activity(t)]).sort((x, y) => (y[2] - x[2]) || (x[1] - y[1])).map(x => x[0]);
   const keyOf = t => (t.isDone ? 'd:' : 'o:') + t.id;
   function lists(tag) {
     const sec = shSnap.sections.find(s => s.name === (tag === 'work' ? 'Work' : 'Personal'));
@@ -304,7 +305,7 @@
     return {
       now: byUpdate(items.filter(t => t.active)),
       open: byUpdate(items.filter(t => !t.active)),
-      done: (shSnap.done || []).filter(d => d.file === tag).map(d => ({ ...d, isDone: true })) // newest done first (snapshot)
+      done: byUpdate((shSnap.done || []).filter(d => d.file === tag).map(d => ({ ...d, isDone: true })))
     };
   }
   const hit = t => !query || [t.title, ...(t.notes || []), ...(t.subs || []).map(s => s.t)].some(x => String(x).toLowerCase().includes(query));

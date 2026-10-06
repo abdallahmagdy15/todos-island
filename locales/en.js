@@ -123,7 +123,6 @@ const STRINGS_EN = {
 
   'isl.head.active': '{n}★ · {m} open',
   'isl.head.count': '{m} open',
-  'isl.sec.now': 'Active now',
   'isl.sec.work': 'Work',
   'isl.peek.title': 'Peek at {n} (until the island hides)',
   'isl.sec.personal': 'Personal',
@@ -147,6 +146,7 @@ const STRINGS_EN = {
   'isl.err.banner': 'Can\u2019t read {f} — moved or renamed?',
   'isl.err.open': 'Open settings',
   'isl.sub.doneN': "[x] {n} done",
+  'isl.sub.moreN': "[ ] {n} more",
   'isl.btn.notNowAria': "Not now: {t}",
   'isl.add.title': "Add a task",
   'isl.sub.badge': '{a}/{b} subtasks',
@@ -264,6 +264,7 @@ const STRINGS_EN = {
   'u.completed': 'Completed',
   'u.cleared': 'Cleared',
   'u.undo': 'Undo',
+  'u.undoTitle': 'Undo (Ctrl+Z)',
   'u.secs': '{n}s',
   'u.reset': 'Settings reset',
 

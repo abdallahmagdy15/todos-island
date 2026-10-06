@@ -180,24 +180,55 @@
 
   // Undo bubble — one component for the window toast and the island bar.
   // d = { token, kind, label, starring, left }; the entry is released (onExpire) when the countdown ends.
+  // THE undo bubble (owner 2026-10-06, pick T1 "title swap", as in the demo): it lives IN the top bar — the bar's own
+  // content (title, mark, count, buttons) slides out and "Deleted: X · ring · Undo" slides into the same line for its
+  // seconds (the parent gets .undo-on; CSS does the swap), so it never covers a row. The ring drains; hovering the bubble pauses it (best practice), and so
+  // does pause(true) (the island holds it while tucked away). Ctrl+Z clicks [data-undo] (island.js / window.js).
   function mountUndo(el, d, { onUndo, onExpire } = {}) {
     if (el._undo) el._undo.dispose();
-    let secs = d.left;
-    el.innerHTML = `<span class="undo-label">${esc(undoText(d))}</span>
-      <button class="undo-btn" data-undo type="button">${T('u.undo')}</button><span class="undo-count">${T('u.secs', { n: secs })}</span>
-      <span class="undo-progress"><span class="undo-fill"></span></span>`;
+    clearTimeout(el._outT); el.classList.remove('out');
+    const R = 7.5, LEN = 2 * Math.PI * R, total = Math.max(1, d.left) * 1000;
+    const txt = undoText(d), at = d.label ? txt.indexOf(d.label) : -1; // the task's name in bold, like the demo
+    const label = at < 0 ? esc(txt) : esc(txt.slice(0, at)) + '<b>' + esc(d.label) + '</b>' + esc(txt.slice(at + d.label.length));
+    el.innerHTML = `<span class="undo-label">${label}</span>
+      <svg class="undo-ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="bg" cx="10" cy="10" r="${R}"/><circle class="fg" cx="10" cy="10" r="${R}" stroke-dasharray="${LEN.toFixed(2)}"/></svg>
+      <button class="undo-btn" data-undo type="button" title="${esc(T('u.undoTitle'))}">${T('u.undo')}</button>`;
     el.hidden = false;
-    const cd = countdown(el.querySelector('.undo-fill'));
-    cd.start(secs * 1000);
-    const tick = setInterval(() => {
-      secs--;
-      if (secs <= 0) { dispose(); el.hidden = true; if (onExpire) onExpire(d.token); }
-      else el.querySelector('.undo-count').textContent = T('u.secs', { n: secs });
-    }, 1000);
-    const dispose = () => { clearInterval(tick); el._undo = null; };
-    el.querySelector('[data-undo]').addEventListener('click', () => { dispose(); el.hidden = true; if (onUndo) onUndo(d.token); });
-    el._undo = { dispose };
+    el.classList.add('on');
+    if (el.parentElement) el.parentElement.classList.add('undo-on');
+    const fg = el.querySelector('.undo-ring .fg');
+    let left = total, prev = performance.now(), hover = false, held = false, raf = 0, gone = false;
+    const frame = now => {
+      if (gone) return;
+      if (!hover && !held) left -= now - prev;
+      prev = now;
+      fg.style.strokeDashoffset = (LEN * (1 - Math.max(0, left) / total)).toFixed(2);
+      if (left <= 0) { dispose(); swapBack(); if (onExpire) onExpire(d.token); return; }
+      raf = requestAnimationFrame(frame);
+    };
+    // rAF stops in a hidden window: a timer keeps the clock honest there (it only drains when not held)
+    const backstop = setInterval(() => { if (document.hidden) frame(performance.now()); }, 500);
+    raf = requestAnimationFrame(frame);
+    const enter = () => { hover = true; }, leave = () => { hover = false; };
+    el.addEventListener('pointerenter', enter); el.addEventListener('pointerleave', leave);
+    const dispose = () => { gone = true; cancelAnimationFrame(raf); clearInterval(backstop); el.removeEventListener('pointerenter', enter); el.removeEventListener('pointerleave', leave); el._undo = null; };
+    // the swap back: the undo line slides away and the bar's own content returns
+    const swapBack = () => {
+      el.classList.remove('on'); el.classList.add('out');
+      if (el.parentElement) el.parentElement.classList.remove('undo-on');
+      el._outT = setTimeout(() => { el.hidden = true; el.classList.remove('out'); }, 180);
+    };
+    el.querySelector('[data-undo]').addEventListener('click', () => { dispose(); swapBack(); if (onUndo) onUndo(d.token); });
+    el._undo = { dispose, pause: on => { held = !!on; prev = performance.now(); } };
     return el._undo;
+  }
+  // Ctrl+Z (owner 2026-10-06): undoes what the bubble offers, while it is up; a text field keeps its own Ctrl+Z
+  function undoKey(e, el) {
+    if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return false;
+    if (e.target.closest && e.target.closest('input, textarea, select, [contenteditable]')) return false;
+    const b = !el.hidden && el.querySelector('[data-undo]');
+    if (!b) return false;
+    e.preventDefault(); b.click(); return true;
   }
 
   // Overdue due date (owner, 2026-09-28): the date and its "Nd late" share ONE slot and swap every 2 s (tokens.css .flip2),
@@ -239,6 +270,7 @@
   // step 5 minutes; Enter starts. host = the positioned container; anchor = the ⏱ tab it grows out of.
   const DIAL_MAX = 240, DIAL_SNAP = [15, 30, 45, 60, 90, 120, 180, 240];
   let dialOpen = null;
+  const dialIsOpen = () => !!(dialOpen && dialOpen.el.isConnected);
   function arcDial(host, anchor, { minutes = 120, running = false, onStart, onStop, onClose } = {}) {
     if (dialOpen) dialOpen.close();
     const W = 210, cx = 105, cy = 104, r = 82;
@@ -380,28 +412,20 @@
   const COPY_GROUPS = [['subs', 'cw.grp.subs', [['open', 'subsOpen', 'cw.subsOpen'], ['all', 'subsAll', 'cw.subsAll']]],
     ['day', 'cw.grp.day', [['today', 'today', 'cw.today'], ['all', 'allDays', 'cw.allDays']]],
     ['fmt', 'cw.grp.fmt', [['md', 'markdown', 'cw.md'], ['text', 'text', 'cw.text']]]];
-  function copyListOpen(host, tab, { opts, onPick, onCopy, onClose }) {
+  function copyListOpen(host, tab, { opts, onPick, onClose }) {
     const el = document.createElement('div');
     el.className = 'clist'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('etab.copy'));
+    // the choices only (owner 2026-10-06, C1): the Copy TAB above copies with them — no button of its own
     el.innerHTML = COPY_GROUPS.map(([k, g, two]) => `<div class="cl-grp">${esc(T(g))}</div><div class="cl-seg" role="radiogroup" data-k="${k}">${
-      two.map(([v, ic, lb]) => `<button type="button" role="radio" data-v="${v}" class="${opts[k] === v ? 'sel' : ''}" aria-checked="${opts[k] === v}">${icon(ic)}<span>${esc(T(lb))}</span></button>`).join('')}</div>`).join('') +
-      `<button class="cl-go" type="button">${icon('copy')}<span>${esc(T('etab.copy'))}</span></button>`;
+      two.map(([v, ic, lb]) => `<button type="button" role="radio" data-v="${v}" class="${opts[k] === v ? 'sel' : ''}" aria-checked="${opts[k] === v}">${icon(ic)}<span>${esc(T(lb))}</span></button>`).join('')}</div>`).join('');
     const api = underTab(host, tab, el, 'copy', onClose);
-    el.addEventListener('click', async e => {
+    el.addEventListener('click', e => {
       e.stopPropagation();
       const b = e.target.closest('.cl-seg button');
-      if (b) {
-        const k = b.parentElement.dataset.k;
-        b.parentElement.querySelectorAll('button').forEach(x => { const on = x === b; x.classList.toggle('sel', on); x.setAttribute('aria-checked', on); });
-        onPick(k, b.dataset.v); return;
-      }
-      const go = e.target.closest('.cl-go');
-      if (go) {
-        const ok = await onCopy();
-        if (ok === false) { go.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 240 }); return; } // nothing to copy (e.g. nothing today)
-        go.innerHTML = icon('check') + `<span>${esc(T('etab.copied'))}</span>`; go.classList.add('done');
-        setTimeout(() => api.close(), 380);
-      }
+      if (!b) return;
+      const k = b.parentElement.dataset.k;
+      b.parentElement.querySelectorAll('button').forEach(x => { const on = x === b; x.classList.toggle('sel', on); x.setAttribute('aria-checked', on); });
+      onPick(k, b.dataset.v);
     });
     return api;
   }
@@ -519,7 +543,7 @@
   // Row tabs (owner 2026-10-05, demo pick A2): icon + WORD again, a little closer together, a darker shadow under
   // each so they read clearly over any row. Delete stays an icon (its word is the tooltip). Placed from the row's corner
   // inward: Now · Copy · Timer · Edit · Delete in the tasks window, Copy · Timer · Edit in the island.
-  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, copyOpts, onTimer, timerOf, onTimerStop, onLeave }) {
+  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, copyOpts, onTimer, timerOf, onTimerStop, onLeave, onEnter }) {
     const mk = (cls, html) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'etab ' + cls; b.tabIndex = -1; b.innerHTML = html; host.appendChild(b); return b; };
     const tab = mk('etab-edit', icon('pencil') + '<span class="etab-t"></span>');
     const del = onDelete ? mk('etab-ic etab-del', icon('trash')) : null;
@@ -528,7 +552,7 @@
     const timer = onTimer ? mk('etab-timer', icon('timer') + '<span class="etab-t"></span>') : null; // focus timer (#10)
     const tabs = [del, tab, timer, copy, star].filter(Boolean);
     const word = (b, w) => { b.querySelector('.etab-t').textContent = w; };
-    let row = null, pop = null; // pop = the copy list or the running-timer pill hanging under a tab
+    let row = null, pop = null, hiddenAt = 0; // pop = the copy list or the running-timer pill hanging under a tab
     const place = () => {
       if (!row || !row.isConnected) { api.hide(); return; }
       const h = host.getBoundingClientRect(), b = row.getBoundingClientRect(), rtl = getComputedStyle(host).direction === 'rtl';
@@ -562,7 +586,11 @@
         if (copy) { word(copy, T('etab.copy')); const cl = copyLabel ? copyLabel() : T('etab.copy'); copy.title = cl; copy.setAttribute('aria-label', cl); }
         tabs.forEach(t => t.classList.add('on')); place();
       },
-      hide() { closePop(); row = null; tabs.forEach(t => t.classList.remove('on')); },
+      hide() { closePop(); if (row) hiddenAt = performance.now(); row = null; tabs.forEach(t => t.classList.remove('on')); },
+      // the click guard (owner 2026-10-06, H6): a click this soon after the tabs hid was meant for a tab, not the row
+      justHid: () => performance.now() - hiddenAt < 300,
+      // lock (owner pick H-B): while a pop (copy list, timer pill or dial) is open, other rows can't take the hover
+      busy: () => !!pop || dialIsOpen(),
       place,
       setNow(now) {
         if (!star) return;
@@ -575,40 +603,44 @@
       owns: el => !!el && el.nodeType === 1 && (tabs.some(t => t.contains(el)) || !!(pop && pop.el.contains(el)))
     };
     const leftAll = n => !(row && row.contains(n)) && !api.owns(n);
+    let openPill = () => {};
     const popClosed = () => { pop = null; if (row && !row.matches(':hover') && onLeave) onLeave(); };
-    // ---- Copy (#5, owner pick E1): hover — NO timer — the tab fills with the accent, then a small list drops below it:
-    // Subtasks (open only · all) · Day (today · all days) · Format (Markdown · plain) + a Copy button. A plain click on
-    // the tab copies at once with the current choices.
+    // ---- Copy (#5, owner pick E1; C1 2026-10-06): rest on the tab — L2 "in" 0.5 s, the accent fills it meanwhile — and a
+    // small list drops below it: Subtasks (open only · all) · Day (today · all days) · Format (Markdown · plain). The list only
+    // sets the choices; the TAB copies (a click, with the list open or not).
+    const L2_IN = 500;
     if (copy && copyOpts) {
-      let over = false;
-      const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let inT = null;
       copy.addEventListener('pointerenter', () => {
-        over = true;
         if (pop && pop.kind === 'copy') { pop.hold(); return; }
         if (!row) return;
         copy.classList.remove('filling'); void copy.offsetWidth; copy.classList.add('filling');
-        const go = () => { copy.classList.remove('filling'); if (over && row && !(pop && pop.kind === 'copy')) { closePop(); const r = row; pop = copyListOpen(host, copy, { opts: copyOpts.get(), onPick: (k, v) => copyOpts.set(k, v), onCopy: () => doCopy(r), onClose: popClosed }); } };
-        if (reduced()) go(); else copy.querySelector('.cw-fill').addEventListener('animationend', go, { once: true });
+        clearTimeout(inT);
+        inT = setTimeout(() => { copy.classList.remove('filling'); if (row && !(pop && pop.kind === 'copy')) { closePop(); pop = copyListOpen(host, copy, { opts: copyOpts.get(), onPick: (k, v) => copyOpts.set(k, v), onClose: popClosed }); } }, L2_IN);
       });
-      copy.addEventListener('pointerleave', e => { over = false; if (!pop) copy.classList.remove('filling'); else if (pop.kind === 'copy' && !pop.el.contains(e.relatedTarget)) pop.later(); });
+      copy.addEventListener('pointerleave', e => { clearTimeout(inT); copy.classList.remove('filling'); if (pop && pop.kind === 'copy' && !pop.el.contains(e.relatedTarget)) pop.later(); });
     }
     const flashCopied = () => {
       const swap = n => { const old = copy.querySelector('svg.ic'); if (old) old.outerHTML = icon(n); };
-      swap('check'); word(copy, T('etab.copied')); copy.classList.add('done');
-      setTimeout(() => { swap('copy'); word(copy, T('etab.copy')); copy.classList.remove('done'); }, 1100);
+      swap('check'); word(copy, T('etab.copied').replace(/\s*✓$/, '')); copy.classList.add('done'); place(); // the icon is the check already; re-line the tabs for the new width
+      setTimeout(() => { swap('copy'); word(copy, T('etab.copy')); copy.classList.remove('done'); if (row) place(); }, 1100);
     };
     const doCopy = async r => { const ok = await onCopy(r); if (ok !== false && copy) flashCopied(); return ok; };
     // ---- Timer: not running → a click opens the arc dial; running → hovering (or clicking) the tab shows the pill
     // (ring · time left · Stop), owner pick F1. Both close 1 s after the pointer leaves.
     if (timer) {
-      timer.addEventListener('pointerenter', () => {
+      let inT = null;
+      openPill = () => {
         const tm = row && timerOf ? timerOf(row) : null;
-        if (!tm) return;
-        if (pop && pop.kind === 'pill') { pop.hold(); return; }
+        if (!tm || (pop && pop.kind === 'pill')) return;
         closePop();
         pop = timerPill(host, timer, tm, { onStop: () => onTimerStop && onTimerStop(), onClose: popClosed });
+      };
+      timer.addEventListener('pointerenter', () => {
+        if (pop && pop.kind === 'pill') { pop.hold(); return; }
+        clearTimeout(inT); inT = setTimeout(openPill, L2_IN); // L2 "in", like Copy
       });
-      timer.addEventListener('pointerleave', e => { if (pop && pop.kind === 'pill' && !pop.el.contains(e.relatedTarget)) pop.later(); });
+      timer.addEventListener('pointerleave', e => { clearTimeout(inT); if (pop && pop.kind === 'pill' && !pop.el.contains(e.relatedTarget)) pop.later(); });
     }
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
     if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
@@ -616,11 +648,13 @@
     if (timer) timer.addEventListener('click', e => {
       e.stopPropagation();
       if (!row) return;
-      if (timerOf && timerOf(row)) { if (!pop) timer.dispatchEvent(new PointerEvent('pointerenter')); return; } // running: the pill, not a new dial
+      if (timerOf && timerOf(row)) { openPill(); return; } // running: the pill, not a new dial
       closePop(); onTimer(row, timer);
     });
-    if (copy) copy.addEventListener('click', async e => { e.stopPropagation(); if (row) { closePop(); await doCopy(row); } });
+    // H2 fix (2026-10-06): take the row BEFORE closing the list — closing it can hide the tabs and drop the row
+    if (copy) copy.addEventListener('click', async e => { e.stopPropagation(); const r = row; if (!r) return; const p = pop && pop.kind === 'copy' ? pop : null; const ok = await doCopy(r); if (ok === false) copy.animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(3px)' }, { transform: 'translateX(0)' }], { duration: 240 }); else if (p) setTimeout(() => p.close(), 380); });
     tabs.forEach(t => t.addEventListener('mouseleave', e => { if (row && leftAll(e.relatedTarget) && !pop && onLeave) onLeave(); }));
+    tabs.forEach(t => t.addEventListener('mouseenter', () => { if (onEnter) onEnter(); })); // back on the tabs: the row's grace stops
     return api;
   }
 
@@ -731,5 +765,5 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, editTab, subCopyHtml, subCopyClick, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
 })();
