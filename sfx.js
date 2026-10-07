@@ -35,7 +35,9 @@
     undo:     { glide: [330, 990], dur: 160, type: 'sine', peak: 0.08 },
     pin:      { notes: [[1250, 0, 35]], type: 'sine', peak: 0.07 },
     tick:     { notes: [[950, 0, 28]], type: 'sine', peak: 0.05 },
-    show:     { notes: [[660, 0, 60], [880, 70, 70]], type: 'sine', peak: 0.06 }
+    show:     { notes: [[660, 0, 60], [880, 70, 70]], type: 'sine', peak: 0.06 },
+    // the focus timer's end (owner 2026-10-06, pick S3 "warm pulse"): a soft double pulse on G4 with a faint octave; repeats every 4 s
+    alarm:    { notes: [[392, 0, 900, 0.1], [392, 600, 900, 0.08], [784, 0, 500, 0.02]], type: 'sine', peak: 0.1 }
   };
   window.SFX = {
     enabled: true,
@@ -44,7 +46,7 @@
       const s = SOUNDS[name];
       if (!s) return;
       if (s.glide) tone(s.glide, 0, s.dur, s.type, s.peak);
-      else for (const [f, d, dur] of s.notes) tone(f, d, dur, s.type, s.peak);
+      else for (const [f, d, dur, peak] of s.notes) tone(f, d, dur, s.type, peak || s.peak); // a note may carry its own gain
     }
   };
 })();

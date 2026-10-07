@@ -173,6 +173,14 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .list-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); margin: var(--s-3) var(--s-4) 0; }
 .list-head .md-h { margin: 0; }
 .wrow.done { cursor: default; }
+.wrow.done.has-detail { cursor: pointer; } /* a done row folds open on click, view only (owner 2026-10-06, pick D2) */
+.wsubrow.view { cursor: default; } .wsubrow.view .sb { cursor: default; }
+.wsubrow.view.done .st { color: var(--faint); text-decoration: line-through; }
+.done-seg { margin-inline-end: auto; }
+.done-seg .seg-btn { height: 26px; padding: 0 10px; font-size: var(--fs-1); }
+.done-seg .n { font-family: var(--font-mono); color: var(--faint); margin-inline-start: 3px; }
+.ftag.work { color: var(--accent); }
+.list-head .md-h { flex: none; } #done-head { flex-wrap: wrap; }
 .wrow.done .wtitle { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
 
 /* ==== liquid glass controls (v1.11; round 2, owner: "true liquid glass, not white") — ONE material for every control ====

@@ -26,12 +26,12 @@ function dueHtml(t) {
 // one quiet "[x] N done" line and unfold while the pointer rests on it (owner, 2026-09-27).
 const RANK_SUB = { '!!!': 3, '!!': 2, '!': 1 };
 const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : '';
-const OPEN_SHOW = 2;
+const OPEN_SHOW = 3; // owner 2026-10-06: 3 open subtasks show, the rest fold
 function subsHtml(subs, attrs = '') {
   const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
   const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
-  const foldOf = (arr, key) => (arr.length ? `<div class="subs-done"><div class="sd-sum">${esc(T(key, { n: arr.length }))}</div><div class="sd-wrap"><div class="sd-in">${arr.map(one).join('')}</div></div></div>` : '');
+  const foldOf = (arr, key) => (arr.length ? `<div class="subs-done"><div class="sd-sum"><span>${esc(T(key, { n: arr.length }))}</span>${window.UI.icon('chevronDown', 'sd-ch')}</div><div class="sd-wrap"><div class="sd-in">${arr.map(one).join('')}</div></div></div>` : '');
   // a task never eats the island (owner 2026-10-06: "I need to see the top 3"): the first OPEN_SHOW open subtasks show,
   // the rest fold behind one "[ ] N more" line that opens on a rest — the same fold as the done ones
   return open.slice(0, OPEN_SHOW).map(one).join('') + foldOf(open.slice(OPEN_SHOW), 'isl.sub.moreN') + foldOf(done, 'isl.sub.doneN');
@@ -56,14 +56,16 @@ function rowHtml(t) {
   </div></div></div>`;
 }
 
-// Dismiss timer. ONE rule, applied by armDismiss() after anything that could matter (render, hover, pin, keys):
-//   pinned / broken note → no timer · pointer on the island or keyboard mode → timer held FULL
-//   otherwise → a full countdown, started once; re-renders from clicks never restart or pause it.
-let dismissBar = null;
+// Dismiss timer. ONE rule, applied by armDismiss() after anything that could matter (render, hover, pin, show):
+//   pinned / broken note → no timer, held full
+//   otherwise it COUNTS from the moment the island shows (owner 2026-10-06: timed pop, shortcut and top-edge peek alike;
+//   keyboard mode no longer holds it) · the pointer on the island PAUSES it · leaving RESUMES from where it was (never a
+//   restart; at least 1.5 s left so it doesn't vanish under a leaving pointer) · re-renders never restart or pause it.
+let dismissBar = null, dismissLeft = 0, dismissAt = 0, paused = false;
 const bar = () => { // the glass's own top highlight is the clock (owner pick 'D'): the arc and its blue core shrink to the center
   if (!dismissBar) {
     const core = window.UI.countdown($('progress-fill')), arc = window.UI.countdown($('gl-arc'));
-    dismissBar = { start: t => { core.start(t); arc.start(t); } };
+    dismissBar = { start: t => { core.start(t); arc.start(t); }, pause: () => { core.pause(); arc.pause(); } };
   }
   return dismissBar;
 };
@@ -71,14 +73,34 @@ const dismissMs = () => ((snap && snap.settings.dismissSec) || 7) * 1000;
 function scheduleDismiss(ms) {
   clearTimeout(dismissT);
   bar().start(ms);
-  counting = true;
+  counting = true; paused = false; dismissLeft = ms; dismissAt = Date.now();
   dismissT = setTimeout(() => { counting = false; if (!pinned && !hasErrors()) retract(); }, ms);
 }
-function holdFull() { clearTimeout(dismissT); counting = false; bar().start(0); } // start(0) = painted full, no motion
+function pauseDismiss() {
+  if (!counting) { if (!paused) bar().start(0); return; } // not started yet (hovered from the first frame): painted full
+  clearTimeout(dismissT);
+  dismissLeft = Math.max(0, dismissLeft - (Date.now() - dismissAt));
+  counting = false; paused = true;
+  bar().pause();
+}
+const MIN_LEFT = 1500;
+function resumeDismiss() {
+  const ms = dismissLeft;
+  if (ms < MIN_LEFT) { scheduleDismiss(MIN_LEFT); return; }
+  // the bar keeps its paused fill and drains the rest: restart it from the same fraction
+  clearTimeout(dismissT);
+  const total = dismissMs(), frac = Math.min(1, ms / total);
+  ['progress-fill', 'gl-arc'].forEach(id => { const f = $(id); f.style.transition = 'none'; f.style.transform = `scaleX(${frac})`; if (matchMedia('(prefers-reduced-motion: reduce)').matches) return; void f.offsetWidth; f.style.transition = `transform ${ms}ms linear`; f.style.transform = 'scaleX(0)'; });
+  counting = true; paused = false; dismissAt = Date.now();
+  dismissT = setTimeout(() => { counting = false; if (!pinned && !hasErrors()) retract(); }, ms);
+}
+function holdFull() { clearTimeout(dismissT); counting = false; paused = false; bar().start(0); } // start(0) = painted full, no motion
 function armDismiss() {
   if (pinned || hasErrors()) { holdFull(); return; }
-  if (islandHovered || kbdActive) { holdFull(); return; }
-  if (!counting) scheduleDismiss(dismissMs());
+  if (islandHovered) { pauseDismiss(); return; }
+  if (counting) return;
+  if (paused) { resumeDismiss(); return; }
+  scheduleDismiss(dismissMs());
 }
 const hasErrors = () => !!(snap && snap.errors && snap.errors.length);
 
@@ -155,19 +177,46 @@ function openDial(r, anchor) {
   });
   scheduleResize(0); armDismiss();
 }
+// The end (#6; owner 2026-10-06 picks S3 + A2): the island drops in, pins, and a breathing "Time's up" line with a ring
+// and a Stop button shows above the list. A soft warm pulse (SFX 'alarm', gated by the sound setting like every sound)
+// repeats every ALARM_EVERY until Stop; after ALARM_FOR it stops by itself and the island tucks away. Closing the island
+// stops it too.
+const ALARM_EVERY = 4000, ALARM_FOR = 60000;
+let alarm = null; // { el, rep, ring, end, wasPinned }
+function stopAlarm(how) { // how: 'stop' (Stop clicked → normal dismiss countdown) · 'timeout' (→ tuck away) · 'quiet' (the island is leaving)
+  if (!alarm) return;
+  const a = alarm; alarm = null;
+  clearInterval(a.rep); clearInterval(a.ring); clearTimeout(a.end);
+  a.el.classList.add('out'); setTimeout(() => { a.el.remove(); scheduleResize(0); }, 180);
+  pinned = a.wasPinned; document.body.classList.toggle('pinned', pinned || hasErrors()); $('btn-pin').classList.toggle('pinned', pinned);
+  if (how === 'timeout') retract();
+  else if (how === 'stop') { counting = false; paused = false; armDismiss(); }
+}
 window.api.onTimerEnded(d => {
   // time's up: the island is already dropping in (main showIsland); pin it and give the task the gel highlight
+  stopAlarm('quiet');
+  const wasPinned = pinned;
   pinned = true;
   if (snap) render();
   setTimeout(() => {
-    window.SFX.play('complete');
     const el = $('body').querySelector(`[data-card="${CSS.escape(d.id)}"], .row[data-id="${CSS.escape(d.id)}"]`);
     window.UI.gelHit(el);
+    const R = 8, LEN = 2 * Math.PI * R;
     const b = document.createElement('div');
-    b.className = 'time-up'; b.setAttribute('role', 'status');
-    b.innerHTML = `${window.UI.TIMER_IC}<span>${esc(T('timer.ended', { t: plain(d.title) }))}</span>`;
+    b.className = 'time-up'; b.setAttribute('role', 'alert');
+    b.innerHTML = `<svg class="tu-ring" viewBox="0 0 22 22" aria-hidden="true"><circle class="bg" cx="11" cy="11" r="${R}"/><circle class="fg" cx="11" cy="11" r="${R}" stroke-dasharray="${LEN.toFixed(2)}"/></svg>
+      <span class="tu-t">${esc(T('timer.ended', { t: plain(d.title) }))}</span>
+      <button class="tu-stop" type="button">${esc(T('timer.stop'))}</button>`;
     $('body').prepend(b); scheduleResize(0);
-    setTimeout(() => { b.remove(); scheduleResize(0); }, 9000);
+    const t0 = Date.now(), fg = b.querySelector('.fg');
+    window.SFX.play('alarm');
+    alarm = {
+      el: b, wasPinned,
+      rep: setInterval(() => window.SFX.play('alarm'), ALARM_EVERY),
+      ring: setInterval(() => { fg.style.strokeDashoffset = (LEN * Math.min(1, (Date.now() - t0) / ALARM_FOR)).toFixed(2); }, 250),
+      end: setTimeout(() => stopAlarm('timeout'), ALARM_FOR)
+    };
+    b.querySelector('.tu-stop').addEventListener('click', e => { e.stopPropagation(); window.SFX.play('tick'); stopAlarm('stop'); });
   }, 420);
 });
 
@@ -394,9 +443,9 @@ $('body').addEventListener('mouseover', e => {
     scheduleResize(300);
   }, sec * 1000);
 });
-const SD_OPEN_MS = 1000 + 500; // the done-subtasks fold: 1 s rest + its reveal (island.css .sd-wrap)
+const SD_OPEN_MS = 500 + 500, SD_CLOSE_MS = 1000 + 260; // the folds (island.css .sd-wrap): 0.5 s rest + reveal · 1 s grace + fold
 $('body').addEventListener('mouseover', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(SD_OPEN_MS); });
-$('body').addEventListener('mouseout', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
+$('body').addEventListener('mouseout', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(SD_CLOSE_MS); });
 $('body').addEventListener('mouseout', e => {
   const row = e.target.closest('.row, .active-card');
   if (!row || row.contains(e.relatedTarget)) return;
@@ -524,8 +573,9 @@ function retract() {
   if (retracting) return;
   retracting = true;
   peekOther = false; // a peek lasts one showing: the next pop is the time-based note again
-  islandHovered = false; counting = false; // a hidden window never gets its mouseleave
+  islandHovered = false; counting = false; paused = false; // a hidden window never gets its mouseleave
   clearHover(); // …so the rested row and its Edit tab reset too
+  stopAlarm('quiet'); // closing the island silences the timer alarm
   if ($('undo-bar')._undo) $('undo-bar')._undo.pause(true); // a tuck holds the undo: its ring waits for the next show
   clearTimeout(dismissT);
   const anim = window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
@@ -548,7 +598,7 @@ window.api.onShown(info => {
   $('body').scrollTop = 0;
   // hover is only trusted if the island was already up; a fresh pop starts un-hovered and counts down at once
   islandHovered = info.fresh && document.documentElement.matches(':hover');
-  counting = false; armDismiss(); // every show: a fresh full countdown (or held full, if the pointer is already on it)
+  counting = false; paused = false; armDismiss(); // every show: a fresh full countdown at once (paused only while the pointer is on it)
   const pill = $('pill');
   pill.getAnimations().forEach(a => a.cancel());
   gelDrop(pill);
@@ -575,7 +625,7 @@ const MESH = {
 };
 let glassLevel = 3, bgTheme = 'mist', haveFrame = false;
 document.documentElement.addEventListener('mouseenter', () => { islandHovered = true; armDismiss(); });
-document.documentElement.addEventListener('mouseleave', () => { islandHovered = false; armDismiss(); }); // leave → fresh full countdown
+document.documentElement.addEventListener('mouseleave', () => { islandHovered = false; armDismiss(); }); // leave → it resumes where it paused
 function applyGlass() {
   const lens = glassLevel > 0;
   document.body.dataset.glass = lens ? 'lens' : 'solid';

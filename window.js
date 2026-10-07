@@ -85,16 +85,40 @@ function matches(t, q) {
     || t.subs.some(s => s.t.toLowerCase().includes(q))
     || (t.notes || []).some(n => n.toLowerCase().includes(q));
 }
-function renderDone(q) { // Done tab: both files, restore or delete (both undoable)
+// Done tab (owner 2026-10-06, pick D2): ONE list, newest done first across BOTH notes (snapshot order), each row tagged
+// work / personal; a small All · Work · Personal switch narrows it (both notes only). A row with notes or subtasks
+// folds open on click, VIEW ONLY: brackets show [x] / [ ] but nothing ticks, edits or stages Now (owner: "view mode only").
+let doneFilter = 'all';
+const openDone = new Set(); // "file:id" of done rows unfolded by a click (folded by default: it's history)
+function renderDone(q) {
   const all = snap.done || [];
-  const items = all.filter(d => !q || d.title.toLowerCase().includes(q));
+  const both = (snap.settings.mode || 'both') === 'both';
+  if (!both) doneFilter = 'all';
+  const seg = $('done-seg');
+  seg.hidden = !both;
+  if (both) {
+    const n = f => all.filter(d => f === 'all' || d.file === f).length;
+    seg.querySelectorAll('.seg-btn').forEach(b => {
+      const f = b.dataset.df; b.classList.toggle('sel', f === doneFilter); b.setAttribute('aria-checked', f === doneFilter);
+      b.querySelector('.n').textContent = n(f);
+    });
+  }
+  const items = all.filter(d => (doneFilter === 'all' || d.file === doneFilter) && (!q || d.title.toLowerCase().includes(q)));
   $('done-count').textContent = all.length ? `· ${all.length}` : '';
   $('btn-clear-done').hidden = !all.length;
-  patchList(items.map(d => ({ key: 'd:' + d.file + ':' + d.id, html: `
-    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(plain(d.title))}">
-      <div class="wrow-main"><span class="wtitle"><span class="tt">${inline(d.title)}</span></span></div>
-      <span class="wmeta"><span class="ftag">${d.file === 'work' ? 'work' : 'personal'}</span>${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task">${window.UI.icon('trash')}</button></span></span>
-    </div></div></div>` })).concat(items.length ? [] : [{ key: 'empty', html: `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>` }]));
+  patchList(items.map(d => {
+    const key = d.file + ':' + d.id, subs = d.subs || [], notes = d.notes || [];
+    const hasDetail = !!(notes.length || subs.length), open = hasDetail && openDone.has(key);
+    const body = open ? `<div class="wexp-body"><div class="wexp-inner">
+      ${notes.map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
+      ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span></div>`).join('')}
+    </div></div>` : '';
+    return { key: 'd:' + key, html: `
+    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done${hasDetail ? ' has-detail' : ''}${open ? ' open' : ''}" data-id="${esc(d.id)}" data-file="${d.file}"${hasDetail ? ` data-dkey="${esc(key)}" aria-expanded="${open}"` : ''} tabindex="-1" aria-label="Done: ${esc(plain(d.title))}">
+      <div class="wrow-main"><span class="wtitle"><span class="tt">${inline(d.title)}</span></span>${body}${!open && subs.length ? `<div class="wsub">${subs.filter(s => s.done).length}/${subs.length} subtasks</div>` : ''}</div>
+      <span class="wmeta"><span class="ftag${d.file === 'work' ? ' work' : ''}">${d.file === 'work' ? 'work' : 'personal'}</span>${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task">${window.UI.icon('trash')}</button></span></span>
+    </div></div></div>` };
+  }).concat(items.length ? [] : [{ key: 'empty', html: `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>` }]));
 }
 function rowHtml(t) {
   const timed = !!(snap && snap.timer && snap.timer.id === t.id); // focus timer (#10) running on this task
@@ -539,6 +563,7 @@ async function onListAction(e) {
   if (res) { window.SFX.play('add'); await window.api.uncomplete(res.dataset.restore, res.dataset.file); await refresh(); return; }
   // row click = open / fold its notes + subtasks (the ⌄ button is gone); a row with nothing to open goes to the editor
   const row = e.target.closest('.wrow');
+  if (row && row.dataset.dkey) { window.SFX.play('tick'); const k = row.dataset.dkey; openDone.has(k) ? openDone.delete(k) : openDone.add(k); renderList(); return; } // a done row folds open, view only
   if (!row || row.classList.contains('done')) return;
   if (editTabEl().justHid()) return; // a click meant for a tab that just hid (H6)
   if (row.classList.contains('has-detail')) { toggleRow(row.dataset.id); return; }
@@ -558,6 +583,7 @@ $('err-strip').addEventListener('click', e => {
   if (e.target.closest('[data-retry]')) refresh();
   if (e.target.closest('[data-open-settings]')) $('tab-settings').click();
 });
+$('done-seg').addEventListener('click', e => { const b = e.target.closest('[data-df]'); if (!b || b.dataset.df === doneFilter) return; window.SFX.play('tick'); doneFilter = b.dataset.df; renderList(); });
 $('btn-clear-done').addEventListener('click', async () => { // undoable — no native confirm
   window.SFX.play('delete');
   const n = await window.api.clearDoneAll();

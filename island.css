@@ -85,7 +85,7 @@ body.pinned .gl-arc { transform: none !important; transition: none !important; }
   flex: none; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted);
   background: var(--chip); border-radius: var(--r-1); padding: 2px 7px;
 }
-.tools { display: flex; gap: 2px; }
+.tools { display: flex; align-items: center; gap: 2px; }
 .pill-top button {
   flex: none; width: 28px; height: 28px; border: 0; border-radius: var(--r-2);
   background: transparent; color: var(--muted); cursor: pointer;
@@ -93,6 +93,10 @@ body.pinned .gl-arc { transform: none !important; transition: none !important; }
   transition: background var(--d-1) ease, color var(--d-1) ease;
 }
 .pill-top button:hover { background: var(--hover); color: var(--ink); }
+/* X1 (owner 2026-10-06): the close button is BIG on purpose — 36 px round, found and hit at speed without aiming; red on hover */
+.pill-top #btn-close { width: 36px; height: 36px; border-radius: 18px; margin-inline-start: 2px; background: color-mix(in srgb, var(--ink) 6%, transparent); }
+.pill-top #btn-close .ic { width: 17px; height: 17px; stroke-width: 2.2; }
+.pill-top #btn-close:hover { background: color-mix(in srgb, var(--p3) 15%, transparent); color: var(--p3); }
 .pill-top button.pinned { color: var(--accent); background: var(--accent-soft); }
 
 #body { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px; }
@@ -254,17 +258,25 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .sub:hover .sb { color: var(--accent); }
 .sub.done .st { color: var(--faint); text-decoration: line-through; }
 .ac-subs, .rd-inner { display: flex; flex-direction: column; gap: 2px; }
-/* done subtasks fold behind one quiet line and open while the pointer rests on it */
+/* folds: open subtasks past the first 3 ("[ ] N more") and done ones ("[x] N done") sit behind one quiet line.
+   Owner 2026-10-06 (pick F2): a 0.5 s rest opens it, and it stays 1 s after the pointer leaves (the hover rule's grace),
+   so moving to a nearby subtask never snaps it shut. island.js SD_OPEN_MS / SD_CLOSE_MS must match the timings here. */
 .subs-done { display: flex; flex-direction: column; }
-.sd-sum { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); padding: 2px 0; transition: opacity 160ms ease; }
-/* done subtasks wait for a 1 s rest, then open slowly (owner 2026-09-28); leaving folds them at once.
-   island.js SD_OPEN_MS must equal delay + duration here (the window re-fits after it). */
-.sd-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 200ms var(--ease-out), opacity 150ms ease; }
+/* the line SAYS it will open (owner: "tell the user it will expand"): on hover it lights up in the accent, its chevron
+   nudges down, and a thin charge line fills under it during the 0.5 s rest */
+.sd-sum { position: relative; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-inline-start: -4px; padding: 2px 6px 3px 4px; border-radius: 6px;
+  font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); cursor: default; transition: color 160ms ease, background 160ms ease, opacity 160ms ease; }
+.sd-sum .sd-ch { width: 11px; height: 11px; stroke-width: 2.4; transition: rotate 260ms var(--ease-spring) 1s; } /* folds back after the 1 s grace */
+.sd-sum::after { content: ''; position: absolute; left: 4px; right: 6px; bottom: 0; height: 1.5px; border-radius: 1px; background: var(--accent); transform: scaleX(0); transform-origin: left; opacity: .7; }
+.subs-done:hover .sd-sum { color: var(--accent); background: var(--accent-soft); }
+.subs-done:hover .sd-sum .sd-ch { animation: sdNudge 500ms var(--ease-out); rotate: 180deg; transition-delay: .5s; } /* nudges during the rest, flips once open */
+.subs-done:hover .sd-sum::after { transform: scaleX(1); opacity: 0; transition: transform 500ms linear, opacity 200ms ease .5s; }
+@keyframes sdNudge { 40% { transform: translateY(2px); } }
+.sd-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 220ms var(--ease-out) 1s, opacity 160ms ease 1s; }
 .sd-in { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
 .subs-done:hover .sd-wrap, .subs-done:focus-within .sd-wrap { grid-template-rows: 1fr; opacity: 1;
-  transition: grid-template-rows 480ms var(--ease-out) 1s, opacity 420ms ease 1.06s; }
-.subs-done:hover .sd-sum { opacity: 0.55; transition-delay: 1s; }
-@media (prefers-reduced-motion: reduce) { .subs-done:hover .sd-wrap { transition: opacity 200ms ease 1s; } }
+  transition: grid-template-rows 480ms var(--ease-out) .5s, opacity 420ms ease .56s; }
+@media (prefers-reduced-motion: reduce) { .subs-done:hover .sd-wrap { transition: opacity 200ms ease .5s; } .sd-wrap { transition: opacity 160ms ease 1s; } .subs-done:hover .sd-sum .sd-ch { animation: none; } }
 
 .hint { padding: 5px 20px 11px; color: var(--faint); font-size: var(--fs-2); }
 
@@ -299,7 +311,21 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .timer-chip { display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; cursor: pointer;
   font-family: inherit; font-size: var(--fs-1); font-weight: 650; color: var(--accent); background: var(--accent-soft); -webkit-app-region: no-drag; }
 .timer-chip:hover { box-shadow: inset 0 0 0 1px var(--accent-border); }
-.time-up { display: flex; align-items: center; gap: 8px; margin: 6px 12px 2px; padding: 7px 12px; border-radius: var(--r-inner); font-size: var(--fs-2); font-weight: 650;
-  color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent-border); }
-.time-up .ic { flex: none; }
+/* the timer's end (owner 2026-10-06, pick A2): a line that gently BREATHES (a soft accent halo, inset only — never an outer
+   shadow on the pill) with a draining 1-minute ring and a Stop button */
+.time-up { display: flex; align-items: center; gap: 10px; margin: 6px 12px 4px; padding: 7px 7px 7px 12px; border-radius: var(--r-inner); font-size: var(--fs-2); font-weight: 650;
+  color: var(--ink); background: color-mix(in srgb, var(--accent) 13%, var(--pill-bg)); box-shadow: inset 0 0 0 1px var(--accent-border);
+  animation: tuIn 300ms var(--ease-spring) both, tuBreathe 1.6s ease-in-out 300ms infinite; }
+.time-up.out { animation: tuOut 180ms ease-in both; }
+.tu-t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tu-ring { width: 20px; height: 20px; flex: none; transform: rotate(-90deg); }
+.tu-ring circle { fill: none; stroke-width: 3; }
+.tu-ring .bg { stroke: var(--rule); } .tu-ring .fg { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 250ms linear; }
+.tu-stop { flex: none; height: 30px; padding: 0 16px; border: 0; border-radius: 15px; cursor: pointer; font-family: inherit; font-size: var(--fs-2); font-weight: 700;
+  background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
+.tu-stop:hover { filter: brightness(1.08); }
+@keyframes tuIn { from { opacity: 0; transform: translateY(-6px) scale(.97); } }
+@keyframes tuOut { to { opacity: 0; transform: scale(.97); } }
+@keyframes tuBreathe { 50% { box-shadow: inset 0 0 0 1px var(--accent-border), inset 0 0 0 5px color-mix(in srgb, var(--accent) 10%, transparent); } }
+@media (prefers-reduced-motion: reduce) { .time-up, .time-up.out { animation: none; } }
 .sec-peek .swap .ic { width: 12px; height: 12px; stroke-width: 2; }

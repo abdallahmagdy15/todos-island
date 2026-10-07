@@ -265,6 +265,8 @@ const STRINGS_AR = {
   'u.completed': 'أُنجزت',
   'u.cleared': 'أُفرغت',
   'u.undo': 'تراجع',
+  'win.done.all': 'الكل',
+  'win.done.filter': 'عرض المهام المنجزة من',
   'u.undoTitle': 'تراجع (Ctrl+Z)',
   'u.secs': '{n}ث',
   'u.reset': 'تمت إعادة ضبط الإعدادات',
