@@ -26,15 +26,22 @@ function dueHtml(t) {
 // one quiet "[x] N done" line and unfold while the pointer rests on it (owner, 2026-09-27).
 const RANK_SUB = { '!!!': 3, '!!': 2, '!': 1 };
 const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : '';
-const OPEN_SHOW = 2;
-function subsHtml(subs, attrs = '') {
+let sdOpen = new Set(); // open folds, by "file:id|more" / "…|done" (see the fold handlers below)
+const OPEN_SHOW = 3; // owner 2026-10-06: 3 open subtasks show, the rest fold
+function subsHtml(subs, attrs = '', key = '') {
   const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
   const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
-  const foldOf = (arr, key) => (arr.length ? `<div class="subs-done"><div class="sd-sum">${esc(T(key, { n: arr.length }))}</div><div class="sd-wrap"><div class="sd-in">${arr.map(one).join('')}</div></div></div>` : '');
+  // a fold remembers it is open across re-renders (sdOpen, keyed by task + fold), so ticking a subtask inside it never
+  // snaps it shut (owner 2026-10-08); `now` = painted open at once, no reveal again
+  const foldOf = (arr, lk, kind) => {
+    if (!arr.length) return '';
+    const fk = key + '|' + kind, on = sdOpen.has(fk);
+    return `<div class="subs-done${on ? ' open now' : ''}" data-fold="${esc(fk)}"><div class="sd-sum"><span class="cw-fill" aria-hidden="true"></span><span>${esc(T(lk, { n: arr.length }))}</span>${window.UI.icon('chevronDown', 'sd-ch')}</div><div class="sd-wrap"><div class="sd-in">${arr.map(one).join('')}</div></div></div>`;
+  };
   // a task never eats the island (owner 2026-10-06: "I need to see the top 3"): the first OPEN_SHOW open subtasks show,
   // the rest fold behind one "[ ] N more" line that opens on a rest — the same fold as the done ones
-  return open.slice(0, OPEN_SHOW).map(one).join('') + foldOf(open.slice(OPEN_SHOW), 'isl.sub.moreN') + foldOf(done, 'isl.sub.doneN');
+  return open.slice(0, OPEN_SHOW).map(one).join('') + foldOf(open.slice(OPEN_SHOW), 'isl.sub.moreN', 'more') + foldOf(done, 'isl.sub.doneN', 'done');
 }
 // priority sits on the right with the date. It is CLICKABLE (owner 2026-10-01): ! → !! → !!! → none, undoable.
 // No priority → an empty ghost mark that draws a faint "!" only on the row you rest on (CSS ::before), so nothing shifts.
@@ -48,7 +55,7 @@ const freezeSort = items => !frozenOrder ? items : items.map((t, i) => [t, froze
 function rowHtml(t) {
   const subsBadge = t.subs.length ? `<span class="row-sub">${T('isl.sub.badge', { a: t.subs.filter(s => !s.done).length, b: t.subs.length })}</span>` : '';
   const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${inline(n)}</div>`).join('');
-  const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs)}</div></div>` : '';
+  const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs, '', t.file + ':' + t.id)}</div></div>` : '';
   const timed = snap && snap.timer && snap.timer.id === t.id;
   return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" draggable="true">
     <div class="row-main"><span class="rtitle"><span class="tt">${inline(t.title)}</span></span>${detail}</div>
@@ -56,29 +63,48 @@ function rowHtml(t) {
   </div></div></div>`;
 }
 
-// Dismiss timer. ONE rule, applied by armDismiss() after anything that could matter (render, hover, pin, keys):
-//   pinned / broken note → no timer · pointer on the island or keyboard mode → timer held FULL
-//   otherwise → a full countdown, started once; re-renders from clicks never restart or pause it.
-let dismissBar = null;
+// Dismiss timer. ONE rule, applied by armDismiss() after anything that could matter (render, hover, pin, show):
+//   pinned / broken note → no timer, held full
+//   otherwise it COUNTS from the moment the island shows (owner 2026-10-06: timed pop, shortcut and top-edge peek alike;
+//   keyboard mode no longer holds it) · the pointer on the island PAUSES it · leaving RESUMES from where it was (never a
+//   restart; at least 1.5 s left so it doesn't vanish under a leaving pointer) · re-renders never restart or pause it.
+let dismissBar = null, paused = false;
 const bar = () => { // the glass's own top highlight is the clock (owner pick 'D'): the arc and its blue core shrink to the center
   if (!dismissBar) {
     const core = window.UI.countdown($('progress-fill')), arc = window.UI.countdown($('gl-arc'));
-    dismissBar = { start: t => { core.start(t); arc.start(t); } };
+    dismissBar = { start: t => { core.start(t); arc.start(t); }, pause: () => { core.pause(); arc.pause(); },
+      resume: m => { core.resume(m); arc.resume(m); }, get remaining() { return core.remaining; } };
   }
   return dismissBar;
 };
 const dismissMs = () => ((snap && snap.settings.dismissSec) || 7) * 1000;
+const dismissAfter = ms => { clearTimeout(dismissT); dismissT = setTimeout(() => { counting = false; if (!pinned && !hasErrors()) retract(); }, ms); };
 function scheduleDismiss(ms) {
-  clearTimeout(dismissT);
   bar().start(ms);
-  counting = true;
-  dismissT = setTimeout(() => { counting = false; if (!pinned && !hasErrors()) retract(); }, ms);
+  counting = true; paused = false;
+  dismissAfter(ms);
 }
-function holdFull() { clearTimeout(dismissT); counting = false; bar().start(0); } // start(0) = painted full, no motion
+function pauseDismiss() {
+  if (!counting) { if (!paused) bar().start(0); return; } // not started yet (hovered from the first frame): painted full
+  clearTimeout(dismissT);
+  bar().pause(); // the bar freezes exactly where it is; its remaining time is the clock's truth
+  counting = false; paused = true;
+}
+// Leaving resumes from the SAME spot at the SAME speed (owner 2026-10-08). Only the last MIN_LEFT ms stretch a
+// little, so a leaving pointer never sees the island vanish in a blink.
+const MIN_LEFT = 600;
+function resumeDismiss() {
+  bar().resume(MIN_LEFT);
+  counting = true; paused = false;
+  dismissAfter(bar().remaining);
+}
+function holdFull() { clearTimeout(dismissT); counting = false; paused = false; bar().start(0); } // start(0) = painted full, no motion
 function armDismiss() {
   if (pinned || hasErrors()) { holdFull(); return; }
-  if (islandHovered || kbdActive) { holdFull(); return; }
-  if (!counting) scheduleDismiss(dismissMs());
+  if (islandHovered) { pauseDismiss(); return; }
+  if (counting) return;
+  if (paused) { resumeDismiss(); return; }
+  scheduleDismiss(dismissMs());
 }
 const hasErrors = () => !!(snap && snap.errors && snap.errors.length);
 
@@ -155,19 +181,46 @@ function openDial(r, anchor) {
   });
   scheduleResize(0); armDismiss();
 }
+// The end (#6; owner 2026-10-06 picks S3 + A2): the island drops in, pins, and a breathing "Time's up" line with a ring
+// and a Stop button shows above the list. A soft warm pulse (SFX 'alarm', gated by the sound setting like every sound)
+// repeats every ALARM_EVERY until Stop; after ALARM_FOR it stops by itself and the island tucks away. Closing the island
+// stops it too.
+const ALARM_EVERY = 4000, ALARM_FOR = 60000;
+let alarm = null; // { el, rep, ring, end, wasPinned }
+function stopAlarm(how) { // how: 'stop' (Stop clicked → normal dismiss countdown) · 'timeout' (→ tuck away) · 'quiet' (the island is leaving)
+  if (!alarm) return;
+  const a = alarm; alarm = null;
+  clearInterval(a.rep); clearInterval(a.ring); clearTimeout(a.end);
+  a.el.classList.add('out'); setTimeout(() => { a.el.remove(); scheduleResize(0); }, 180);
+  pinned = a.wasPinned; document.body.classList.toggle('pinned', pinned || hasErrors()); $('btn-pin').classList.toggle('pinned', pinned);
+  if (how === 'timeout') retract();
+  else if (how === 'stop') { counting = false; paused = false; armDismiss(); }
+}
 window.api.onTimerEnded(d => {
   // time's up: the island is already dropping in (main showIsland); pin it and give the task the gel highlight
+  stopAlarm('quiet');
+  const wasPinned = pinned;
   pinned = true;
   if (snap) render();
   setTimeout(() => {
-    window.SFX.play('complete');
     const el = $('body').querySelector(`[data-card="${CSS.escape(d.id)}"], .row[data-id="${CSS.escape(d.id)}"]`);
     window.UI.gelHit(el);
+    const R = 8, LEN = 2 * Math.PI * R;
     const b = document.createElement('div');
-    b.className = 'time-up'; b.setAttribute('role', 'status');
-    b.innerHTML = `${window.UI.TIMER_IC}<span>${esc(T('timer.ended', { t: plain(d.title) }))}</span>`;
+    b.className = 'time-up'; b.setAttribute('role', 'alert');
+    b.innerHTML = `<svg class="tu-ring" viewBox="0 0 22 22" aria-hidden="true"><circle class="bg" cx="11" cy="11" r="${R}"/><circle class="fg" cx="11" cy="11" r="${R}" stroke-dasharray="${LEN.toFixed(2)}"/></svg>
+      <span class="tu-t">${esc(T('timer.ended', { t: plain(d.title) }))}</span>
+      <button class="tu-stop" type="button">${esc(T('timer.stop'))}</button>`;
     $('body').prepend(b); scheduleResize(0);
-    setTimeout(() => { b.remove(); scheduleResize(0); }, 9000);
+    const t0 = Date.now(), fg = b.querySelector('.fg');
+    window.SFX.play('alarm');
+    alarm = {
+      el: b, wasPinned,
+      rep: setInterval(() => window.SFX.play('alarm'), ALARM_EVERY),
+      ring: setInterval(() => { fg.style.strokeDashoffset = (LEN * Math.min(1, (Date.now() - t0) / ALARM_FOR)).toFixed(2); }, 250),
+      end: setTimeout(() => stopAlarm('timeout'), ALARM_FOR)
+    };
+    b.querySelector('.tu-stop').addEventListener('click', e => { e.stopPropagation(); window.SFX.play('tick'); stopAlarm('stop'); });
   }, 420);
 });
 
@@ -226,7 +279,7 @@ function render() {
   }
   // owner 2026-10-06: the note's "## Work / ## Personal" header leads, ABOVE its Now card(s); then that note's rows
   const cardHtml = a => {
-    const subs = a.subs.length ? `<div class="ac-subs">${subsHtml(a.subs, ` data-parent="${esc(a.id)}" data-file="${a.file}"`)}</div>` : '';
+    const subs = a.subs.length ? `<div class="ac-subs">${subsHtml(a.subs, ` data-parent="${esc(a.id)}" data-file="${a.file}"`, a.file + ':' + a.id)}</div>` : '';
     return `<div class="fold"><div class="fold-in"><div class="active-card rim${snap.timer && snap.timer.id === a.id ? ' timed' : ''}" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
@@ -394,9 +447,47 @@ $('body').addEventListener('mouseover', e => {
     scheduleResize(300);
   }, sec * 1000);
 });
-const SD_OPEN_MS = 1000 + 500; // the done-subtasks fold: 1 s rest + its reveal (island.css .sd-wrap)
-$('body').addEventListener('mouseover', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(SD_OPEN_MS); });
-$('body').addEventListener('mouseout', e => { const sd = e.target.closest('.subs-done'); if (sd && !sd.contains(e.relatedTarget)) scheduleResize(300); });
+// The folds ("[ ] N more" / "[x] N done"; owner picks F2 + 2026-10-08): a 0.5 s rest on the line fills it with the
+// Copy tab's accent sweep (.cw-fill), then the line steps aside and its subtasks take its place. They stay while the
+// pointer is anywhere on that task's subtasks, and fold back 1 s after it leaves them. The open state lives here, not in
+// :hover, so a re-render (a subtask tick) keeps it open.
+const SD_IN = 500, SD_GRACE = 1000, SD_REVEAL = 480, SD_FOLD = 260; // keep equal to island.css (.subs-done)
+let sdOpenT = null, sdOpenEl = null;
+const sdClose = new Map(); // fold key → its grace timer
+const foldEls = k => document.querySelectorAll(`.subs-done[data-fold="${CSS.escape(k)}"]`);
+const scopeOf = el => el && el.closest && el.closest('.rd-inner, .ac-subs'); // the task's subtask list
+const scopeKey = sc => { const f = sc && sc.querySelector('.subs-done[data-fold]'); return f ? f.dataset.fold.replace(/\|(more|done)$/, '') : null; };
+function sdSet(k, on) {
+  clearTimeout(sdClose.get(k)); sdClose.delete(k);
+  if (on) sdOpen.add(k); else sdOpen.delete(k);
+  foldEls(k).forEach(el => { el.classList.remove('filling', 'now'); el.classList.toggle('open', on); });
+  scheduleResize(on ? SD_REVEAL + 20 : SD_FOLD + 20);
+}
+function sdCancelFill() { clearTimeout(sdOpenT); sdOpenT = null; if (sdOpenEl) sdOpenEl.classList.remove('filling'); sdOpenEl = null; }
+function sdResetAll() { sdCancelFill(); sdClose.forEach(t => clearTimeout(t)); sdClose.clear(); sdOpen = new Set(); }
+// every pointer move re-checks: open folds of the task under the pointer stay; any other open fold starts its grace
+function sdTrack(target) {
+  const here = scopeKey(scopeOf(target));
+  sdOpen.forEach(k => {
+    const mine = here && k.startsWith(here + '|');
+    if (mine) { clearTimeout(sdClose.get(k)); sdClose.delete(k); }
+    else if (!sdClose.has(k)) sdClose.set(k, setTimeout(() => sdSet(k, false), SD_GRACE));
+  });
+}
+$('body').addEventListener('mouseover', e => {
+  sdTrack(e.target);
+  const sd = e.target.closest('.subs-done');
+  if (!sd || sd.classList.contains('open') || sd === sdOpenEl) return;
+  sdCancelFill();
+  sdOpenEl = sd; sd.classList.add('filling');
+  const k = sd.dataset.fold;
+  sdOpenT = setTimeout(() => { sdOpenT = null; sdOpenEl = null; sdSet(k, true); }, SD_IN);
+});
+$('body').addEventListener('mouseout', e => {
+  const sd = e.target.closest('.subs-done');
+  if (sd && sd === sdOpenEl && !sd.contains(e.relatedTarget)) sdCancelFill(); // left before the rest landed
+  if (!e.relatedTarget || !$('body').contains(e.relatedTarget)) sdTrack(null); // left the list: every open fold starts its grace
+});
 $('body').addEventListener('mouseout', e => {
   const row = e.target.closest('.row, .active-card');
   if (!row || row.contains(e.relatedTarget)) return;
@@ -524,8 +615,10 @@ function retract() {
   if (retracting) return;
   retracting = true;
   peekOther = false; // a peek lasts one showing: the next pop is the time-based note again
-  islandHovered = false; counting = false; // a hidden window never gets its mouseleave
+  islandHovered = false; counting = false; paused = false; // a hidden window never gets its mouseleave
   clearHover(); // …so the rested row and its Edit tab reset too
+  sdResetAll(); // and every fold closes
+  stopAlarm('quiet'); // closing the island silences the timer alarm
   if ($('undo-bar')._undo) $('undo-bar')._undo.pause(true); // a tuck holds the undo: its ring waits for the next show
   clearTimeout(dismissT);
   const anim = window.Motion.play($('pill'), [{ transform: 'none', opacity: 1 }, { transform: 'translateY(-8px)', opacity: 0 }], { duration: 180, easing: window.Motion.EASE_IN });
@@ -548,7 +641,7 @@ window.api.onShown(info => {
   $('body').scrollTop = 0;
   // hover is only trusted if the island was already up; a fresh pop starts un-hovered and counts down at once
   islandHovered = info.fresh && document.documentElement.matches(':hover');
-  counting = false; armDismiss(); // every show: a fresh full countdown (or held full, if the pointer is already on it)
+  counting = false; paused = false; armDismiss(); // every show: a fresh full countdown at once (paused only while the pointer is on it)
   const pill = $('pill');
   pill.getAnimations().forEach(a => a.cancel());
   gelDrop(pill);
@@ -575,7 +668,7 @@ const MESH = {
 };
 let glassLevel = 3, bgTheme = 'mist', haveFrame = false;
 document.documentElement.addEventListener('mouseenter', () => { islandHovered = true; armDismiss(); });
-document.documentElement.addEventListener('mouseleave', () => { islandHovered = false; armDismiss(); }); // leave → fresh full countdown
+document.documentElement.addEventListener('mouseleave', () => { islandHovered = false; armDismiss(); }); // leave → it resumes where it paused
 function applyGlass() {
   const lens = glassLevel > 0;
   document.body.dataset.glass = lens ? 'lens' : 'solid';

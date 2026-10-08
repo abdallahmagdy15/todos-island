@@ -10,6 +10,7 @@ const dueTextOf = t => [t.due ? `${t.due.d} ${t.due.m}` : null, t.time != null ?
 const { composeTask } = require('./lib/compose.js');
 const { planSetup, NOTE_NAME } = require('./lib/setup.js');
 const { makePngBuffer } = require('./lib/icon.js');
+const { inPeekZone, peekStep } = require('./lib/peek.js');
 
 // test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
 // E2E runs use this so they never touch the owner's real notes.
@@ -353,13 +354,15 @@ async function showIsland(opts = {}) {
   // focusable while shown: a non-focusable (WS_EX_NOACTIVATE) window that was hidden and shown again drops every real mouse
   // click on Windows — the island looked alive but ignored clicks after a timed pop (owner report, 2026-09-27; reproduced
   // with real OS clicks, CDP clicks never showed it). showInactive still never takes focus: only the user's own click does.
-  sendSnap(); island.setFocusable(true); island.showInactive();
+  sendSnap(); island.setFocusable(true); island.setSkipTaskbar(true); island.showInactive();
   island.webContents.send('island-shown', { fresh: !wasHidden }); // always: resets renderer state (cancels stuck animations, replays drop-in)
   if (state.settings.soundOn) island.webContents.send('play-sound');
   // keyboard summon only: the island takes focus so arrows/Enter/Space work. Timed pops NEVER steal focus.
-  if (opts.focus) { island.setFocusable(true); island.focus(); island.webContents.send('island-focus'); }
+  if (opts.focus) { island.setFocusable(true); island.setSkipTaskbar(true); island.focus(); island.webContents.send('island-focus'); }
 }
-function hideIsland() { if (island) { island.hide(); island.setFocusable(false); } }
+// ⚠️ setFocusable re-creates the window's extended styles on Windows and DROPS skipTaskbar: the island turned up in the
+// taskbar (with the Electron logo) after a show (owner report 2026-10-06). Re-assert it after every setFocusable.
+function hideIsland() { if (island) { island.hide(); island.setFocusable(false); island.setSkipTaskbar(true); } }
 
 function createIsland() {
   const wa = screen.getPrimaryDisplay().workArea;
@@ -367,7 +370,7 @@ function createIsland() {
   island = new BrowserWindow({
     width: W, height: 120, x: wa.x + Math.round((wa.width - W) / 2), y: wa.y + 10,
     frame: false, transparent: true, resizable: false, movable: false, skipTaskbar: true,
-    focusable: false, alwaysOnTop: true, hasShadow: false, thickFrame: false, show: false,
+    focusable: false, alwaysOnTop: true, hasShadow: false, thickFrame: false, show: false, icon: appIcon(),
     // no background throttling: a hidden/occluded island renderer had its timers + animations frozen, so a retract
     // never finished, the window stayed "visible" and the next shortcut press only dismissed it (needed twice)
     webPreferences: { preload: path.join(__dirname, 'island-preload.js'), backgroundThrottling: false }
@@ -400,7 +403,7 @@ function openWindow(tab) {
   mainWin = new BrowserWindow({
     width: 880, height: 660, minWidth: 660, minHeight: 540, // 880 by default (owner 2026-09-28: "slightly wider" — room for the side panel)
     backgroundColor: theme().bg,
-    autoHideMenuBar: true, show: false,
+    autoHideMenuBar: true, show: false, icon: appIcon(), // the [★] tile, never the Electron logo (owner 2026-10-06)
     frame: false, titleBarStyle: 'hidden',
     // overlay must exist at creation — setTitleBarOverlay throws otherwise ("Titlebar overlay is not enabled")
     titleBarOverlay: overlay(),
@@ -476,7 +479,7 @@ function openOnboarding(opts = {}) {
   onboardWin = new BrowserWindow({
     width: 580, height: 700, resizable: false, maximizable: false, minimizable: false, center: true,
     backgroundColor: theme().bg,
-    autoHideMenuBar: true, show: false, frame: false, titleBarStyle: 'hidden',
+    autoHideMenuBar: true, show: false, icon: appIcon(), frame: false, titleBarStyle: 'hidden',
     titleBarOverlay: overlay(),
     webPreferences: { preload: path.join(__dirname, 'onboard-preload.js') }
   });
@@ -625,6 +628,25 @@ function trayImage() {
   for (const [scaleFactor, px] of [[1, 16], [1.25, 20], [1.5, 24], [2, 32]]) img.addRepresentation({ scaleFactor, buffer: makePngBuffer(px, { tray: true, dark }) });
   return img;
 }
+// the app's own [★] tile for every window's taskbar / title icon (a dev run otherwise shows the Electron logo)
+let appIconImg = null;
+function appIcon() {
+  if (appIconImg) return appIconImg;
+  appIconImg = nativeImage.createEmpty();
+  for (const [scaleFactor, px] of [[1, 32], [1.25, 40], [1.5, 48], [2, 64]]) appIconImg.addRepresentation({ scaleFactor, buffer: makePngBuffer(px) });
+  return appIconImg;
+}
+// Top-edge peek (owner 2026-10-06, pick P1): rest the pointer at the very top middle of the primary screen (a strip 25 %
+// of its width, 3 px tall, nothing drawn) for 1 s → the island shows. Pure rules in lib/peek.js; a cheap 120 ms poll.
+let peekState = { since: null, armed: true };
+function peekTick() {
+  if (!island || island.isDestroyed()) return;
+  let pt, d;
+  try { pt = screen.getCursorScreenPoint(); d = screen.getPrimaryDisplay(); } catch (e) { return; }
+  const r = peekStep(peekState, inPeekZone(pt, d.bounds), Date.now());
+  peekState = r.state;
+  if (r.fire && state.onboarded && !island.isVisible()) { LOG('PEEK'); showIsland(); }
+}
 function createTray() {
   tray = new Tray(trayImage());
   nativeTheme.on('updated', () => { if (tray && !tray.isDestroyed()) tray.setImage(trayImage()); }); // taskbar theme switched
@@ -638,6 +660,7 @@ function createTray() {
   };
   tick();
   setInterval(tick, 15000);
+  setInterval(peekTick, 120);
 }
 
 ipcMain.on('island-size', (_e, h, top = 0) => {

@@ -265,6 +265,7 @@ const STRINGS_EN = {
   'u.completed': 'Completed',
   'u.cleared': 'Cleared',
   'u.undo': 'Undo',
+  'win.done.filter': 'Show done tasks from',
   'u.undoTitle': 'Undo (Ctrl+Z)',
   'u.secs': '{n}s',
   'u.reset': 'Settings reset',

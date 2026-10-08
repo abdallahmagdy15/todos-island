@@ -58,7 +58,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 - **The island.** It drops in on two schedules: one interval for your workday and one for evenings and weekends, each with its own on/off switch. Nothing pops between midnight and the start of your day. Weekends (Saturday + Sunday, or Friday + Saturday, following your Windows region or your pick) run the evening schedule.
   - Click a task to make it Now; click its ★ to set it back (Not now).
   - Tick `[ ]` to complete it. Hover a task for its edit pencil; **+** in the top bar adds a task in the tasks window.
-  - Open subtasks always show, most important first; done ones tuck away behind one line.
+  - The first three open subtasks show, most important first; the rest, and the done ones, tuck behind one line each. Rest on that line and they slide into its place.
   - Pin the island to keep it on screen.
   - Press <kbd>Ctrl</kbd>+<kbd>`</kbd> to show or hide it (change it in Settings).
 - **Glass themes.** The island is frosted glass over a soft picture you choose in *Settings → Look → Theme*: **Mist**, **Dusk**, **Lagoon**, **Bloom** or **Dune**.
@@ -68,6 +68,8 @@ The tokens can go in any order, and all of them are optional. The app's own edit
   - Pick a **theme color** (blue, violet, teal, pink or graphite) and separate **label** and **task text sizes** in *Settings*.
   - Every window (tasks, editor, Share and setup) wears the same theme as clear liquid glass, and the Glass setting controls how much shows through there too.
   - Settings save as you change them. There's no Save button.
+- **Peek any time.** Rest the pointer at the very top middle of the screen for a moment and the island drops in. It tucks away by itself after a few seconds, and pauses while your pointer is on it.
+- **Focus timer.** Give a task the next 30 minutes or 2 hours. When time's up, a soft sound repeats until you press Stop (it stops by itself after a minute).
 - **Undo for everything.** Complete, delete, un-mark Now, reorder or clear done: every change you make shows a short countdown with an Undo button in the top bar, so it never covers a task. Press <kbd>Ctrl</kbd>+<kbd>Z</kbd> to undo, and rest the pointer on it to pause the countdown.
 - **Share your day.** Pick tasks, then copy them as WhatsApp-ready text or Markdown, or export a `.md` file. This is useful for daily updates to a lead, a team or an AI assistant. Pick a day (Today, Yesterday or any date) to report just the work you finished then; open tasks always come along, and the newest work is listed first.
 - **Change priority in one click.** Click a task's `!` / `!!` / `!!!` mark in the island or the task list to step it to the next priority (one Undo away). On a task with no priority, a faint `!` appears when you rest on it.

@@ -40,6 +40,10 @@
         </div>
         <div class="list-head" id="done-head" hidden>
           <h3 class="md-h"><span class="hash">##</span> <span data-i18n="win.tab.done">Done</span> <span class="md-count" id="done-count"></span></h3>
+          <div class="seg done-seg" id="done-seg" role="radiogroup" data-i18n-aria="win.done.filter">
+            <button class="seg-btn" data-df="work" type="button" role="radio"><span data-i18n="win.tab.work">Work</span> <span class="n"></span></button>
+            <button class="seg-btn" data-df="personal" type="button" role="radio"><span data-i18n="win.tab.personal">Personal</span> <span class="n"></span></button>
+          </div>
           <button id="btn-clear-done" class="btn-text danger" type="button" data-i18n-title="win.done.clearTitle" data-i18n="win.done.clear"></button>
         </div>
         <div id="task-list" role="list" aria-label="Tasks"></div>
