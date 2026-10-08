@@ -158,23 +158,36 @@
     : T('u.completed');
   const undoText = u => u.label ? `${undoVerb(u)}: ${u.label}` : undoVerb(u); // a settings reset has no task label
 
-  // Countdown hairline (M7): drains with transform scaleX, never width. Pause math uses elapsed time, not layout.
+  // Countdown hairline (M7): drains with transform scaleX, never width. It is a chain of linear SEGMENTS
+  // (from → 0 over dur ms); pause freezes the bar exactly where it is (from × the part of the segment not yet run) and
+  // resume drains THAT fraction over the time left, so the speed never changes and the bar never jumps (owner 2026-10-08).
   function countdown(fill) {
-    let total = 0, left = 0, startedAt = 0;
+    let from = 1, dur = 0, startedAt = 0, left = 0, running = false;
     const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const paint = (from, ms) => {
+    const paint = (f, ms) => {
       fill.style.transition = 'none';
-      fill.style.transform = `scaleX(${from})`;
+      fill.style.transform = `scaleX(${f})`;
       if (reduced() || ms <= 0) return; // no motion: the seconds counter still tells the time
       void fill.offsetWidth; // commit the start frame before transitioning
       fill.style.transition = `transform ${ms}ms linear`;
       fill.style.transform = 'scaleX(0)';
     };
+    const run = (f, ms) => { from = f; dur = left = ms; startedAt = Date.now(); running = ms > 0; paint(f, ms); };
     return {
-      start(ms) { total = ms; left = ms; startedAt = Date.now(); paint(1, ms); },
-      pause() { left = Math.max(0, left - (Date.now() - startedAt)); paint(total ? left / total : 0, 0); },
-      resume() { startedAt = Date.now(); paint(total ? left / total : 0, left); },
-      get remaining() { return Math.max(0, left - (Date.now() - startedAt)); }
+      start(ms) { run(1, ms); },                     // full bar draining over ms; start(0) = held full, no motion
+      pause() {
+        if (!running) return;
+        // what the user SEES is the truth: read the bar's live scale (a transition can start late, e.g. on a window that
+        // was still hidden); the time left follows from it at the segment's speed. Reduced motion: from the clock.
+        const rate = from / dur, m = getComputedStyle(fill).transform;
+        let f = m && m.startsWith('matrix(') ? parseFloat(m.slice(7)) : NaN;
+        if (reduced() || !(f >= 0 && f <= from)) f = from * Math.max(0, 1 - (Date.now() - startedAt) / dur);
+        from = f; left = rate > 0 ? f / rate : 0; running = false;
+        paint(from, 0);
+      },
+      resume(minMs = 0) { if (!running) run(from, Math.max(left, minMs)); }, // the frozen fraction drains over what's left
+      get running() { return running; },
+      get remaining() { return running ? Math.max(0, left - (Date.now() - startedAt)) : left; }
     };
   }
 

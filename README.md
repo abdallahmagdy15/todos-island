@@ -58,7 +58,7 @@ The tokens can go in any order, and all of them are optional. The app's own edit
 - **The island.** It drops in on two schedules: one interval for your workday and one for evenings and weekends, each with its own on/off switch. Nothing pops between midnight and the start of your day. Weekends (Saturday + Sunday, or Friday + Saturday, following your Windows region or your pick) run the evening schedule.
   - Click a task to make it Now; click its ★ to set it back (Not now).
   - Tick `[ ]` to complete it. Hover a task for its edit pencil; **+** in the top bar adds a task in the tasks window.
-  - Open subtasks always show, most important first; done ones tuck away behind one line.
+  - The first three open subtasks show, most important first; the rest, and the done ones, tuck behind one line each. Rest on that line and they slide into its place.
   - Pin the island to keep it on screen.
   - Press <kbd>Ctrl</kbd>+<kbd>`</kbd> to show or hide it (change it in Settings).
 - **Glass themes.** The island is frosted glass over a soft picture you choose in *Settings → Look → Theme*: **Mist**, **Dusk**, **Lagoon**, **Bloom** or **Dune**.

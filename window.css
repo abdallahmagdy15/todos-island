@@ -174,14 +174,14 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .list-head .md-h { margin: 0; }
 .wrow.done { cursor: default; }
 .wrow.done.has-detail { cursor: pointer; } /* a done row folds open on click, view only (owner 2026-10-06, pick D2) */
+.wrow .chk.view, .wrow .chk.view:hover { cursor: default; color: var(--accent); background: none; } /* done: the mark says it, it doesn't tick */
 .wsubrow.view { cursor: default; } .wsubrow.view .sb { cursor: default; }
 .wsubrow.view.done .st { color: var(--faint); text-decoration: line-through; }
 .done-seg { margin-inline-end: auto; }
 .done-seg .seg-btn { height: 26px; padding: 0 10px; font-size: var(--fs-1); }
 .done-seg .n { font-family: var(--font-mono); color: var(--faint); margin-inline-start: 3px; }
-.ftag.work { color: var(--accent); }
 .list-head .md-h { flex: none; } #done-head { flex-wrap: wrap; }
-.wrow.done .wtitle { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--faint); }
+.wrow.done .wtitle { color: var(--ink); } /* a done task reads like an open one (owner 2026-10-08); its [x] mark says it is done */
 
 /* ==== liquid glass controls (v1.11; round 2, owner: "true liquid glass, not white") — ONE material for every control ====
    A piece is clear: a thin fill (--ctl) that lets the panel and scene through, carried by light — the sheen across its
@@ -302,7 +302,10 @@ input.dtime::placeholder { color: var(--faint); font-family: var(--font-sans); }
 
 /* ---- markdown-literal headings: faint mono "##" + sentence-case title ---- */
 .md-h { display: flex; align-items: baseline; gap: var(--s-2); font-size: var(--fs-4); font-weight: 650; color: var(--ink); margin-bottom: var(--s-2); }
-.md-h .hash { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 400; color: var(--faint); }
+.md-h .hash { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--accent); } /* ## = a section (owner 2026-10-08) */
+.md-h:not(.big)::after { content: ''; flex: 1; min-width: 24px; height: 1px; align-self: center; background: linear-gradient(to right, color-mix(in srgb, var(--accent) 50%, transparent), transparent); }
+[dir="rtl"] .md-h:not(.big)::after { background: linear-gradient(to left, color-mix(in srgb, var(--accent) 50%, transparent), transparent); }
+.list-head .md-h::after { display: none; } /* the Done head's row carries its own switch + button */
 .md-h .md-count { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 400; color: var(--muted); }
 .md-h.mt { margin-top: var(--s-6); }
 h2.md-h { margin-bottom: var(--s-1); }
@@ -533,7 +536,7 @@ header .upd { margin-inline-start: var(--s-3); }
   border: 0; border-top: 1px solid var(--rule-soft); background: transparent; cursor: pointer;
   font-family: inherit; font-size: var(--fs-4); font-weight: 650; color: var(--ink); text-align: start;
 }
-.adv-toggle .hash { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 400; color: var(--faint); }
+.adv-toggle .hash { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--accent); }
 .adv-toggle .chev { width: 16px; height: 16px; align-self: center; margin-inline-start: auto; color: var(--muted); transition: transform var(--d-2) var(--ease-out); }
 .adv-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
 .adv-toggle:hover .chev { color: var(--ink); }
@@ -733,6 +736,7 @@ button.sh-sec:hover { color: var(--ink); }
 .dcal button.end.has::after { background: var(--accent-ink); }
 .dcal-hint { margin-top: 6px; font-size: var(--fs-1); color: var(--faint); }
 .sh-sec .hash, .sh-sec .cnt { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
+.sh-sec .hash { font-weight: 700; color: var(--accent); }
 .sh-sec::after { content: ""; flex: 1; height: 1px; background: var(--rule-soft); align-self: center; }
 .sh-row { display: flex; align-items: center; gap: 11px; padding: 8px 10px; margin: 1px 0; border-radius: var(--r-3); cursor: pointer; transition: background var(--d-1) ease, box-shadow var(--d-1) ease; }
 .sh-row:hover { background: var(--hover); }

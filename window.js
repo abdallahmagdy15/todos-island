@@ -6,6 +6,7 @@ const $ = id => document.getElementById(id);
 
 function taskRows() {
   if (!snap) return [];
+  if (currentTab === 'done') return (snap.done || []).filter(d => d.file === doneNote()); // newest done first (snapshot order)
   const sec = snap.sections.find(s => (currentTab === 'work' ? s.name === 'Work' : s.name === 'Personal'));
   return sec ? ordered(sec.items, currentTab) : [];
 }
@@ -85,43 +86,47 @@ function matches(t, q) {
     || t.subs.some(s => s.t.toLowerCase().includes(q))
     || (t.notes || []).some(n => n.toLowerCase().includes(q));
 }
-// Done tab (owner 2026-10-06, pick D2): ONE list, newest done first across BOTH notes (snapshot order), each row tagged
-// work / personal; a small All · Work · Personal switch narrows it (both notes only). A row with notes or subtasks
-// folds open on click, VIEW ONLY: brackets show [x] / [ ] but nothing ticks, edits or stages Now (owner: "view mode only").
-let doneFilter = 'all';
-const openDone = new Set(); // "file:id" of done rows unfolded by a click (folded by default: it's history)
-function renderDone(q) {
-  const all = snap.done || [];
-  const both = (snap.settings.mode || 'both') === 'both';
-  if (!both) doneFilter = 'all';
-  const seg = $('done-seg');
-  seg.hidden = !both;
-  if (both) {
-    const n = f => all.filter(d => f === 'all' || d.file === f).length;
-    seg.querySelectorAll('.seg-btn').forEach(b => {
-      const f = b.dataset.df; b.classList.toggle('sel', f === doneFilter); b.setAttribute('aria-checked', f === doneFilter);
-      b.querySelector('.n').textContent = n(f);
-    });
-  }
-  const items = all.filter(d => (doneFilter === 'all' || d.file === doneFilter) && (!q || d.title.toLowerCase().includes(q)));
-  $('done-count').textContent = all.length ? `· ${all.length}` : '';
+// Done tab (owner 2026-10-06 D2 → 2026-10-08): a done task is NOT gone, it's just done, so it reads like an open row:
+// [x] · title · priority · date, notes + subtasks OPEN by default, the same search, Expand / Collapse all and rest-peek.
+// VIEW ONLY: nothing ticks, edits, stages Now or takes a priority click; Restore + delete stay, and the subtask Copy
+// button (a read) works. A Work · Personal switch (both-notes mode only, no "All") picks whose done list shows.
+let doneFilter = null; // 'work' | 'personal'; null = follow the last note tab you were on
+let lastNoteTab = 'work';
+const doneNote = () => { const en = enabledNotes(); const f = doneFilter || lastNoteTab; return en.includes(f) ? f : en[0]; };
+// closed (folded) state: open rows key by id; done rows by "d:file:id" so a done twin of an open title never shares it
+const ck = id => (currentTab === 'done' ? 'd:' + doneNote() + ':' + id : id);
+function doneHead() {
+  const all = snap.done || [], en = enabledNotes(), seg = $('done-seg'), cur = doneNote();
+  seg.hidden = en.length < 2;
+  seg.querySelectorAll('.seg-btn').forEach(b => {
+    const f = b.dataset.df; b.classList.toggle('sel', f === cur); b.setAttribute('aria-checked', f === cur);
+    b.querySelector('.n').textContent = all.filter(d => d.file === f).length;
+  });
+  const mine = all.filter(d => d.file === cur).length;
+  $('done-count').textContent = mine ? `· ${mine}` : '';
   $('btn-clear-done').hidden = !all.length;
-  patchList(items.map(d => {
-    const key = d.file + ':' + d.id, subs = d.subs || [], notes = d.notes || [];
-    const hasDetail = !!(notes.length || subs.length), open = hasDetail && openDone.has(key);
-    const body = open ? `<div class="wexp-body"><div class="wexp-inner">
-      ${notes.map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-      ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span></div>`).join('')}
-    </div></div>` : '';
-    return { key: 'd:' + key, html: `
-    <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done${hasDetail ? ' has-detail' : ''}${open ? ' open' : ''}" data-id="${esc(d.id)}" data-file="${d.file}"${hasDetail ? ` data-dkey="${esc(key)}" aria-expanded="${open}"` : ''} tabindex="-1" aria-label="Done: ${esc(plain(d.title))}">
-      <div class="wrow-main"><span class="wtitle"><span class="tt">${inline(d.title)}</span></span>${body}${!open && subs.length ? `<div class="wsub">${subs.filter(s => s.done).length}/${subs.length} subtasks</div>` : ''}</div>
-      <span class="wmeta"><span class="ftag${d.file === 'work' ? ' work' : ''}">${d.file === 'work' ? 'work' : 'personal'}</span>${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task">${window.UI.icon('trash')}</button></span></span>
-    </div></div></div>` };
-  }).concat(items.length ? [] : [{ key: 'empty', html: `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>` }]));
+}
+function doneRowHtml(d) {
+  const subs = d.subs || [], notes = d.notes || [];
+  const hasDetail = !!(notes.length || subs.length), open = hasDetail && (!closedRows.has(ck(d.id)) || d.id === peekId);
+  const body = open ? `<div class="wexp-body"><div class="wexp-inner">
+    ${notes.map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
+    ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+  </div></div>` : '';
+  return `
+  <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done${open ? ' open' : ''}${hasDetail ? ' has-detail' : ''}" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(plain(d.title))}"${hasDetail ? ` aria-expanded="${open}"` : ''}>
+    <span class="chk checked view" aria-hidden="true"></span>
+    <div class="wrow-main">
+      <span class="wtitle"><span class="tt">${inline(d.title)}</span></span>
+      ${body}
+      ${!open && subs.length ? `<div class="wsub">${subs.filter(s => s.done).length}/${subs.length} subtasks</div>` : ''}
+    </div>
+    <span class="wmeta">${d.priority ? `<span class="bang ${bangCls(d.priority)}">${esc(d.priority)}</span>` : ''}${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task">${window.UI.icon('trash')}</button></span></span>
+  </div></div></div>`;
 }
 function rowHtml(t) {
   const timed = !!(snap && snap.timer && snap.timer.id === t.id); // focus timer (#10) running on this task
+  if (currentTab === 'done') return doneRowHtml(t);
   const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (!closedRows.has(t.id) || t.id === peekId);
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
@@ -145,15 +150,16 @@ function renderList() {
   $('done-head').hidden = !isDone;
   $('composer').hidden = isDone; // nothing to add to the Done list
   const hadFocus = $('task-list').contains(document.activeElement);
-  // Open note: the shown tab's own .md in the default editor (owner 2026-09-28); the Done tab mixes both notes, so none
+  // Open note: the shown tab's own .md in the default editor (owner 2026-09-28); on Done, the note picked in its switch
   const openBtn = $('btn-open-note');
-  openBtn.hidden = isDone;
-  if (!isDone) openBtn.title = T('win.openNoteTitle', { f: (snap.sources || {})[currentTab] || currentTab });
-  if (isDone) { renderDone(q); markFresh(); settleFocus(hadFocus); restRestore(); $('btn-fold-all').hidden = true; return; }
+  const noteTab = isDone ? doneNote() : currentTab; // on Done: the note whose done list is shown
+  openBtn.hidden = false;
+  openBtn.title = T('win.openNoteTitle', { f: (snap.sources || {})[noteTab] || noteTab });
+  if (isDone) doneHead();
   const all = taskRows();
   const rows = all.filter(t => matches(t, q));
   $('search-count').textContent = q ? `${rows.length} / ${all.length}` : '';
-  patchList(rows.length ? rows.map(t => ({ key: currentTab + ':' + t.id, html: rowHtml(t) })) : [{ key: 'empty', html: emptyState(q) }]);
+  patchList(rows.length ? rows.map(t => ({ key: currentTab + ':' + t.id, html: rowHtml(t) })) : [{ key: 'empty', html: isDone ? `<p class="empty">${q ? T('win.search.none') : T('win.empty.done')}</p>` : emptyState(q) }]);
   markFresh();
   settleFocus(hadFocus);
   restRestore();
@@ -210,7 +216,7 @@ let peekId = null, noPeekId = null;
 function restClear() {
   clearTimeout(restT); clearTimeout(restGraceT); restCand = null;
   noPeekId = null;
-  if (peekId) { const id = peekId; peekId = null; if (closedRows.has(id)) rowInPlace(id); }
+  if (peekId) { const id = peekId; peekId = null; if (closedRows.has(ck(id))) rowInPlace(id); }
   document.querySelectorAll('.wrow.dwelt').forEach(r => r.classList.remove('dwelt'));
   restRow = null; restId = null;
   editTabEl().hide();
@@ -449,14 +455,14 @@ const foldable = rows => rows.filter(t => (t.notes || []).length || t.subs.lengt
 function foldAllLabel(rows) {
   const f = foldable(rows), btn = $('btn-fold-all');
   btn.hidden = !f.length;
-  const anyOpen = f.some(t => !closedRows.has(t.id));
+  const anyOpen = f.some(t => !closedRows.has(ck(t.id)));
   btn.dataset.mode = anyOpen ? 'collapse' : 'expand';
   btn.querySelector('.fold-t').textContent = T(anyOpen ? 'win.fold.collapse' : 'win.fold.expand');
 }
 $('btn-fold-all').addEventListener('click', () => {
   window.SFX.play('tick');
   const f = foldable(taskRows());
-  if ($('btn-fold-all').dataset.mode === 'collapse') f.forEach(t => closedRows.add(t.id)); else closedRows.clear();
+  if ($('btn-fold-all').dataset.mode === 'collapse') f.forEach(t => closedRows.add(ck(t.id))); else f.forEach(t => closedRows.delete(ck(t.id)));
   renderList();
 });
 $('task-list').addEventListener('mouseover', e => {
@@ -514,9 +520,9 @@ async function setPriority(file, id, priority) {
 }
 function toggleRow(id) { // a click pins a row open / folded
   window.SFX.play('tick');
-  closedRows.has(id) ? closedRows.delete(id) : closedRows.add(id);
+  closedRows.has(ck(id)) ? closedRows.delete(ck(id)) : closedRows.add(ck(id));
   if (peekId === id) peekId = null; // the peek became a pin (or a fold)
-  noPeekId = closedRows.has(id) ? id : null; // folded by hand: no peek until the pointer leaves it
+  noPeekId = closedRows.has(ck(id)) ? id : null; // folded by hand: no peek until the pointer leaves it
   rowInPlace(id);
 }
 // fold / unfold IN PLACE: the row element stays (focus, hover and the Edit tab stay with it)
@@ -563,15 +569,15 @@ async function onListAction(e) {
   if (res) { window.SFX.play('add'); await window.api.uncomplete(res.dataset.restore, res.dataset.file); await refresh(); return; }
   // row click = open / fold its notes + subtasks (the ⌄ button is gone); a row with nothing to open goes to the editor
   const row = e.target.closest('.wrow');
-  if (row && row.dataset.dkey) { window.SFX.play('tick'); const k = row.dataset.dkey; openDone.has(k) ? openDone.delete(k) : openDone.add(k); renderList(); return; } // a done row folds open, view only
-  if (!row || row.classList.contains('done')) return;
+  if (row && row.classList.contains('done')) { if (row.classList.contains('has-detail')) toggleRow(row.dataset.id); return; } // view only: a click just folds
+  if (!row) return;
   if (editTabEl().justHid()) return; // a click meant for a tab that just hid (H6)
   if (row.classList.contains('has-detail')) { toggleRow(row.dataset.id); return; }
   window.Panels.edit(row.dataset.file, row.dataset.id);
 }
 
 $('btn-share').addEventListener('click', () => { window.SFX.play('tick'); window.Panels.share(); });
-$('btn-open-note').addEventListener('click', () => { if (currentTab === 'work' || currentTab === 'personal') window.api.openNote(currentTab); });
+$('btn-open-note').addEventListener('click', () => { const f = currentTab === 'done' ? doneNote() : currentTab; if (f === 'work' || f === 'personal') window.api.openNote(f); });
 $('btn-update').addEventListener('click', () => window.api.openUpdate());
 $('btn-rerun-setup').addEventListener('click', () => { window.SFX.play('tick'); window.api.openOnboard(); }); // the wizard merges over current settings — cancel changes nothing
 $('btn-reset-settings').addEventListener('click', async () => { // settings only: note files are never created, deleted, or modified
@@ -583,7 +589,7 @@ $('err-strip').addEventListener('click', e => {
   if (e.target.closest('[data-retry]')) refresh();
   if (e.target.closest('[data-open-settings]')) $('tab-settings').click();
 });
-$('done-seg').addEventListener('click', e => { const b = e.target.closest('[data-df]'); if (!b || b.dataset.df === doneFilter) return; window.SFX.play('tick'); doneFilter = b.dataset.df; renderList(); });
+$('done-seg').addEventListener('click', e => { const b = e.target.closest('[data-df]'); if (!b || b.dataset.df === doneNote()) return; window.SFX.play('tick'); restClear(); doneFilter = b.dataset.df; renderList(); });
 $('btn-clear-done').addEventListener('click', async () => { // undoable — no native confirm
   window.SFX.play('delete');
   const n = await window.api.clearDoneAll();
@@ -711,6 +717,7 @@ $('btn-add').addEventListener('click', async () => {
 
 // ---- tabs ----
 function showTab(tab) {
+  if (tab === 'work' || tab === 'personal') { lastNoteTab = tab; doneFilter = null; } // Done opens on the note you came from
   currentTab = tab;
   localStorage.setItem('ti-tab', tab); // remember where you left off
   document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));

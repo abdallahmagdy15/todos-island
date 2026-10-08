@@ -102,13 +102,15 @@ body.pinned .gl-arc { transform: none !important; transition: none !important; }
 #body { max-height: 560px; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 12px; }
 #body::-webkit-scrollbar { width: 6px; }
 
-/* markdown-literal section heading: "## Work" (faint mono ## + sentence case) + hairline */
+/* markdown-literal section heading: "## Work" + a rule. Owner 2026-10-08: every ## title stands out as a section, in
+   the island, the tasks window and Settings alike — the ## wears the accent, the name is ink, the rule starts in the accent */
 .sec {
   display: flex; align-items: baseline; gap: 6px;
-  padding: 11px 20px 5px; font-size: var(--fs-2); font-weight: 700; color: var(--muted);
+  padding: 11px 20px 5px; font-size: var(--fs-2); font-weight: 700; color: var(--ink);
 }
-.sec .hash { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--faint); }
-.sec::after { content: ''; flex: 1; height: 1px; background: var(--rule-soft); align-self: center; }
+.sec .hash { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 700; color: var(--accent); }
+.sec::after { content: ''; flex: 1; height: 1px; align-self: center; background: linear-gradient(to right, color-mix(in srgb, var(--accent) 50%, transparent), var(--rule-soft) 60%); }
+[dir="rtl"] .sec::after { background: linear-gradient(to left, color-mix(in srgb, var(--accent) 50%, transparent), var(--rule-soft) 60%); }
 /* peek switch (#9): with focus-by-time the header is a button — click flips to the other note for this showing */
 button.sec-peek { width: 100%; border: 0; background: transparent; font-family: inherit; text-align: start; cursor: pointer; border-radius: var(--r-1); }
 .sec-peek .swap { display: inline-flex; font-weight: 400; color: var(--faint); transition: color 160ms ease, transform 260ms var(--ease-out); order: 2; margin-inline-start: 6px; }
@@ -259,24 +261,29 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .sub.done .st { color: var(--faint); text-decoration: line-through; }
 .ac-subs, .rd-inner { display: flex; flex-direction: column; gap: 2px; }
 /* folds: open subtasks past the first 3 ("[ ] N more") and done ones ("[x] N done") sit behind one quiet line.
-   Owner 2026-10-06 (pick F2): a 0.5 s rest opens it, and it stays 1 s after the pointer leaves (the hover rule's grace),
-   so moving to a nearby subtask never snaps it shut. island.js SD_OPEN_MS / SD_CLOSE_MS must match the timings here. */
+   Owner 2026-10-06 (F2) + 2026-10-08: a 0.5 s rest fills the line with the Copy tab's accent sweep (.cw-fill), then
+   the line STEPS ASIDE and its subtasks slide into its place; 1 s after the pointer leaves that task's subtasks they
+   fold back and the line returns. island.js drives .filling / .open (SD_IN, SD_GRACE, SD_REVEAL, SD_FOLD = these). */
 .subs-done { display: flex; flex-direction: column; }
-/* the line SAYS it will open (owner: "tell the user it will expand"): on hover it lights up in the accent, its chevron
-   nudges down, and a thin charge line fills under it during the 0.5 s rest */
-.sd-sum { position: relative; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-inline-start: -4px; padding: 2px 6px 3px 4px; border-radius: 6px;
-  font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); cursor: default; transition: color 160ms ease, background 160ms ease, opacity 160ms ease; }
-.sd-sum .sd-ch { width: 11px; height: 11px; stroke-width: 2.4; transition: rotate 260ms var(--ease-spring) 1s; } /* folds back after the 1 s grace */
-.sd-sum::after { content: ''; position: absolute; left: 4px; right: 6px; bottom: 0; height: 1.5px; border-radius: 1px; background: var(--accent); transform: scaleX(0); transform-origin: left; opacity: .7; }
-.subs-done:hover .sd-sum { color: var(--accent); background: var(--accent-soft); }
-.subs-done:hover .sd-sum .sd-ch { animation: sdNudge 500ms var(--ease-out); rotate: 180deg; transition-delay: .5s; } /* nudges during the rest, flips once open */
-.subs-done:hover .sd-sum::after { transform: scaleX(1); opacity: 0; transition: transform 500ms linear, opacity 200ms ease .5s; }
+.sd-sum { position: relative; overflow: hidden; align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; margin-inline-start: -4px; padding: 2px 6px 3px 4px; border-radius: 6px;
+  max-height: 24px; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); cursor: default;
+  transition: color 160ms ease, background 160ms ease, opacity 200ms ease, max-height 260ms var(--ease-out), padding 260ms var(--ease-out); }
+.sd-sum > span:not(.cw-fill), .sd-sum .sd-ch { position: relative; } /* above the sweep */
+.sd-sum .sd-ch { width: 11px; height: 11px; stroke-width: 2.4; }
+.subs-done:hover .sd-sum, .subs-done.filling .sd-sum { color: var(--accent); background: var(--accent-soft); }
+.subs-done:hover .sd-sum .sd-ch { animation: sdNudge 500ms var(--ease-out); } /* it says: this opens downward */
+.subs-done.filling .sd-sum .cw-fill { animation: cwFill 500ms linear forwards; } /* the Copy tab's charge, same 0.5 s */
 @keyframes sdNudge { 40% { transform: translateY(2px); } }
-.sd-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 220ms var(--ease-out) 1s, opacity 160ms ease 1s; }
+.sd-wrap { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 260ms var(--ease-out), opacity 160ms ease; }
 .sd-in { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 2px; }
-.subs-done:hover .sd-wrap, .subs-done:focus-within .sd-wrap { grid-template-rows: 1fr; opacity: 1;
-  transition: grid-template-rows 480ms var(--ease-out) .5s, opacity 420ms ease .56s; }
-@media (prefers-reduced-motion: reduce) { .subs-done:hover .sd-wrap { transition: opacity 200ms ease .5s; } .sd-wrap { transition: opacity 160ms ease 1s; } .subs-done:hover .sd-sum .sd-ch { animation: none; } }
+.subs-done.open .sd-sum { max-height: 0; padding-block: 0; opacity: 0; pointer-events: none; } /* the line steps aside… */
+.subs-done.open .sd-wrap, .subs-done:focus-within .sd-wrap { grid-template-rows: 1fr; opacity: 1;  /* …its subtasks take its place */
+  transition: grid-template-rows 480ms var(--ease-out), opacity 420ms ease 60ms; }
+.subs-done.open .sub { animation: sdIn 420ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 40ms); }
+@keyframes sdIn { from { opacity: 0; transform: translateY(-4px); } }
+.subs-done.now .sd-sum, .subs-done.now .sd-wrap { transition: none; } /* re-rendered while open: painted open at once */
+.subs-done.now .sub { animation: none; }
+@media (prefers-reduced-motion: reduce) { .sd-wrap, .subs-done.open .sd-wrap, .sd-sum { transition: opacity 200ms ease; } .subs-done:hover .sd-sum .sd-ch, .subs-done.open .sub { animation: none; } .subs-done.filling .sd-sum .cw-fill { animation: none; transform: scaleX(1); } }
 
 .hint { padding: 5px 20px 11px; color: var(--faint); font-size: var(--fs-2); }
 

@@ -637,7 +637,7 @@ function appIcon() {
   return appIconImg;
 }
 // Top-edge peek (owner 2026-10-06, pick P1): rest the pointer at the very top middle of the primary screen (a strip 25 %
-// of its width, 3 px tall, nothing drawn) for 1.5 s → the island shows. Pure rules in lib/peek.js; a cheap 120 ms poll.
+// of its width, 3 px tall, nothing drawn) for 1 s → the island shows. Pure rules in lib/peek.js; a cheap 120 ms poll.
 let peekState = { since: null, armed: true };
 function peekTick() {
   if (!island || island.isDestroyed()) return;
