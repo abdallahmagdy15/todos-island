@@ -947,7 +947,7 @@ ipcMain.handle('delete-task', (_e, id, file) => {
 });
 // move a subtask to another task (owner 2026-10-09: drag in the tasks window, "Move to…" in the Edit panel), also from
 // one note to the other. One Undo puts both notes back exactly, only if neither changed since (the Clear-done rollback)
-ipcMain.handle('move-subtask', (_e, fromFile, fromId, subTitle, toFile, toId) => {
+ipcMain.handle('move-subtasks', (_e, fromFile, fromId, subTitles, toFile, toId) => {
   if (![fromFile, toFile].every(f => f === 'work' || f === 'personal')) return { ok: false };
   if (fromFile === toFile && fromId === toId) return { ok: true, changed: false };
   const src = fileFor(fromFile), dst = fromFile === toFile ? src : fileFor(toFile);
@@ -955,12 +955,14 @@ ipcMain.handle('move-subtask', (_e, fromFile, fromId, subTitle, toFile, toId) =>
   if (!target) return { ok: false };
   const files = src === dst ? [src] : [src, dst];
   const before = files.map(f => fs.readFileSync(f.path, 'utf8'));
-  const taken = src.takeSubtask(fromId, subTitle);
-  if (!taken) return { ok: false };
-  dst.putSubtask(toId, taken);
+  const want = new Set([].concat(subTitles || []).map(String)), parent = src.findById(fromId);
+  const titles = parent ? src.subtasksOf(parent).map(x => x.title).filter(x => want.has(x)) : []; // the note's own order
+  const taken = titles.map(x => src.takeSubtask(fromId, x)).filter(Boolean);
+  if (!taken.length) return { ok: false };
+  for (const t of taken) dst.putSubtask(toId, t);
   files.forEach(f => f.save());
   const caps = files.map((f, i) => ({ path: f.path, before: before[i], after: fs.readFileSync(f.path, 'utf8') }));
-  const token = pushUndo({ kind: 'move-sub', caps, label: `${subTitle} → ${target.title}`.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
+  const token = pushUndo({ kind: 'move-sub', caps, label: `${taken.length === 1 ? titles[0] : taken.length + ' subtasks'} → ${target.title}`.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
   pushUndoToWindow(token); sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: true, changed: true };

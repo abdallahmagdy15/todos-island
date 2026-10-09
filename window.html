@@ -349,15 +349,39 @@
             <label data-i18n="att.title">Attachments</label>
             <ul class="att-list" id="ed-att"></ul>
           </div>
-          <div class="field"><label for="ed-sub" data-i18n="ed.sub">Subtasks</label>
+          <div class="field">
+            <div class="sub-head"><label for="ed-sub" data-i18n="ed.sub">Subtasks</label>
+              <!-- Move subtasks (owner 2026-10-09, like WhatsApp's forward): select them, then pick the task they go to -->
+              <button class="btn-text sub-mv" id="ed-sub-move" type="button" data-i18n-title="ed.mv.btnTitle"><svg class="ic" data-icon="moveTo" viewBox="0 0 24 24"></svg><span data-i18n="ed.mv.btn">Move…</span></button></div>
             <ul class="subs-list" id="ed-subs"></ul>
-            <div class="addsub"><input type="text" id="ed-sub" data-i18n-ph="ed.sub.ph"><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button></div>
+            <div class="addsub" id="ed-addsub-row"><input type="text" id="ed-sub" data-i18n-ph="ed.sub.ph"><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button></div>
+            <div class="move-bar" id="ed-move-bar" hidden>
+              <span class="mv-count" id="mv-count"></span>
+              <button class="btn-text" id="mv-cancel" type="button" data-i18n="ed.mv.cancel">Cancel</button>
+              <button class="btn-accent" id="mv-next" type="button" disabled><span data-i18n="ed.mv.next">Move to</span><svg class="ic" data-icon="moveTo" viewBox="0 0 24 24"></svg></button>
+            </div>
           </div>
         </div>
         <!-- Attach steps (owner 2026-10-09): they take over the whole editor view, the task name stays on top; Back / done returns -->
         <div class="att-view" id="ed-att-view" hidden>
           <div class="att-vhead"><button class="btn-text att-back" id="att-back" type="button"><svg class="ic" data-icon="arrowLeft" viewBox="0 0 24 24"></svg><span data-i18n="att.back">Back</span></button><span class="att-task" id="att-task"></span></div>
           <div class="att-wiz" id="ed-att-wiz"></div>
+        </div>
+        <!-- Move to: the other open tasks (no subtasks), the whole editor view; picking one moves the selected subtasks there -->
+        <div class="att-view" id="ed-move-view" hidden>
+          <div class="att-vhead"><button class="btn-text att-back" id="mv-back" type="button"><svg class="ic" data-icon="arrowLeft" viewBox="0 0 24 24"></svg><span data-i18n="att.back">Back</span></button><span class="att-task" id="mv-title"></span></div>
+          <div class="mv-tools"><!-- one list at a time, like Share: the note · Open or Done -->
+            <div class="seg" id="mv-page" role="radiogroup">
+              <button class="seg-btn" data-page="work" type="button" role="radio"><span data-i18n="win.tab.work">Work</span></button>
+              <button class="seg-btn" data-page="personal" type="button" role="radio"><span data-i18n="win.tab.personal">Personal</span></button>
+            </div>
+            <div class="seg" id="mv-sub" role="radiogroup">
+              <button class="seg-btn" data-sub="open" type="button" role="radio"><span data-i18n="sh.open">Open</span></button>
+              <button class="seg-btn" data-sub="done" type="button" role="radio"><span data-i18n="sh.sec.done">Done</span></button>
+            </div>
+          </div>
+          <input type="text" id="mv-q" class="att-q" spellcheck="false" autocomplete="off" data-i18n-ph="ed.mv.ph" data-i18n-aria="ed.mv.ph">
+          <div class="mv-list" id="mv-list" role="listbox"></div>
         </div>
       </div>
       <div class="side-foot" id="ed-foot">

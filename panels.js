@@ -27,7 +27,7 @@
   }
   async function close() {
     if (!kind) return;
-    toggleMenu(false); closeWiz();
+    toggleMenu(false); closeWiz(); endMove();
     await saveNow(); // a pending edit lands before the panel goes
     kind = null;
     side.classList.remove('open');
@@ -49,6 +49,7 @@
     if (!kind) return;
     if (e.key === 'Escape') {
       if (!$('ed-menu').hidden) { toggleMenu(false); $('ed-more').focus(); return; }
+      if (selecting) { e.preventDefault(); setSelecting(false); $('ed-sub-move').focus(); return; } // Esc leaves the selection first
       e.preventDefault(); close(); return;
     }
     if (kind === 'edit' && e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); saveNow(); }
@@ -67,7 +68,7 @@
     if (kind === 'edit' && (file !== FILE || id !== ID)) await saveNow(); // switching tasks: the old one lands first
     const same = kind === 'edit' && file === FILE && id === ID;
     FILE = file; ID = id;
-    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); }
+    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); endMove(); }
     show('edit');
     await load(!same);
     if (opts.focus === 'sub') setTimeout(() => $('ed-sub').focus({ preventScroll: true }), 80);
@@ -78,8 +79,8 @@
     if (s && s.lang && s.lang !== LANG) setLang(s.lang);
     const t = s.sections.flatMap(x => x.items).find(x => x.id === ID) || null;
     $('ed-missing').hidden = !!t;
-    $('ed-form').hidden = !t || wizOpen; // the Attach steps keep the view until they close
-    $('ed-foot').hidden = !t || wizOpen;
+    $('ed-form').hidden = !t || wizOpen || moveOpen; // the Attach steps / Move to keep the view until they close
+    $('ed-foot').hidden = !t || wizOpen || moveOpen;
     if (!t) return;
     $('ed-badge').textContent = T(t.file === 'work' ? 'win.st.file.work' : 'win.st.file.personal');
     if (full) {
@@ -95,8 +96,10 @@
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
     const subs = [...t.subs.filter(x => !x.done), ...t.subs.filter(x => x.done)]; // open first (owner 2026-09-30); the note keeps its order
     $('ed-subs').innerHTML = subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-move" type="button" data-submove title="${esc(T('ed.sub.move'))}" aria-label="${esc(T('ed.sub.moveAria', { t: plain(x.t) }))}">${window.UI.icon('moveTo')}</button><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
+      `<li class="${x.done ? 'done' : ''}${mvPicked.has(x.t) ? ' picked' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
+    if (selecting) { for (const k of [...mvPicked]) if (!subs.some(x => x.t === k)) mvPicked.delete(k); } // a picked one that is gone
+    paintSel();
   }
   function paintActive() {
     $('ed-active').classList.toggle('sel', activeState);
@@ -161,9 +164,13 @@
   let subEditing = null;
   $('ed-subs').addEventListener('click', async e => {
     const li = e.target.closest('li[data-sub]');
+    if (li && selecting) { // selection mode: a click picks / unpicks, nothing else
+      mvPicked.has(li.dataset.sub) ? mvPicked.delete(li.dataset.sub) : mvPicked.add(li.dataset.sub);
+      li.classList.toggle('picked', mvPicked.has(li.dataset.sub)); window.SFX.play('tick'); paintSel();
+      return;
+    }
     if (!li || e.target.closest('.sub-edit')) return;
     if (e.target.closest('.st')) { startSubEdit(li); return; }
-    if (e.target.closest('[data-submove]')) { openMove(li); return; }
     await saveNow();
     if (e.target.closest('.sub-del')) { window.SFX.play('delete'); await window.api.deleteSubtask(FILE, ID, li.dataset.sub, session); }
     else if (e.target.closest('[data-subprio]')) { // one click steps the importance: none → ! → !! → !!! → none (owner 2026-09-29)
@@ -319,53 +326,79 @@
     if (add.length) { window.SFX.play('tick'); saveAtt([...att, ...add]); }
   });
 
-  // Move to… (owner 2026-10-09): a small picker right under the subtask — a search + the open tasks of both notes; a pick
-  // moves the subtask there (main 'move-subtask', its own Undo). Dragging it onto a row in the list does the same.
-  let movePick = null;
-  function closeMove() { if (movePick) { movePick.remove(); movePick = null; } }
-  async function openMove(li) {
-    const again = movePick && movePick.previousElementSibling === li;
-    closeMove();
-    if (again) return; // the same button closes it
-    const s = await window.api.getSnapshot();
-    const groups = s.sections.filter(g => g.items.length).map(g => ({ file: g.file, items: g.items.filter(t => !(g.file === FILE && t.id === ID)) }));
-    const pick = movePick = document.createElement('li');
-    pick.className = 'move-pick';
-    pick.innerHTML = `<input type="text" class="mv-q" spellcheck="false" placeholder="${esc(T('ed.sub.movePh'))}" aria-label="${esc(T('ed.sub.movePh'))}"><div class="mv-list" role="listbox"></div>`;
-    li.after(pick);
-    const q = pick.querySelector('.mv-q'), list = pick.querySelector('.mv-list');
-    const paint = () => {
-      const w = q.value.trim().toLowerCase(), both = groups.length > 1;
-      const html = groups.map(g => {
-        const its = g.items.filter(t => !w || plain(t.title).toLowerCase().includes(w));
-        if (!its.length) return '';
-        return (both ? `<div class="mv-h"><span class="hash">##</span> ${esc(T(g.file === 'work' ? 'win.tab.work' : 'win.tab.personal'))}</div>` : '')
-          + its.map(t => `<button class="mv-opt" type="button" role="option" data-file="${g.file}" data-id="${esc(t.id)}">${inline(t.title)}</button>`).join('');
-      }).join('');
-      list.innerHTML = html || `<div class="mv-none">${esc(T('ed.sub.moveNone'))}</div>`;
-    };
-    paint();
-    q.addEventListener('input', paint);
-    const opts = () => [...list.querySelectorAll('.mv-opt')];
-    pick.addEventListener('keydown', e => {
-      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMove(); li.querySelector('[data-submove]').focus(); return; }
-      const o = opts(), i = o.indexOf(document.activeElement);
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (o.length) o[i === -1 ? (e.key === 'ArrowDown' ? 0 : o.length - 1) : (i + (e.key === 'ArrowDown' ? 1 : o.length - 1)) % o.length].focus(); }
-      else if (e.key === 'Enter' && e.target === q && o[0]) { e.preventDefault(); o[0].click(); }
-    });
-    list.addEventListener('click', async e => {
-      const o = e.target.closest('.mv-opt');
-      if (!o) return;
-      const sub = li.dataset.sub;
-      closeMove();
-      await saveNow();
-      window.SFX.play('tick');
-      const r = await window.api.moveSubtask(FILE, ID, sub, o.dataset.file, o.dataset.id);
-      if (r && r.ok) flashSaved(T('ed.sub.moved'));
-      load(false);
-    });
-    q.focus();
+  // Move subtasks (owner 2026-10-09, like WhatsApp's forward; replaced the per-subtask ↳ picker): Move… turns the list
+  // into a selection (click subtasks to pick them), "Move to" opens the other OPEN tasks of both notes as the whole editor
+  // view (no subtasks shown, searchable), one click moves every mvPicked subtask there (main 'move-subtasks', one Undo)
+  // and the normal editor returns. Back = to the selection; Cancel / Esc = out of it.
+  let selecting = false, moveOpen = false;
+  const mvPicked = new Set();
+  function setSelecting(on) {
+    selecting = on; mvPicked.clear();
+    $('ed-subs').classList.toggle('selecting', on);
+    $('ed-subs').querySelectorAll('li.picked').forEach(li => li.classList.remove('picked'));
+    paintSel();
   }
+  function paintSel() {
+    $('ed-move-bar').hidden = !selecting; $('ed-addsub-row').hidden = selecting; $('ed-sub-move').hidden = selecting || !$('ed-subs').querySelector('li[data-sub]');
+    $('mv-count').textContent = mvPicked.size ? T('ed.mv.count', { n: mvPicked.size }) : T('ed.mv.hint');
+    $('mv-count').classList.toggle('none', !mvPicked.size);
+    $('mv-next').disabled = !mvPicked.size;
+  }
+  // one list at a time, like Share (owner 2026-10-09): the note (Work · Personal, hidden with one note) and Open · Done;
+  // it opens on this task's note, Open. Every row carries its own file (snapshot sections are named, not filed).
+  let mvSnap = null, mvPage = 'work', mvSub = 'open';
+  function paintMoveList() {
+    if (!mvSnap) return;
+    const w = $('mv-q').value.trim().toLowerCase();
+    const pool = mvSub === 'done' ? (mvSnap.done || []) : mvSnap.sections.flatMap(x => x.items);
+    const its = pool.filter(t => t.file === mvPage && !(t.file === FILE && t.id === ID) && (!w || plain(t.title).toLowerCase().includes(w)));
+    for (const [seg, k, v] of [['mv-page', 'page', mvPage], ['mv-sub', 'sub', mvSub]])
+      $(seg).querySelectorAll('.seg-btn').forEach(b => { const on = b.dataset[k] === v; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
+    $('mv-list').innerHTML = its.map(t => `<button class="mv-opt" type="button" role="option" data-file="${t.file}" data-id="${esc(t.id)}">${inline(t.title)}</button>`).join('')
+      || `<div class="mv-none">${esc(T(w ? 'ed.mv.noMatch' : 'ed.mv.none'))}</div>`;
+  }
+  async function openMoveView() {
+    moveOpen = true;
+    $('mv-title').textContent = T('ed.mv.title', { n: mvPicked.size });
+    $('ed-form').hidden = true; $('ed-foot').hidden = true; $('ed-move-view').hidden = false;
+    $('mv-q').value = ''; mvPage = FILE; mvSub = 'open';
+    $('ed-move-view').closest('.side-scroll').scrollTop = 0;
+    mvSnap = await window.api.getSnapshot();
+    const mode = mvSnap.settings && mvSnap.settings.mode;
+    $('mv-page').hidden = !!mode && mode !== 'both';
+    paintMoveList();
+    $('mv-q').focus();
+  }
+  $('mv-page').addEventListener('click', e => { const b = e.target.closest('[data-page]'); if (b && b.dataset.page !== mvPage) { window.SFX.play('tick'); mvPage = b.dataset.page; paintMoveList(); } });
+  $('mv-sub').addEventListener('click', e => { const b = e.target.closest('[data-sub]'); if (b && b.dataset.sub !== mvSub) { window.SFX.play('tick'); mvSub = b.dataset.sub; paintMoveList(); } });
+  function closeMoveView() {
+    if (!moveOpen) return;
+    moveOpen = false;
+    $('ed-move-view').hidden = true; $('ed-form').hidden = false; $('ed-foot').hidden = false;
+  }
+  function endMove() { closeMoveView(); if (selecting) setSelecting(false); }
+  $('ed-sub-move').addEventListener('click', () => { window.SFX.play('tick'); setSelecting(true); });
+  $('mv-cancel').addEventListener('click', () => { window.SFX.play('tick'); setSelecting(false); });
+  $('mv-next').addEventListener('click', () => { if (mvPicked.size) { window.SFX.play('tick'); openMoveView(); } });
+  $('mv-back').addEventListener('click', () => { window.SFX.play('tick'); closeMoveView(); $('mv-next').focus(); });
+  $('mv-q').addEventListener('input', paintMoveList);
+  $('ed-move-view').addEventListener('keydown', e => {
+    const o = [...$('mv-list').querySelectorAll('.mv-opt')], i = o.indexOf(document.activeElement);
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMoveView(); $('mv-next').focus(); }
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (o.length) o[i === -1 ? (e.key === 'ArrowDown' ? 0 : o.length - 1) : (i + (e.key === 'ArrowDown' ? 1 : o.length - 1)) % o.length].focus(); }
+    else if (e.key === 'Enter' && e.target.id === 'mv-q' && o[0]) { e.preventDefault(); o[0].click(); }
+  });
+  $('mv-list').addEventListener('click', async e => {
+    const o = e.target.closest('.mv-opt');
+    if (!o) return;
+    const titles = [...mvPicked];
+    await saveNow();
+    window.SFX.play('tick');
+    const r = await window.api.moveSubtasks(FILE, ID, titles, o.dataset.file, o.dataset.id);
+    endMove();
+    flashSaved(r && r.ok ? T('ed.mv.done') : T('att.fail'), !(r && r.ok));
+    load(false);
+  });
   $('ed-addsub').addEventListener('click', async () => {
     const v = $('ed-sub').value.trim();
     if (!v) { window.Motion.nudge($('ed-sub')); $('ed-sub').focus(); return; }

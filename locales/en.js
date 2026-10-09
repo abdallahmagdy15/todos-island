@@ -168,8 +168,7 @@ const STRINGS_EN = {
   'ed.sub.del': 'Delete subtask {t}', 'ed.sub.none': 'No subtasks yet.',
   'ed.sub.prio': 'Importance: click to step ! → !! → !!! → none', 'ed.sub.prioAria': 'Priority of {t}: {p}',
   'att.title': "Attachments", 'att.aria': "{n} attachments", 'att.add': "Attach", 'att.del': "Remove {t}", 'att.cmd': "Terminal", 'att.app': "Desktop app", 'att.cmd.hint': "opens the exact session", 'att.app.hint': "opens the app, copies the name", 'att.copied': "Name copied: paste it in the app", 'att.fail': "Couldn’t open it", 'att.t.session': "AI session", 'att.t.file': "File", 'att.t.folder': "Folder", 'att.t.link': "Link", 'att.t.email': "Email / calendar", 'att.later': "later", 'att.back': "Back", 'att.q.type': "What do you attach?", 'att.q.tool': "Which tool?", 'att.q.mode': "Reopen it how?", 'att.q.session': "Which session? (recent on this PC)", 'att.q.link': "Paste the link", 'att.q.find': "Find a session by name or folder", 'att.noMatch': "No session matches that.", 'att.loading': "Looking for sessions…", 'att.noSess': "No sessions found for this tool on this PC.", // task attachments (owner 2026-10-09)
-  'ed.sub.move': 'Move to another task', 'ed.sub.moveAria': 'Move {t} to another task', 'ed.sub.movePh': 'Find a task…',
-  'ed.sub.moveNone': 'No other open tasks.', 'ed.sub.moved': 'Moved ✓',
+  'ed.mv.btn': "Move…", 'ed.mv.btnTitle': "Move subtasks to another task", 'ed.mv.hint': "Pick the subtasks to move", 'ed.mv.count': "{n} selected", 'ed.mv.cancel': "Cancel", 'ed.mv.next': "Move to", 'ed.mv.title': "Move {n} to…", 'ed.mv.ph': "Find a task…", 'ed.mv.none': "No other open tasks.", 'ed.mv.noMatch': "No task matches that.", 'ed.mv.done': "Moved ✓", // move subtasks (owner 2026-10-09)
   'ed.sub.rename': 'Click to rename', 'ed.sub.tick': 'Mark {t} done', 'ed.sub.untick': 'Mark {t} not done',
   'ed.missing': 'Task not found — it may have been completed or removed.',
   'ed.task': 'Task',

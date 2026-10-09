@@ -15,7 +15,8 @@ contextBridge.exposeInMainWorld('api', {
   deleteTask: (id, file) => ipcRenderer.invoke('delete-task', id, file),
   undoAction: token => ipcRenderer.invoke('undo-action', token),
   undoExpire: token => ipcRenderer.invoke('undo-expire', token),
-  moveSubtask: (fromFile, fromId, title, toFile, toId) => ipcRenderer.invoke('move-subtask', fromFile, fromId, title, toFile, toId),
+  moveSubtask: (fromFile, fromId, title, toFile, toId) => ipcRenderer.invoke('move-subtasks', fromFile, fromId, [title], toFile, toId), // drag: one
+  moveSubtasks: (fromFile, fromId, titles, toFile, toId) => ipcRenderer.invoke('move-subtasks', fromFile, fromId, titles, toFile, toId), // editor: the picked ones
   deleteSubtask: (file, parentId, title, session) => ipcRenderer.invoke('delete-subtask', file, parentId, title, session),
   uncomplete: (id, file) => ipcRenderer.invoke('uncomplete-task', id, file),
   moveTask: (file, id, dir) => ipcRenderer.invoke('move-task', file, id, dir),
