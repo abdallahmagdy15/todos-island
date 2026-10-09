@@ -1,0 +1,51 @@
+# Build the Windows installer from the public repo (step 1 of SignPath Foundation code signing).
+# SignPath signs only binaries built by CI from this repository, so the installer must come from here,
+# not from a developer PC. This workflow builds and checks it; it does not publish a release yet.
+# Step 4 (after SignPath approval) adds the signing request and the release upload.
+name: Build installer
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Self-check (parser, scheduler, share, i18n, css coverage…)
+        run: npm test
+
+      - name: Build installer
+        # --publish never: electron-builder would otherwise try to upload when it sees a tag + token
+        run: npx electron-builder --win --publish never
+
+      - name: Verify package (critical files present, no state.json or logs shipped)
+        run: npm run verify-dist
+
+      - name: Checksum
+        shell: pwsh
+        run: |
+          $f = Get-Item dist/TodosIsland-Setup-*.exe
+          $h = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower()
+          "| file | size | sha256 |`n|---|---|---|`n| $($f.Name) | $([math]::Round($f.Length / 1MB, 1)) MB | ``$h`` |" >> $env:GITHUB_STEP_SUMMARY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-unsigned
+          path: dist/TodosIsland-Setup-*.exe
+          if-no-files-found: error
+          retention-days: 14

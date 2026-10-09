@@ -33,6 +33,7 @@
     "files": [
       "**/*",
       "!docs/**",
+      "!.github/**",
       "!state.json",
       "!**/*.log"
     ],
