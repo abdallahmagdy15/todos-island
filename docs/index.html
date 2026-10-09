@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Todos Island</title>
+<meta name="description" content="Type your tasks in a plain Markdown note. A small island drops in from the top of your Windows screen with the few that matter, then gets out of the way.">
+<meta property="og:title" content="Todos Island">
+<meta property="og:description" content="Type it. It finds you. A Windows tray app over your own Markdown notes.">
+<meta property="og:image" content="https://abdallahmagdy15.github.io/todos-island/promo-poster.jpg">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23f7f6f2'/%3E%3Ctext x='16' y='22' font-family='Consolas,monospace' font-size='15' font-weight='700' text-anchor='middle' fill='%231c1b19'%3E[%3Ctspan fill='%232d4fc4'%3E★%3C/tspan%3E]%3C/text%3E%3C/svg%3E">
+<style>
+  /* v3 (owner 2026-10-09): STAGED scenes (one step per wheel / key / swipe, soft transitions), the island only drops in
+     its own scene, a scroll hint with an icon, small creative touches that stay simple. Tokens = the app's own. */
+  :root {
+    --paper: #f7f6f2; --ink: #1c1b19; --muted: #5c5a55; --faint: #69665f; --rule: rgba(28, 27, 25, .12);
+    --accent: #2d4fc4; --accent-ink: #fff; --accent-soft: rgba(45, 79, 196, .12);
+    --p3: #b42318; --p2: #9a5b00; --p1: #4b6b2e;
+    --m0: #e9edf8; --m1: #d5deff; --m2: #b2e9ec; --m3: #e4d9ff; --m4: #d3deff;
+    --pill: rgba(255, 255, 255, .8); --rim: rgba(255, 255, 255, .95); --bar: rgba(247, 246, 242, .8); --win: rgba(255, 255, 255, .92);
+    --sans: 'Segoe UI Variable Display', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+    --mono: 'Cascadia Mono', Consolas, ui-monospace, monospace;
+    --soft: cubic-bezier(.22, .8, .24, 1); --spring: cubic-bezier(.2, 1.3, .35, 1);
+    color-scheme: light;
+  }
+  :root[data-theme="dark"] {
+    --paper: #121211; --ink: #ecebe6; --muted: #a9a69e; --faint: #939088; --rule: rgba(236, 235, 230, .12);
+    --accent: #8ba6ff; --accent-ink: #121211; --accent-soft: rgba(139, 166, 255, .16);
+    --p3: #ff8a7a; --p2: #e0a043; --p1: #9cc27a;
+    --m0: #10131d; --m1: #354fc7; --m2: #1e6370; --m3: #5f4ab1; --m4: #3854b8;
+    --pill: rgba(26, 26, 24, .8); --rim: rgba(255, 255, 255, .14); --bar: rgba(18, 18, 17, .8); --win: rgba(30, 30, 28, .94);
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; }
+  body { margin: 0; overflow: hidden; color: var(--ink); font: 16px/1.5 var(--sans); background: var(--m0); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+  .n { font-family: var(--mono); direction: ltr; unicode-bidi: isolate; }
+  .p3 { color: var(--p3); font-weight: 700; } .p2 { color: var(--p2); font-weight: 700; } .p1 { color: var(--p1); font-weight: 700; } .ac { color: var(--accent); }
+  h1, h2 { margin: 0; letter-spacing: -0.02em; line-height: 1.1; font-weight: 760; }
+  [dir="rtl"] h1, [dir="rtl"] h2 { letter-spacing: 0; line-height: 1.3; }
+  p { margin: 0; }
+
+  /* the wallpaper drifts a little with every scene (one transition on one element) */
+  /* big overlapping spots + one blur = a wash, not spotlights (owner 2026-10-09: dark read as separate lights).
+     Dark mode runs calmer (--wsat), the same rule the app uses for its dark scene. */
+  .wall { --wsat: 1; position: fixed; inset: -15%; z-index: 0; transition: transform 1.4s var(--soft), filter 1.4s var(--soft);
+    filter: blur(60px) saturate(var(--wsat));
+    background: radial-gradient(85% 90% at 15% 10%, var(--m1), transparent 75%), radial-gradient(80% 85% at 90% 15%, var(--m3), transparent 75%),
+      radial-gradient(90% 90% at 80% 95%, var(--m2), transparent 75%), radial-gradient(85% 90% at 10% 95%, var(--m4), transparent 75%), var(--m0); }
+  :root[data-theme="dark"] .wall { --wsat: .55; }
+  [data-stage="1"] .wall { transform: translate(-3%, 2%) scale(1.04); filter: blur(60px) saturate(calc(var(--wsat) * 1.2)); }
+  [data-stage="2"] .wall { transform: translate(2%, -2%) scale(1.02); filter: blur(60px) saturate(calc(var(--wsat) * .85)); }
+  [data-stage="3"] .wall { transform: translate(-1%, -3%) scale(1.06); }
+
+  /* ---------- the stage deck: one scene at a time ---------- */
+  .scene { position: fixed; inset: 0 0 48px; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 28px; padding: 24px 16px; text-align: center; opacity: 0; transform: translateY(40px); filter: blur(6px); pointer-events: none;
+    transition: opacity .7s var(--soft), transform .9s var(--soft), filter .7s var(--soft); }
+  .scene.past { transform: translateY(-40px); }
+  .scene.on { opacity: 1; transform: none; filter: none; pointer-events: auto; }
+  .lede { color: var(--muted); font-size: 18px; max-width: 520px; }
+  h1 { font-size: clamp(36px, 6vw, 64px); }
+  h2 { font-size: clamp(30px, 5vw, 52px); }
+
+  /* scene 0 · the note types itself */
+  .note { width: min(560px, 100%); border-radius: 12px; background: var(--win); box-shadow: 0 0 0 1px var(--rule), 0 24px 50px -28px rgba(0,0,0,.45); text-align: start; overflow: hidden; }
+  .note .tb { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 12px; font-size: 12.5px; color: var(--muted); border-bottom: 1px solid var(--rule); }
+  .note .tb .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); opacity: 0; transition: opacity .3s; }
+  .note .tb .dot.on { opacity: 1; } /* "unsaved" dot while typing, gone when saved */
+  .note .body { padding: 16px 18px 20px; font-family: var(--mono); font-size: 15px; min-height: 104px; direction: ltr; text-align: left; }
+  .note .dim { color: var(--faint); }
+  .caret { display: inline-block; width: 2px; height: 1.1em; background: var(--accent); vertical-align: -3px; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* the scroll hint: a mouse with a rolling wheel */
+  .hint { position: fixed; z-index: 4; left: 50%; bottom: 66px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px;
+    border: 0; background: transparent; color: var(--muted); font: 600 12.5px var(--sans); cursor: pointer; transition: opacity .5s var(--soft); padding: 6px 10px; }
+  .hint .mouse { width: 22px; height: 34px; border-radius: 12px; box-shadow: inset 0 0 0 2px currentColor; position: relative; }
+  .hint .mouse::after { content: ""; position: absolute; left: 50%; top: 7px; width: 3px; height: 7px; margin-left: -1.5px; border-radius: 2px; background: var(--accent); animation: wheel 1.6s var(--soft) infinite; }
+  @keyframes wheel { 0% { transform: translateY(0); opacity: 1; } 70% { transform: translateY(9px); opacity: 0; } 100% { opacity: 0; } }
+  .hint.gone { opacity: 0; pointer-events: none; }
+
+  /* scene 1 · the drift: noise pops in like real notifications */
+  .noise-layer { position: fixed; inset: 0 0 48px; z-index: 1; pointer-events: none; transition: filter .8s var(--soft), opacity .8s var(--soft), transform .8s var(--soft); }
+  .noise { position: absolute; width: 220px; padding: 10px 12px; border-radius: 12px; background: var(--win); text-align: start; font-size: 13px;
+    box-shadow: 0 0 0 1px var(--rule), 0 16px 34px -20px rgba(0,0,0,.5); opacity: 0; transform: translateY(18px) scale(.9) rotate(var(--r));
+    transition: opacity .45s var(--soft), transform .6s var(--spring); transition-delay: calc(var(--k) * 140ms); }
+  [data-stage="1"] .noise, [data-stage="2"] .noise { opacity: 1; transform: rotate(var(--r)); }
+  .noise b { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+  .noise b i { font-style: normal; margin-inline-start: auto; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--p3); color: #fff; font: 700 11px/18px var(--sans); text-align: center; }
+  .noise span { color: var(--muted); font-size: 12.5px; }
+  @media (max-width: 640px) { .noise:nth-child(n+7) { display: none; } .noise { width: 180px; } }
+  .cap { position: relative; z-index: 2; max-width: 620px; padding: 24px 32px; }
+  /* a radial blur halo behind the words (owner 2026-10-09): the noise blurs most at the center and gets sharper
+     toward the edges, so the text never mixes with the windows behind it */
+  .cap::before { content: ""; position: absolute; inset: -60px -90px; z-index: -1; pointer-events: none;
+    -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px);
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--m0) 60%, transparent), transparent);
+    -webkit-mask-image: radial-gradient(closest-side, #000 40%, transparent 100%); mask-image: radial-gradient(closest-side, #000 40%, transparent 100%); }
+  /* scene 2 · when the island drops, the noise layer blurs away behind it (one filter, one element) */
+  [data-stage="2"] .noise-layer { filter: blur(6px); opacity: .25; transform: scale(.96); }
+
+  /* ---------- the island: it drops ONLY in its scene ---------- */
+  .island { position: fixed; top: 10px; left: 50%; z-index: 6; width: min(420px, calc(100% - 24px)); border-radius: 24px; padding: 10px;
+    background: var(--pill); backdrop-filter: blur(20px) saturate(1.4); color: var(--ink); font-size: 14px; text-align: start;
+    box-shadow: inset 0 0 0 1px var(--rim), inset 0 1px 0 rgba(255,255,255,.45), 0 24px 50px -24px rgba(0,0,0,.5);
+    transform: translate(-50%, calc(-100% - 24px)); transition: transform .32s cubic-bezier(.5, 0, .75, 0); }
+  .island.shown { transform: translate(-50%, 0); transition: transform .7s var(--spring); }
+  [dir="rtl"] .island { left: auto; right: 50%; transform: translate(50%, calc(-100% - 24px)); }
+  [dir="rtl"] .island.shown { transform: translate(50%, 0); }
+  .island .top { display: flex; align-items: center; gap: 8px; padding: 0 4px 6px 6px; font-weight: 650; font-size: 13px; }
+  .mk { font-family: var(--mono); font-weight: 700; letter-spacing: -1px; direction: ltr; } .mk i { font-style: normal; color: var(--accent); }
+  .island .cnt { font-family: var(--mono); color: var(--faint); font-size: 12px; margin-inline-start: auto; }
+  .island .sec { font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 4px 10px; } .island .sec b { color: var(--accent); }
+  .island ul { list-style: none; margin: 0; padding: 0; }
+  .island li { display: flex; align-items: flex-start; gap: 10px; padding: 8px 10px; border-radius: 12px; cursor: pointer; }
+  .island li:hover { background: var(--accent-soft); }
+  .island li.now { background: var(--accent-soft); box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); }
+  .island .ck { font-family: var(--mono); font-weight: 700; color: var(--faint); border: 0; background: transparent; cursor: pointer; font-size: 14px; padding: 12px 8px; margin: -12px -8px; }
+  .island .ck:hover { color: var(--accent); }
+  .island .t { flex: 1; min-width: 0; }
+  .island li.done .t { text-decoration: line-through; color: var(--faint); }
+  .island .m { display: flex; gap: 8px; font-family: var(--mono); font-size: 12.5px; white-space: nowrap; } .island .m .d { color: var(--muted); }
+  .island .tip { font-size: 12px; color: var(--faint); padding: 6px 10px 2px; }
+
+  /* scene 3 · Download is a task line: ticking it downloads */
+  .get-task { display: flex; align-items: center; gap: 14px; min-height: 64px; padding: 14px 22px; border-radius: 16px; border: 0; cursor: pointer; text-decoration: none;
+    background: var(--accent); color: var(--accent-ink); font: 650 19px/1.2 var(--sans); box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 14px 30px -12px var(--accent); }
+  .get-task:hover { filter: brightness(1.08); }
+  .get-task .ck { font-family: var(--mono); font-weight: 700; }
+  .get-task.done .lbl { text-decoration: line-through; text-decoration-thickness: 2px; }
+  .meta { font-size: 13.5px; color: var(--muted); min-height: 20px; }
+  .meta a, .small a { color: var(--accent); }
+  .small { font-size: 13.5px; color: var(--muted); max-width: 460px; }
+
+  /* progress = a task list that ticks itself (click to jump) */
+  .progress { position: fixed; z-index: 5; inset-inline-start: 18px; top: 50%; transform: translateY(-50%); list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .progress button { display: flex; gap: 8px; align-items: center; min-height: 32px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; cursor: pointer;
+    font: 600 13px var(--sans); color: var(--faint); text-align: start; }
+  .progress button:hover { background: var(--accent-soft); color: var(--ink); }
+  .progress .ck { font-family: var(--mono); font-weight: 700; direction: ltr; }
+  .progress .cur { color: var(--ink); } .progress .cur .ck, .progress .did .ck { color: var(--accent); }
+  .progress .did .lbl { text-decoration: line-through; }
+  @media (max-width: 860px) { .progress .lbl { display: none; } .progress { inset-inline-start: 6px; } }
+
+  /* taskbar */
+  .taskbar { position: fixed; inset: auto 0 0 0; height: 48px; z-index: 7; display: flex; align-items: center; gap: 6px; padding: 0 10px; background: var(--bar); backdrop-filter: blur(16px); box-shadow: 0 -1px 0 var(--rule); }
+  .tbtn { height: 40px; min-width: 44px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--ink); font: 600 13px var(--sans); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+  .tbtn:hover { background: var(--accent-soft); }
+  .tbtn svg { width: 17px; height: 17px; }
+  .tray { margin-inline-start: auto; display: flex; align-items: center; gap: 2px; }
+  .clock { font: 12.5px/1.2 var(--sans); text-align: end; padding: 0 8px; direction: ltr; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .scene, .wall, .noise, .noise-layer, .island, .island.shown { transition-duration: .01s !important; transition-delay: 0s !important; }
+    .scene { filter: none; transform: none !important; }
+    .caret, .hint .mouse::after { animation: none; }
+  }
+</style>
+</head>
+<body data-stage="0">
+<div class="wall" aria-hidden="true"></div>
+
+<!-- the island: hidden until its scene -->
+<section class="island" id="island" aria-label="Todo Island" inert>
+  <div class="top"><span class="mk">[<i>★</i>]</span><span>Todo Island</span><span class="cnt n" id="i-cnt"></span></div>
+  <div class="sec"><b class="n">##</b> <span data-t="work">Work</span></div>
+  <ul id="i-list"></ul>
+  <p class="tip" data-t="tip">Try it: click a task to make it Now, tick [ ] when it's done.</p>
+</section>
+
+<div class="noise-layer" id="noise" aria-hidden="true"></div>
+<ol class="progress" id="progress" aria-label="Story"></ol>
+
+<main>
+  <section class="scene on" data-scene="0" aria-labelledby="h0">
+    <div class="note" aria-hidden="true">
+      <div class="tb"><span class="n">work-tasks.md</span><span class="dot" id="dirty"></span></div>
+      <div class="body"><div class="dim">## Work</div><div id="typed"></div></div>
+    </div>
+    <h1 id="h0" data-t="h0">Type it. It finds you.</h1>
+    <p class="lede" data-t="l0">Your tasks live in a plain note you own. Todos Island brings the few that matter to you.</p>
+  </section>
+
+  <section class="scene" data-scene="1" aria-labelledby="h1">
+
+    <div class="cap"><h2 id="h1" data-t="h1">Then the details pile in.</h2><p class="lede" data-t="l1" style="margin-top:14px">You meant to send one report. Ten things later, it's buried.</p></div>
+  </section>
+
+  <section class="scene" data-scene="2" aria-labelledby="h2">
+    <div class="cap" style="margin-top:34vh"><h2 id="h2" data-t="h2">The island drops in.</h2><p class="lede" data-t="l2" style="margin-top:14px">Your Now task, and the few that come next. Then it tucks itself away.</p></div>
+  </section>
+
+  <section class="scene" data-scene="3" aria-labelledby="h3">
+    <h2 id="h3" data-t="h3">One thing at a time.</h2>
+    <a class="get-task" id="dl" href="https://github.com/abdallahmagdy15/todos-island/releases/latest"><span class="ck">[ ]</span><span class="lbl" data-t="dl">Download Todos Island for Windows</span></a>
+    <p class="meta" id="meta" aria-live="polite"></p>
+    <p class="small" data-t="free">Free and open source. No account. Your tasks stay in Markdown files on your PC. <a href="https://github.com/abdallahmagdy15/todos-island">Source on GitHub</a></p>
+  </section>
+</main>
+
+<button class="hint" id="hint" type="button"><span class="mouse" aria-hidden="true"></span><span data-t="hint">Scroll</span></button>
+
+<nav class="taskbar" aria-label="Taskbar">
+  <span class="tbtn" aria-hidden="true"><span class="mk">[<span class="ac">★</span>]</span><span>Todos Island</span></span>
+  <div class="tray">
+    <button class="tbtn" id="lang" type="button" lang="ar">عربي</button>
+    <button class="tbtn" id="theme" type="button" aria-label="Light or dark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <div class="clock" id="clock"></div>
+  </div>
+</nav>
+
+<script>
+const REPO = 'abdallahmagdy15/todos-island';
+const S = {
+  en: {
+    steps: ['Type it', 'The drift', 'One thing', 'Get it'],
+    h0: 'Type it. It finds you.', l0: 'Your tasks live in a plain note you own. Todos Island brings the few that matter to you.',
+    h1: 'Then the details pile in.', l1: "You meant to send one report. Ten things later, it's buried.",
+    h2: 'The island drops in.', l2: 'Your Now task, and the few that come next. Then it tucks itself away.',
+    h3: 'One thing at a time.', dl: 'Download Todos Island for Windows',
+    free: 'Free and open source. No account. Your tasks stay in Markdown files on your PC. <a href="https://github.com/abdallahmagdy15/todos-island">Source on GitHub</a>',
+    hint: 'Scroll', work: 'Work', tip: "Try it: click a task to make it Now, tick [ ] when it's done.",
+    noise: [['Team chat', '3', 'Can you check this real quick?'], ['Inbox', '12', 'Re: Re: one small question'], ['Review requested', '1', 'Before the end of day?'], ['Meeting in 5 min', '', 'Weekly sync'],
+      ['Team chat', '5', '@you one more thing'], ['Browser', '9', 'How to fix that one error'], ['Calendar', '1', 'Focus time moved'], ['Docs', '2', 'Comments on your draft']],
+    loading: 'Checking the latest version…', err: 'GitHub is unreachable. <a href="https://github.com/abdallahmagdy15/todos-island/releases/latest">Open the releases page</a>',
+    meta: (v, mb) => `v${v} · ${mb} MB · Windows 10 / 11`, tasks: ['Send the weekly report', 'Fix the login timeout', 'Review the onboarding copy', 'Plan next sprint'], today: 'today', langBtn: ['عربي', 'ar'],
+  },
+  ar: {
+    steps: ['اكتبها', 'التشتت', 'شيء واحد', 'نزّله'],
+    h0: 'اكتبها، وهي تجدك.', l0: 'مهامك في ملاحظة بسيطة تملكها. Todos Island يأتيك بالقليل المهم منها.',
+    h1: 'ثم تتراكم التفاصيل.', l1: 'كنت تنوي إرسال تقرير واحد. بعد عشرة أشياء، دُفن.',
+    h2: 'تنزل الجزيرة.', l2: 'مهمتك الحالية، والقليل الذي يليها. ثم تختفي من تلقاء نفسها.',
+    h3: 'شيء واحد في كل مرة.', dl: 'نزّل Todos Island لويندوز',
+    free: 'مجاني ومفتوح المصدر. بلا حساب. مهامك تبقى في ملفات Markdown على جهازك. <a href="https://github.com/abdallahmagdy15/todos-island">الكود على GitHub</a>',
+    hint: 'مرّر', work: 'العمل', tip: 'جرّبها: اضغط مهمة لتصبح الحالية، واشطب [ ] عند الانتهاء.',
+    noise: [['محادثة الفريق', '3', 'ممكن تراجع هذا بسرعة؟'], ['البريد', '12', 'رد: رد: سؤال صغير'], ['طلب مراجعة', '1', 'قبل نهاية اليوم؟'], ['اجتماع بعد 5 دقائق', '', 'الاجتماع الأسبوعي'],
+      ['محادثة الفريق', '5', '@أنت شيء أخير'], ['المتصفح', '9', 'كيف تصلح ذلك الخطأ'], ['التقويم', '1', 'تم نقل وقت التركيز'], ['المستندات', '2', 'تعليقات على مسودتك']],
+    loading: 'جارٍ التحقق من أحدث إصدار…', err: 'تعذّر الوصول إلى GitHub. <a href="https://github.com/abdallahmagdy15/todos-island/releases/latest">افتح صفحة الإصدارات</a>',
+    meta: (v, mb) => `v${v} · ${mb} MB · ويندوز 10 / 11`, tasks: ['أرسل التقرير الأسبوعي', 'أصلح مهلة تسجيل الدخول', 'راجع نص الترحيب', 'خطّط للسبرنت القادم'], today: 'today', langBtn: ['EN', 'en'],
+  },
+};
+const $ = id => document.getElementById(id), $$ = s => [...document.querySelectorAll(s)];
+const store = { get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} } };
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let L = store.get('lang') || ((navigator.language || '').toLowerCase().startsWith('ar') ? 'ar' : 'en');
+const N = 4; let stage = 0, lock = false;
+
+/* ---------- staged navigation: one step per wheel gesture / key / swipe ---------- */
+function go(i) {
+  i = Math.max(0, Math.min(N - 1, i));
+  if (i === stage) return;
+  stage = i; document.body.dataset.stage = i;
+  $$('.scene').forEach(s => { const k = +s.dataset.scene; s.classList.toggle('on', k === i); s.classList.toggle('past', k < i); s.inert = k !== i; });
+  $('hint').classList.toggle('gone', i === N - 1);
+  // the island lives in ONE scene: it drops when you arrive and tucks when you leave
+  const isl = $('island'); isl.classList.toggle('shown', i === 2); isl.inert = i !== 2;
+  renderProgress();
+  lock = true; setTimeout(() => { lock = false; }, RM ? 200 : 950); // one gesture = one step (a trackpad fires many wheel events)
+}
+addEventListener('wheel', e => { if (lock || Math.abs(e.deltaY) < 8) return; go(stage + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
+addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input, textarea')) return;
+  const k = { ArrowDown: 1, PageDown: 1, ' ': 1, ArrowUp: -1, PageUp: -1 }[e.key];
+  if (k && !lock) { e.preventDefault(); go(stage + k); }
+  if (e.key === 'Home') go(0); if (e.key === 'End') go(N - 1);
+});
+let ty = null;
+addEventListener('touchstart', e => { ty = e.touches[0].clientY; }, { passive: true });
+addEventListener('touchend', e => { if (ty === null || lock) return; const dy = ty - e.changedTouches[0].clientY; if (Math.abs(dy) > 40) go(stage + (dy > 0 ? 1 : -1)); ty = null; }, { passive: true });
+$('hint').addEventListener('click', () => go(stage + 1));
+
+function renderProgress() {
+  $('progress').innerHTML = S[L].steps.map((t, k) => `<li><button type="button" data-go="${k}" class="${k === stage ? 'cur' : k < stage ? 'did' : ''}" ${k === stage ? 'aria-current="step"' : ''}>
+    <span class="ck">${k < stage ? '[x]' : '[ ]'}</span><span class="lbl">${t}</span></button></li>`).join('');
+}
+$('progress').addEventListener('click', e => { const b = e.target.closest('[data-go]'); if (b) go(+b.dataset.go); });
+
+/* ---------- scene 0: the note types a task (and "saves") ---------- */
+const LINE = '- [ ] !! 28 Sep -- Send the weekly report';
+const colorize = s => s.replace('!!', '<span class="p2">!!</span>').replace('28 Sep', '<span class="ac">28 Sep</span>');
+function typeLine() {
+  const out = $('typed');
+  if (RM) { out.innerHTML = colorize(LINE); return; }
+  let k = 0; $('dirty').classList.add('on');
+  const step = () => { k++; out.innerHTML = colorize(LINE.slice(0, k)) + '<span class="caret"></span>'; if (k < LINE.length) setTimeout(step, 40 + Math.random() * 45); else setTimeout(() => $('dirty').classList.remove('on'), 500); };
+  setTimeout(step, 600);
+}
+
+/* ---------- scene 1: the noise ---------- */
+const POS = [[8, 10, -4], [64, 8, 3], [30, 26, -2], [72, 34, 5], [6, 50, 2], [52, 52, -5], [76, 62, -2], [22, 68, 4]];
+function buildNoise() {
+  $('noise').innerHTML = S[L].noise.map(([h, c, sub], k) => { const [x, y, r] = POS[k];
+    return `<div class="noise" style="left:min(${x}%, calc(100% - 236px));top:${y}%;--r:${r}deg;--k:${k}"><b>${h}${c ? `<i>${c}</i>` : ''}</b><span>${sub}</span></div>`; }).join('');
+}
+
+/* ---------- the island (scene 2): the app's row language, playable ---------- */
+const T = [{ i: 0, p: '!!', pc: 'p2', d: 'today', now: true, done: false }, { i: 1, p: '!!!', pc: 'p3', d: '8 Oct', now: false, done: false },
+  { i: 2, p: '!', pc: 'p1', d: '', now: false, done: false }, { i: 3, p: '', pc: '', d: '12 Oct', now: false, done: false }];
+function renderIsland() {
+  const s = S[L], list = [...T].sort((a, b) => (a.done - b.done) || (b.now - a.now));
+  $('i-list').innerHTML = list.map(t => `<li class="${t.now ? 'now' : ''} ${t.done ? 'done' : ''}" data-i="${t.i}">
+    <button class="ck" type="button" data-tick="${t.i}" aria-label="${t.done ? 'Undo' : 'Done'}">${t.done ? '[x]' : '[ ]'}</button><span class="t">${s.tasks[t.i]}</span>
+    <span class="m">${t.p ? `<span class="${t.pc}">${t.p}</span>` : ''}${t.d ? `<span class="d">${t.d === 'today' ? s.today : t.d}</span>` : ''}${t.now ? '<span class="ac">★</span>' : ''}</span></li>`).join('');
+  $('i-cnt').textContent = T.filter(t => !t.done).length;
+}
+$('i-list').addEventListener('click', e => {
+  const tick = e.target.closest('[data-tick]');
+  if (tick) { const t = T[+tick.dataset.tick]; t.done = !t.done; if (t.done) t.now = false; renderIsland(); return; }
+  const li = e.target.closest('li'); if (!li) return; const t = T[+li.dataset.i]; if (t.done) return;
+  T.forEach(x => { x.now = x === t ? !x.now : false; }); renderIsland();
+});
+
+/* ---------- scene 3: Download is a task you tick ---------- */
+let rel = null, relState = 'loading';
+function renderMeta() { const s = S[L]; $('meta').innerHTML = relState === 'loading' ? s.loading : relState === 'err' ? s.err : s.meta(rel.v, rel.mb); if (rel) $('dl').href = rel.url; }
+fetch(`https://api.github.com/repos/${REPO}/releases/latest`).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(j => {
+  const a = (j.assets || []).find(x => /^TodosIsland-Setup-[\d.]+\.exe$/.test(x.name)); if (!a) throw 0;
+  rel = { v: j.tag_name.replace(/^v/, ''), url: a.browser_download_url, mb: Math.round(a.size / 1048576) }; relState = 'ok';
+}).catch(() => { relState = 'err'; }).finally(renderMeta);
+$('dl').addEventListener('click', () => { $('dl').classList.add('done'); $('dl').querySelector('.ck').textContent = '[x]'; }); // the link still downloads
+
+/* ---------- taskbar ---------- */
+function clock() { const d = new Date(); $('clock').innerHTML = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}<br>${d.getDate()} ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()]}`; }
+clock(); setInterval(clock, 15000);
+function applyLang() {
+  const s = S[L]; document.documentElement.lang = L; document.documentElement.dir = L === 'ar' ? 'rtl' : 'ltr';
+  $$('[data-t]').forEach(el => { const v = s[el.dataset.t]; if (typeof v === 'string') el.innerHTML = v; });
+  $('lang').textContent = s.langBtn[0]; $('lang').lang = s.langBtn[1];
+  buildNoise(); renderIsland(); renderMeta(); renderProgress();
+}
+$('lang').addEventListener('click', () => { L = L === 'ar' ? 'en' : 'ar'; store.set('lang', L); applyLang(); });
+const sysDark = matchMedia('(prefers-color-scheme: dark)');
+const applyTheme = () => { document.documentElement.dataset.theme = store.get('theme') || (sysDark.matches ? 'dark' : 'light'); };
+sysDark.addEventListener('change', applyTheme);
+$('theme').addEventListener('click', () => { store.set('theme', document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'); applyTheme(); });
+
+applyTheme(); applyLang(); $$('.scene').forEach(s => { s.inert = s.dataset.scene !== '0'; }); typeLine();
+</script>
+</body>
+</html>

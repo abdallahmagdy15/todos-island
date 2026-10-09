@@ -6,6 +6,8 @@
 
 ![release](https://img.shields.io/github/v/release/abdallahmagdy15/todos-island) ![platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-lightgrey) ![license](https://img.shields.io/badge/license-MIT-green)
 
+**[Website](https://abdallahmagdy15.github.io/todos-island/)** · **[Download for Windows](https://github.com/abdallahmagdy15/todos-island/releases/latest)**: open the latest release and run `TodosIsland-Setup-x.y.z.exe`. Windows may say "unknown publisher" because the installer isn't signed with a paid certificate yet: click **More info → Run anyway**.
+
 [![Watch the 45-second film](docs/promo-poster.jpg)](docs/todos-island-promo.mp4)
 
 <p align="center"><a href="docs/todos-island-promo.mp4">▶ Watch the 45-second film</a></p>
