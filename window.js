@@ -33,7 +33,7 @@ function ordered(items, tab) {
 function renameId(from, to) {
   if (!from || !to || from === to) return;
   for (const k of ['work', 'personal']) if (order[k]) order[k] = order[k].includes(to) ? order[k].filter(i => i !== from) : order[k].map(i => (i === from ? to : i));
-  if (closedRows.delete(from)) closedRows.add(to);
+  if (openRows.has(from)) { setOpen(from, false); setOpen(to, true); }
   if (focusId === from) focusId = to;
   if (restId === from) restId = to;
 }
@@ -61,7 +61,7 @@ function patchList(parts) { // parts = [{ key, html }], each html ONE root eleme
   });
   if (next.length !== cur.length || next.some((el, i) => el !== cur[i])) list.replaceChildren(...next);
 }
-const KEEP_CLS = ['dwelt', 'fresh', 'dragging', 'drop-above']; // JS-only row states the markup never carries
+const KEEP_CLS = ['dwelt', 'fresh', 'dragging', 'drop-above', 'drop-into']; // JS-only row states the markup never carries
 function morph(a, b) { // make live node `a` look like fresh node `b`, touching only what differs
   if (a.nodeType !== b.nodeType || a.nodeName !== b.nodeName) { a.replaceWith(b); return; }
   if (a.nodeType !== 1) { if (a.nodeValue !== b.nodeValue) a.nodeValue = b.nodeValue; return; }
@@ -77,7 +77,10 @@ function morph(a, b) { // make live node `a` look like fresh node `b`, touching 
   ac.slice(bc.length).forEach(n => n.remove());
 }
 
-const closedRows = new Set(); // rows with details are OPEN by default (owner 2026-09-28); these were folded — survives refreshes
+// rows start FOLDED (owner 2026-10-09; was open by default): these were opened. Main keeps a copy, so they stay open while
+// the app runs, across closing the window; an app restart folds everything again
+const openRows = new Set();
+function setOpen(keys, open) { [].concat(keys).forEach(k => (open ? openRows.add(k) : openRows.delete(k))); window.api.foldSet(keys, open); }
 let freshFrom = null; // ids present before an add/undo — rows not in it get the "fresh ink" settle
 let animating = 0, refreshPending = false; // a refresh mid-animation waits — re-rendering would kill the moving row
 const fileErr = tag => (snap && snap.errors || []).find(e => e.file === tag);
@@ -87,7 +90,7 @@ function matches(t, q) {
     || (t.notes || []).some(n => n.toLowerCase().includes(q));
 }
 // Done tab (owner 2026-10-06 D2 → 2026-10-08): a done task is NOT gone, it's just done, so it reads like an open row:
-// [x] · title · priority · date, notes + subtasks OPEN by default, the same search, Expand / Collapse all and rest-peek.
+// [x] · title · priority · date, notes + subtasks folded like every row, the same search and Expand / Collapse all.
 // VIEW ONLY: nothing ticks, edits, stages Now or takes a priority click; Restore + delete stay, and the subtask Copy
 // button (a read) works. A Work · Personal switch (both-notes mode only, no "All") picks whose done list shows.
 let doneFilter = null; // 'work' | 'personal'; null = follow the last note tab you were on
@@ -108,7 +111,7 @@ function doneHead() {
 }
 function doneRowHtml(d) {
   const subs = d.subs || [], notes = d.notes || [];
-  const hasDetail = !!(notes.length || subs.length), open = hasDetail && (!closedRows.has(ck(d.id)) || d.id === peekId);
+  const hasDetail = !!(notes.length || subs.length), open = hasDetail && (openRows.has(ck(d.id)));
   const body = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${notes.map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
     ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
@@ -127,10 +130,10 @@ function doneRowHtml(d) {
 function rowHtml(t) {
   const timed = !!(snap && snap.timer && snap.timer.id === t.id); // focus timer (#10) running on this task
   if (currentTab === 'done') return doneRowHtml(t);
-  const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (!closedRows.has(t.id) || t.id === peekId);
+  const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (openRows.has(t.id));
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="true"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
@@ -140,7 +143,7 @@ function rowHtml(t) {
       ${expandBody}
       ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
     </div>
-    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">${window.UI.icon('timer')}${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${t.priority ? bangCls(t.priority) : 'ghost'}" data-prio="${esc(t.priority || '')}" role="button" title="${esc(T('prio.click'))}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}</span>
+    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">${window.UI.icon('timer')}${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${t.priority ? bangCls(t.priority) : 'ghost'}" data-prio="${esc(t.priority || '')}" role="button" title="${esc(T('prio.click'))}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}${window.UI.attClipHtml(t)}</span>
   </div></div></div>`;
 }
 function renderList() {
@@ -210,20 +213,14 @@ function openDial(r, tab) {
     onStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); await refresh(); }
   });
 }
-// resting on a FOLDED row also peeks it open (owner 2026-09-29): its notes + subtasks show with the tabs, and fold back
-// when the pointer leaves. A click while peeking pins it open.
-let peekId = null, noPeekId = null;
 function restClear() {
   clearTimeout(restT); clearTimeout(restGraceT); restCand = null;
-  noPeekId = null;
-  if (peekId) { const id = peekId; peekId = null; if (closedRows.has(ck(id))) rowInPlace(id); }
   document.querySelectorAll('.wrow.dwelt').forEach(r => r.classList.remove('dwelt'));
   restRow = null; restId = null;
   editTabEl().hide();
 }
 function restOn(row) {
   row.classList.add('dwelt'); restRow = row; restId = row.dataset.id;
-  if (row.classList.contains('has-detail') && !row.classList.contains('open') && !peekId && restId !== noPeekId && row.matches(':hover')) { peekId = restId; rowInPlace(restId); }
   if (!row.classList.contains('done')) editTabEl().show(row, T('isl.btn.editAria', { t: row.querySelector('.tt').textContent }));
 }
 function restRestore() { // a re-render keeps the rested task (same id) rested
@@ -455,14 +452,14 @@ const foldable = rows => rows.filter(t => (t.notes || []).length || t.subs.lengt
 function foldAllLabel(rows) {
   const f = foldable(rows), btn = $('btn-fold-all');
   btn.hidden = !f.length;
-  const anyOpen = f.some(t => !closedRows.has(ck(t.id)));
+  const anyOpen = f.some(t => openRows.has(ck(t.id)));
   btn.dataset.mode = anyOpen ? 'collapse' : 'expand';
   btn.querySelector('.fold-t').textContent = T(anyOpen ? 'win.fold.collapse' : 'win.fold.expand');
 }
 $('btn-fold-all').addEventListener('click', () => {
   window.SFX.play('tick');
   const f = foldable(taskRows());
-  if ($('btn-fold-all').dataset.mode === 'collapse') f.forEach(t => closedRows.add(ck(t.id))); else f.forEach(t => closedRows.delete(ck(t.id)));
+  setOpen(f.map(t => ck(t.id)), $('btn-fold-all').dataset.mode !== 'collapse');
   renderList();
 });
 $('task-list').addEventListener('mouseover', e => {
@@ -520,9 +517,7 @@ async function setPriority(file, id, priority) {
 }
 function toggleRow(id) { // a click pins a row open / folded
   window.SFX.play('tick');
-  closedRows.has(ck(id)) ? closedRows.delete(ck(id)) : closedRows.add(ck(id));
-  if (peekId === id) peekId = null; // the peek became a pin (or a fold)
-  noPeekId = closedRows.has(ck(id)) ? id : null; // folded by hand: no peek until the pointer leaves it
+  setOpen(ck(id), !openRows.has(ck(id)));
   rowInPlace(id);
 }
 // fold / unfold IN PLACE: the row element stays (focus, hover and the Edit tab stay with it)
@@ -547,7 +542,21 @@ async function toggleNow(id, file, row) { // the ☆ tab and the * / s keys: the
   await window.api.toggleActive(id, file);
   await refresh();
 }
+// the 📎 mark (owner 2026-10-09): the same folded list as the island; a second click closes it
+let attPop = null;
 async function onListAction(e) {
+  const clip = e.target.closest('[data-attclip]');
+  if (clip) {
+    const was = attPop && attPop.clip === clip;
+    if (attPop) attPop.close();
+    if (was) return;
+    const t = taskRows().find(x => x.id === clip.dataset.attclip && x.file === clip.dataset.file);
+    if (!t || !t.att || !t.att.length) return;
+    window.SFX.play('tick');
+    const pop = window.UI.attPeek(document.querySelector('.list-sheet'), clip, t, { open: i => window.api.attOpen(t.file, t.id, i), onClose: () => { if (attPop === pop) attPop = null; } });
+    pop.clip = clip; attPop = pop;
+    return;
+  }
   const chk = e.target.closest('[data-chk]');
   if (chk) { if (!chk.classList.contains('checked')) completeWithInk(chk); return; }
   const pr = e.target.closest('[data-prio]'); // the clickable priority mark (owner 2026-10-01): ! → !! → !!! → none
@@ -597,28 +606,46 @@ $('btn-clear-done').addEventListener('click', async () => { // undoable — no n
   await refresh();
 });
 
-// drag & drop reorder — hold a row, drop it on another (inserts before the target)
-let dragId = null, lastOver = null;
+// drag & drop reorder — hold a row, drop it on another (inserts before the target).
+// A dragged SUBTASK (owner 2026-10-09) drops INTO another task instead (folded or open): it moves there, one Undo.
+let dragId = null, dragSub = null, lastOver = null;
 $('task-list').addEventListener('dragstart', e => {
+  const sub = e.target.closest('.wsubrow[data-sub]');
+  if (sub) {
+    dragSub = { file: sub.dataset.file, parent: sub.dataset.parent, title: sub.dataset.sub };
+    sub.classList.add('dragging');
+    if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragSub.title); }
+    return;
+  }
   const row = e.target.closest('.wrow');
   if (!row || row.classList.contains('done')) { e.preventDefault(); return; }
   dragId = row.dataset.id;
   row.classList.add('dragging');
   if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); }
 });
+const subTarget = over => (over && !over.classList.contains('done') && over.dataset.id !== dragSub.parent ? over : null);
 $('task-list').addEventListener('dragover', e => {
-  if (!dragId) return;
-  e.preventDefault();
-  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+  if (!dragId && !dragSub) return;
   const over = e.target.closest('.wrow');
-  const target = over && over.dataset.id !== dragId ? over : null;
+  const target = dragSub ? subTarget(over) : over && over.dataset.id !== dragId ? over : null;
+  if (!dragSub || target) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; } // a subtask drops only into a task
   if (target === lastOver) return; // dragover fires constantly — touch the DOM only when the target changes
-  if (lastOver) lastOver.classList.remove('drop-above');
-  if (target) target.classList.add('drop-above');
+  if (lastOver) lastOver.classList.remove('drop-above', 'drop-into');
+  if (target) target.classList.add(dragSub ? 'drop-into' : 'drop-above');
   lastOver = target;
 });
 $('task-list').addEventListener('drop', async e => {
   e.preventDefault();
+  if (dragSub) {
+    const s = dragSub, to = subTarget(e.target.closest('.wrow'));
+    dragSub = null;
+    if (!to) return;
+    window.SFX.play('tick');
+    const r = await window.api.moveSubtask(s.file, s.parent, s.title, to.dataset.file, to.dataset.id);
+    if (r && r.ok) setOpen(to.dataset.id, true); // open where it landed, so you see it there
+    await refresh();
+    return;
+  }
   const over = e.target.closest('.wrow');
   const beforeId = over && over.dataset.id !== dragId ? over.dataset.id : null; // no target = move to end
   if (dragId) {
@@ -629,8 +656,8 @@ $('task-list').addEventListener('drop', async e => {
   dragId = null;
 });
 $('task-list').addEventListener('dragend', () => {
-  dragId = null;
-  document.querySelectorAll('.wrow.dragging, .wrow.drop-above').forEach(r => r.classList.remove('dragging', 'drop-above'));
+  dragId = null; dragSub = null;
+  document.querySelectorAll('.wrow.dragging, .wrow.drop-above, .wrow.drop-into, .wsubrow.dragging').forEach(r => r.classList.remove('dragging', 'drop-above', 'drop-into'));
   lastOver = null;
 });
 
@@ -725,6 +752,11 @@ function showTab(tab) {
   moveTabCursor(true);
   $('view-tasks').hidden = false; $('view-settings').hidden = true;
   renderList();
+  // a notebook theme turns the page (owner 2026-10-09); reduced motion = no turn
+  if (window.UI.PAPER.includes(document.documentElement.dataset.bg) && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const l = $('task-list'); l.classList.add('page-turn');
+    l.animate([{ transform: 'perspective(1200px) rotateY(55deg)', opacity: 0.25 }, { transform: 'none', opacity: 1 }], { duration: 340, easing: 'cubic-bezier(.2,.8,.25,1)' }).finished.then(() => l.classList.remove('page-turn'), () => {});
+  }
 }
 for (const tab of ['work', 'personal', 'done']) $('tab-' + tab).addEventListener('click', () => showTab(tab));
 { // restore last tab (or the one the island asked for)
@@ -1022,5 +1054,8 @@ window.api.onShowUndo(d => {
   });
 });
 
+// a file dropped anywhere but the editor must never navigate the window to it (Chromium's default); the editor's
+// Attachments take drops (panels.js)
+for (const ev of ['dragover', 'drop']) document.addEventListener(ev, e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
 window.api.onTasksChanged(refresh);
-refresh();
+window.api.foldGet().then(keys => keys.forEach(k => openRows.add(k)), () => {}).then(refresh); // the folds first, then the first render

@@ -119,7 +119,9 @@
               <button class="bgsw" type="button" role="radio" data-bg="dusk" data-i18n-title="set.bg.dusk" data-i18n-aria="set.bg.dusk"></button>
               <button class="bgsw" type="button" role="radio" data-bg="lagoon" data-i18n-title="set.bg.lagoon" data-i18n-aria="set.bg.lagoon"></button>
               <button class="bgsw" type="button" role="radio" data-bg="bloom" data-i18n-title="set.bg.bloom" data-i18n-aria="set.bg.bloom"></button>
-              <button class="bgsw" type="button" role="radio" data-bg="dune" data-i18n-title="set.bg.dune" data-i18n-aria="set.bg.dune"></button>            </div>
+              <button class="bgsw" type="button" role="radio" data-bg="dune" data-i18n-title="set.bg.dune" data-i18n-aria="set.bg.dune"></button>
+              <button class="bgsw" type="button" role="radio" data-bg="dot" data-i18n-title="set.bg.dot" data-i18n-aria="set.bg.dot"></button>
+              <button class="bgsw" type="button" role="radio" data-bg="kraft" data-i18n-title="set.bg.kraft" data-i18n-aria="set.bg.kraft"></button>            </div>
           </div>
         </div>
         <div class="srow">
@@ -334,16 +336,28 @@
               <div class="chips" id="ed-prio" aria-label="Priority"></div>
             </div>
             <div class="field"><label data-i18n="ed.now">Now</label>
-              <button class="chip" id="ed-active" type="button" aria-pressed="false" data-i18n="ed.now.chip">&#9733; Working on it</button>
+              <div class="now-att"><!-- owner 2026-10-09: Attach sits right after "Working on it" -->
+                <button class="chip" id="ed-active" type="button" aria-pressed="false" data-i18n="ed.now.chip">&#9733; Working on it</button>
+                <button class="chip att-add" id="ed-att-add" type="button"><svg class="ic" data-icon="paperclip" viewBox="0 0 24 24"></svg><span data-i18n="att.add">Attach</span></button>
+              </div>
             </div>
           </div>
           <div class="field"><label data-i18n="win.lbl.due">Due</label>
             <div class="chips" id="ed-due" aria-label="Due date"></div>
           </div>
+          <div class="field" id="ed-att-field"><!-- task attachments (owner 2026-10-09): pointers in app state, never the note -->
+            <label data-i18n="att.title">Attachments</label>
+            <ul class="att-list" id="ed-att"></ul>
+          </div>
           <div class="field"><label for="ed-sub" data-i18n="ed.sub">Subtasks</label>
             <ul class="subs-list" id="ed-subs"></ul>
             <div class="addsub"><input type="text" id="ed-sub" data-i18n-ph="ed.sub.ph"><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button></div>
           </div>
+        </div>
+        <!-- Attach steps (owner 2026-10-09): they take over the whole editor view, the task name stays on top; Back / done returns -->
+        <div class="att-view" id="ed-att-view" hidden>
+          <div class="att-vhead"><button class="btn-text att-back" id="att-back" type="button"><svg class="ic" data-icon="arrowLeft" viewBox="0 0 24 24"></svg><span data-i18n="att.back">Back</span></button><span class="att-task" id="att-task"></span></div>
+          <div class="att-wiz" id="ed-att-wiz"></div>
         </div>
       </div>
       <div class="side-foot" id="ed-foot">

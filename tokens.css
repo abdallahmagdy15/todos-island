@@ -51,6 +51,13 @@
   --bg-dusk-0: #f6ece6; --bg-dusk-1: #ffd7bc; --bg-dusk-2: #fbd6df; --bg-dusk-3: #e2d9ff; --bg-dusk-4: #ffe0b8;
   --bg-lagoon-0: #e6f3f1; --bg-lagoon-1: #b7e8e4; --bg-lagoon-2: #b8ecc4; --bg-lagoon-3: #c9e2fa; --bg-lagoon-4: #d2f4ee;
   --bg-bloom-0: #f8eaf0; --bg-bloom-1: #ffd4e3; --bg-bloom-2: #ffd6c4; --bg-bloom-3: #eed6ff; --bg-bloom-4: #ffd6e4;
+  /* notebook themes (owner 2026-10-09): paper + ink, mapped onto the app tokens by :root[data-bg="dot"|"kraft"] below */
+  --pp-dot-paper: #fbfaf6; --pp-dot-card: #fffefb; --pp-dot-dot: #cfcbc0; --pp-dot-ink: #232323; --pp-dot-muted: #57554f; --pp-dot-faint: #66635c;
+  --pp-dot-p3: #b8341c; --pp-dot-p2: #8a5a00; --pp-dot-p1: #56607a; --pp-dot-ok: #2b7a3a;
+  --pp-kraft-paper: #c9a97f; --pp-kraft-card: #d4b68f; --pp-kraft-dot: #b08f5d; --pp-kraft-ink: #22160a; --pp-kraft-muted: #3d2a16; --pp-kraft-faint: #45311b;
+  --pp-kraft-p3: #761a0e; --pp-kraft-p2: #523700; --pp-kraft-p1: #33322d; --pp-kraft-ok: #1a4520; --pp-kraft-accent: #1b346a;
+  --pp-kraft-acc-violet: #3d1f78; --pp-kraft-acc-teal: #0a403d; --pp-kraft-acc-pink: #6e1438; --pp-kraft-acc-graphite: #26282d;
+  --pp-dot-sheet: 255, 254, 251; --pp-kraft-sheet: 214, 186, 148; /* the panels' and composer's paper (rgb triplets) */
   --bg-dune-0: #f3eee4; --bg-dune-1: #f0dcbd; --bg-dune-2: #efdace; --bg-dune-3: #dbe1cb; --bg-dune-4: #f5e2c4;
   /* the reading panels over the scene (list, settings cards, editor, share) follow Settings → Glass like the island:
      rgba(--sheet-rgb, --g-sheet) with --g-sheet set per level by UI.applyTheme. --sheet = the CLEAREST level (65 %),
@@ -105,6 +112,12 @@
     --bg-dusk-0: #17111a; --bg-dusk-1: #924629; --bg-dusk-2: #a1355d; --bg-dusk-3: #5d47b9; --bg-dusk-4: #7c5027;
     --bg-lagoon-0: #0d1716; --bg-lagoon-1: #166661; --bg-lagoon-2: #23673e; --bg-lagoon-3: #295c9c; --bg-lagoon-4: #18665e;
     --bg-bloom-0: #1a0f15; --bg-bloom-1: #a6306d; --bg-bloom-2: #904432; --bg-bloom-3: #793db2; --bg-bloom-4: #9d376c;
+    --pp-dot-paper: #1d1d20; --pp-dot-card: #26262a; --pp-dot-dot: #3d3d43; --pp-dot-ink: #ece6d6; --pp-dot-muted: #bdb7a8; --pp-dot-faint: #a39e92;
+    --pp-dot-p3: #ff8f6b; --pp-dot-p2: #f0b55a; --pp-dot-p1: #aeb6c8; --pp-dot-ok: #7fcf8e;
+    --pp-kraft-paper: #3a2c1d; --pp-kraft-card: #453524; --pp-kraft-dot: #4c3a27; --pp-kraft-ink: #f3e5cb; --pp-kraft-muted: #dcc7a2; --pp-kraft-faint: #c9b28b;
+    --pp-kraft-p3: #ffa48c; --pp-kraft-p2: #f1c36a; --pp-kraft-p1: #d0c9ba; --pp-kraft-ok: #9ad7a4; --pp-kraft-accent: #b3c8ff;
+    --pp-kraft-acc-violet: #c9b4ff; --pp-kraft-acc-teal: #8fe0d6; --pp-kraft-acc-pink: #ffb0cf; --pp-kraft-acc-graphite: #d8dbe0;
+    --pp-dot-sheet: 38, 38, 42; --pp-kraft-sheet: 69, 53, 36;
     --bg-dune-0: #16130e; --bg-dune-1: #73542c; --bg-dune-2: #824c37; --bg-dune-3: #505e40; --bg-dune-4: #6e5632;
     --sheet-rgb: 18, 18, 17; --sheet: rgba(18, 18, 17, 0.38);
     --scene-a: 0.24; --isl-sat: 0.5; /* dark read MORE vivid than light (saturated deep hues on near-black) — calmer here */
@@ -363,6 +376,23 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @keyframes popDrop { from { opacity: 0; transform: translateY(-5px) scale(.95); } }
 @keyframes popOut { to { opacity: 0; transform: scale(.95); } }
 .clist { width: 150px; padding: 4px; border-radius: 12px; } /* small (owner 2026-10-05) */
+/* task attachments (owner 2026-10-09): the 📎 mark beside priority + date (island rows, the Now card, tasks-window rows);
+   a click drops the list under it — the copy list's solid pop, wider, one row per attachment: icon · name · what it opens */
+.aclip { display: inline-flex; align-items: center; gap: 2px; align-self: center; height: 18px; padding: 0 4px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--muted); font-family: var(--font-mono); font-size: 11px; font-weight: 700; cursor: pointer; -webkit-app-region: no-drag;
+  transition: color 120ms ease, background 120ms ease; }
+.aclip .ic { width: 12px; height: 12px; }
+.aclip:hover, .aclip[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+.aclip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.clist.apop { width: 240px; display: flex; flex-direction: column; gap: 1px; }
+.apop button { display: flex; align-items: center; gap: 7px; min-width: 0; height: 28px; padding: 0 7px; border: 0; border-radius: 8px; background: transparent;
+  color: var(--ink); font-family: inherit; font-size: 12px; text-align: start; cursor: pointer; }
+.apop button:hover, .apop button:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: none; }
+.apop .ic { width: 13px; height: 13px; flex: none; color: var(--muted); }
+.apop .an { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.apop .ah { flex: none; font-size: 10px; color: var(--faint); }
+.apop button.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); } .apop button.ok .ah { color: var(--ok); }
+.apop button.bad .ah { color: var(--danger); }
 .cl-grp { padding: 4px 4px 2px; font-size: 8.5px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
 .cl-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border-radius: 8px; background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .cl-seg button { display: flex; align-items: center; justify-content: center; gap: 3px; height: 20px; padding: 0 2px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-family: inherit; font-size: 9.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -410,3 +440,35 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .undo-x:hover { background: var(--hover); color: var(--ink); }
 .undo-x .ic { width: 14px; height: 14px; stroke-width: 2.2; }
 @media (prefers-reduced-motion: reduce) { #undo-bar.on, #undo-toast.on, #undo-bar.out, #undo-toast.out { animation: none; } .undo-on > :not(#undo-bar):not(#undo-toast) { transform: none; } }
+
+/* ---- notebook themes (owner 2026-10-09; demo "Notebook Look" round 2, picks: dot-grid + kraft) ----
+   Paper, not glass: the island is a solid paper pill and the windows drop the glass scene; everything is handwritten
+   (fonts: a bundled hand face when present, else Windows' own Segoe Print / Ink Free). Light + dark come from the --pp-*
+   tokens above (contrast.js gates them). Kraft also inks the accent: the theme colors can't hold 4.5:1 on brown paper.
+   Last in the file, so they win over :root[data-accent] blocks of the same weight. */
+:root[data-bg="dot"], :root[data-bg="kraft"] { --font-sans: var(--font-hand); --font-mono: var(--font-hand); }
+:root[data-bg="dot"] {
+  --font-hand: 'Patrick Hand', 'Segoe Print', 'Ink Free', cursive;
+  --paper: var(--pp-dot-paper); --card: var(--pp-dot-card); --input: var(--pp-dot-card); --head: var(--pp-dot-paper); --pill-bg: var(--pp-dot-paper);
+  --ink: var(--pp-dot-ink); --muted: var(--pp-dot-muted); --faint: var(--pp-dot-faint); --island-muted: var(--pp-dot-muted); --island-faint: var(--pp-dot-faint);
+  --p3: var(--pp-dot-p3); --p2: var(--pp-dot-p2); --p1: var(--pp-dot-p1); --ok: var(--pp-dot-ok); --danger: var(--pp-dot-p3); --sheet-rgb: var(--pp-dot-sheet);
+  --pattern: radial-gradient(circle, var(--pp-dot-dot) 1.15px, transparent 1.6px); --pattern-size: 18px 18px;
+}
+:root[data-bg="kraft"] {
+  --font-hand: 'Gochi Hand', 'Ink Free', 'Segoe Print', cursive;
+  --paper: var(--pp-kraft-paper); --card: var(--pp-kraft-card); --input: var(--pp-kraft-card); --head: var(--pp-kraft-paper); --pill-bg: var(--pp-kraft-paper);
+  --ink: var(--pp-kraft-ink); --muted: var(--pp-kraft-muted); --faint: var(--pp-kraft-faint); --island-muted: var(--pp-kraft-muted); --island-faint: var(--pp-kraft-faint);
+  --p3: var(--pp-kraft-p3); --p2: var(--pp-kraft-p2); --p1: var(--pp-kraft-p1); --ok: var(--pp-kraft-ok); --danger: var(--pp-kraft-p3); --sheet-rgb: var(--pp-kraft-sheet);
+  --accent: var(--pp-kraft-accent); --accent-ink: var(--pp-kraft-paper);
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent); --accent-border: color-mix(in srgb, var(--accent) 40%, transparent);
+  --rule: color-mix(in srgb, var(--pp-kraft-ink) 22%, transparent); --rule-soft: color-mix(in srgb, var(--pp-kraft-ink) 12%, transparent);
+  --hover: color-mix(in srgb, var(--pp-kraft-ink) 8%, transparent); --chip: color-mix(in srgb, var(--pp-kraft-ink) 9%, transparent);
+  --pattern: radial-gradient(circle at 20% 30%, var(--pp-kraft-dot) 0 1px, transparent 1.5px), radial-gradient(circle at 70% 60%, var(--pp-kraft-dot) 0 1px, transparent 1.5px), radial-gradient(circle at 40% 80%, var(--pp-kraft-dot) 0 .8px, transparent 1.3px);
+  --pattern-size: 23px 19px, 31px 27px, 17px 29px;
+}
+/* the Theme color on kraft: the same hue, inked darker (lighter in dark) so it still reads on brown paper */
+:root[data-bg="kraft"][data-accent="violet"] { --accent: var(--pp-kraft-acc-violet); }
+:root[data-bg="kraft"][data-accent="teal"] { --accent: var(--pp-kraft-acc-teal); }
+:root[data-bg="kraft"][data-accent="pink"] { --accent: var(--pp-kraft-acc-pink); }
+:root[data-bg="kraft"][data-accent="graphite"] { --accent: var(--pp-kraft-acc-graphite); }
+:root[data-bg="dot"]:lang(ar), :root[data-bg="kraft"]:lang(ar) { --font-hand: 'Aref Ruqaa', 'Sakkal Majalla', 'Segoe UI', sans-serif; }

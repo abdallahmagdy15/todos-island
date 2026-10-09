@@ -59,7 +59,7 @@ function rowHtml(t) {
   const timed = snap && snap.timer && snap.timer.id === t.id;
   return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" draggable="true">
     <div class="row-main"><span class="rtitle"><span class="tt">${inline(t.title)}</span></span>${detail}</div>
-    <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}</span>
+    <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}${window.UI.attClipHtml(t)}</span>
   </div></div></div>`;
 }
 
@@ -284,7 +284,7 @@ function render() {
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
           <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${inline(a.title)}</span></span>
-          <span class="meta">${snap.timer && snap.timer.id === a.id ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${bangHtml(a)}${dueHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
+          <span class="meta">${snap.timer && snap.timer.id === a.id ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${bangHtml(a)}${dueHtml(a)}${window.UI.attClipHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
         </div>
         ${subs}
       </div></div></div>`;
@@ -543,7 +543,22 @@ $('body').addEventListener('dragend', () => {
 });
 
 // clicks never write as a side effect of looking: row = open the editor; explicit [ ] / ☆ / Done / Not now controls write
+// the 📎 mark (owner 2026-10-09): a click drops the task's attachments under it; a second click closes it
+let attPop = null;
 document.addEventListener('click', e => {
+  const clip = e.target.closest('[data-attclip]');
+  if (clip) {
+    e.stopPropagation();
+    const was = attPop && attPop.clip === clip;
+    if (attPop) attPop.close();
+    if (was) return;
+    const t = snap && snap.sections.flatMap(x => x.items).find(x => x.id === clip.dataset.attclip && x.file === clip.dataset.file);
+    if (!t || !t.att || !t.att.length) return;
+    window.SFX.play('tick');
+    const pop = window.UI.attPeek($('wrap'), clip, t, { open: i => window.api.attOpen(t.file, t.id, i), onClose: () => { if (attPop === pop) attPop = null; } });
+    pop.clip = clip; attPop = pop;
+    return;
+  }
   const sc = e.target.closest('[data-subcopy]');
   if (sc) { e.stopPropagation(); window.UI.subCopyClick(sc, async t => { await window.api.copyText(t); window.SFX.play('tick'); }); return; }
   if (e.target.closest('[data-peek]')) { flipPeek(); return; }
@@ -842,7 +857,8 @@ function handleSnap(s) {
     window.UI.applyTheme(s.settings);
     const g = Number.isInteger(s.settings.glassLevel) ? s.settings.glassLevel : 3;
     const t = window.UI.BG_THEMES.includes(s.settings.islandTheme) ? s.settings.islandTheme : 'mist';
-    if (g !== glassLevel || t !== bgTheme) { glassLevel = g; bgTheme = t; applyGlass(); }
+    const gl = window.UI.PAPER.includes(t) ? 0 : g; // a notebook theme is solid paper: no glass canvas at all
+    if (gl !== glassLevel || t !== bgTheme) { glassLevel = gl; bgTheme = t; applyGlass(); }
   }
   if (!snap) expanded = false;
   if (animating) { pendingSnap = s; return; }

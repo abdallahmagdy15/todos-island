@@ -11,7 +11,7 @@ const WINDOWS = ['window.html', 'island.html', 'onboard.html']; // Edit + Share 
 const ALLOW = new Set([
   'active', 'sel', 'checked', 'hovered', 'pinned', 'expanded', 'striking', 'flash', 'invalid',
   'rec', 'done', 'bad', 'warn', 'mono', 'on', 'rim', 'fill', 'dragging',
-  'drop-above', 'md-h', 'mt', 'np-reset' // np-reset: onboarding's "Use default" hook class (data-reset carries the behavior; no styles by design)
+  'drop-above', 'drop-into', 'drop-on', 'md-h', 'mt', 'np-reset' // np-reset: onboarding's "Use default" hook class (data-reset carries the behavior; no styles by design)
 ]);
 
 let findings = 0;

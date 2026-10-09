@@ -167,6 +167,9 @@ const STRINGS_AR = {
   'side.close': 'إغلاق (Esc)', // the side panel's ✕ (Edit / Share)
   'ed.sub.del': 'حذف المهمة الفرعية {t}', 'ed.sub.none': 'لا توجد مهام فرعية بعد.',
   'ed.sub.prio': 'الأهمية: انقر للتبديل ! ← !! ← !!! ← بلا', 'ed.sub.prioAria': 'أولوية {t}: {p}',
+  'att.title': "المرفقات", 'att.aria': "{n} مرفقات", 'att.add': "إرفاق", 'att.del': "إزالة {t}", 'att.cmd': "الطرفية", 'att.app': "تطبيق سطح المكتب", 'att.cmd.hint': "يفتح الجلسة نفسها", 'att.app.hint': "يفتح التطبيق وينسخ الاسم", 'att.copied': "نُسخ الاسم: الصقه في التطبيق", 'att.fail': "تعذّر فتحه", 'att.t.session': "جلسة ذكاء اصطناعي", 'att.t.file': "ملف", 'att.t.folder': "مجلد", 'att.t.link': "رابط", 'att.t.email': "بريد / تقويم", 'att.later': "لاحقًا", 'att.back': "رجوع", 'att.q.type': "ماذا تُرفق؟", 'att.q.tool': "أي أداة؟", 'att.q.mode': "كيف تُفتح؟", 'att.q.session': "أي جلسة؟ (الأحدث على هذا الجهاز)", 'att.q.link': "الصق الرابط", 'att.q.find': "ابحث عن جلسة بالاسم أو المجلد", 'att.noMatch': "لا توجد جلسة مطابقة.", 'att.loading': "جارٍ البحث عن الجلسات…", 'att.noSess': "لا توجد جلسات لهذه الأداة على هذا الجهاز.", // task attachments (owner 2026-10-09)
+  'ed.sub.move': 'انقل إلى مهمة أخرى', 'ed.sub.moveAria': 'انقل {t} إلى مهمة أخرى', 'ed.sub.movePh': 'ابحث عن مهمة…',
+  'ed.sub.moveNone': 'لا توجد مهام مفتوحة أخرى.', 'ed.sub.moved': 'نُقلت ✓',
   'ed.sub.rename': 'انقر لإعادة التسمية', 'ed.sub.tick': 'تعليم {t} كمنجزة', 'ed.sub.untick': 'إلغاء إنجاز {t}',
   'ed.missing': 'المهمة غير موجودة — ربما أُنجزت أو حُذفت.',
   'ed.task': 'المهمة',
@@ -428,6 +431,7 @@ const STRINGS_AR = {
   'set.bg.lagoon': "بحيرة",
   'set.bg.bloom': "زهر",
   'set.bg.dune': "كثبان",
+  'set.bg.dot': "دفتر منقّط", 'set.bg.kraft': "ورق كرافت", // notebook themes (owner 2026-10-09)
   'set.accent': "لون السمة",
   'set.accent.hint': "الأزرار و«الآن» وحلقات التركيز تتبعه",
   'set.accent.blue': "أزرق",

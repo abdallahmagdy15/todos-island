@@ -11,6 +11,8 @@ const { composeTask } = require('./lib/compose.js');
 const { planSetup, NOTE_NAME } = require('./lib/setup.js');
 const { makePngBuffer } = require('./lib/icon.js');
 const { inPeekZone, peekStep } = require('./lib/peek.js');
+const ATT = require('./lib/attach.js');
+const { recentSessions } = require('./lib/sessions.js');
 
 // test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
 // E2E runs use this so they never touch the owner's real notes.
@@ -33,7 +35,7 @@ const DEFAULT_SETTINGS = {
   accent: 'blue', // owner default 2026-10-01 (back from teal) — theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
   labelSize: 0, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
   appearance: 'system', // system | light | dark → nativeTheme.themeSource (every window follows)
-  islandTheme: 'mist', // owner default 2026-10-01 (back from lagoon) — the picture under the island's glass: mist | dusk | lagoon | bloom | dune
+  islandTheme: 'mist', // owner default 2026-10-01 (back from lagoon) — the picture under the island's glass: mist | dusk | lagoon | bloom | dune | dot | kraft (notebook paper, 2026-10-09)
   shareFmt: 'text', // Share + the island's quick Copy: 'text' (plain, WhatsApp-friendly) | 'md' (the note as written)
   hideFromCapture: true, // the island stays on your screen but Teams / OBS / screenshots can't see it (Windows "exclude from capture")
   glassLevel: 3, // frost: 0 = solid · 1–4 = 15/25/38/50 % of the theme shows through the island's glass
@@ -138,7 +140,8 @@ function snapshot() {
       notes: f.notesOf(t),
       subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
-      lines: f.blockLines(t) // Share → Markdown: the block as the note has it, stamp stripped
+      lines: f.blockLines(t), // Share → Markdown: the block as the note has it, stamp stripped
+      att: (state.attachments || {})[ATT.key(group, t.title)] || [] // pointers (owner 2026-10-09): app state, never the note
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
     id: f.id(t), file: group, title: t.title, // raw: **bold** etc. render in the app (UI.inline)
@@ -738,7 +741,7 @@ ipcMain.handle('undo-action', (_e, token) => {
   const e = undoLog.get(token);
   if (!e || Date.now() > e.expires) { undoLog.delete(token); return { ok: false }; }
   undoLog.delete(token); // one-time — consumed
-  if (e.kind === 'clear') {
+  if (e.kind === 'clear' || e.kind === 'move-sub') {
     // whole-file rollback, but only if nobody touched the note since the clear — never clobber edits made in Obsidian
     const changed = [];
     for (const c of e.caps) {
@@ -805,7 +808,7 @@ ipcMain.handle('save-settings', (_e, s) => {
   for (const k of ['dayStart', 'dayEnd']) if (clean[k] !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(clean[k])) delete clean[k]; // the scheduler splits HH:MM
   if (clean.weekendDays !== undefined && !['auto', 'sat-sun', 'fri-sat'].includes(clean.weekendDays)) delete clean.weekendDays;
   if (clean.appearance !== undefined && !['system', 'light', 'dark'].includes(clean.appearance)) delete clean.appearance;
-  if (clean.islandTheme !== undefined && !['mist', 'dusk', 'lagoon', 'bloom', 'dune'].includes(clean.islandTheme)) delete clean.islandTheme;
+  if (clean.islandTheme !== undefined && !['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'dot', 'kraft'].includes(clean.islandTheme)) delete clean.islandTheme;
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };
@@ -900,7 +903,9 @@ ipcMain.handle('update-task', (_e, file, id, patch) => {
   if (patch.dueText !== undefined) ({ due, time } = dueFromText(patch.dueText));
   const t = f.findById(id);
   const starToggled = t && patch.active !== undefined && !!patch.active !== !!t.active; // editor's ★ path counts as a star interaction
+  const oldTitle = t && t.title;
   f.update(id, { title: patch.title, priority: patch.priority, due, time, active: patch.active });
+  if (t && t.title !== oldTitle) attRekey(file, oldTitle, t.title); // attachments follow a renamed task
   if (t && state.timer && state.timer.file === file && state.timer.id === id) { state.timer.id = f.id(t); state.timer.title = t.title; saveState(); } // the timer follows an edited task
   if (patch.desc !== undefined) f.setNotes(id, patch.desc);
   if (patch.session && t) {
@@ -939,6 +944,26 @@ ipcMain.handle('delete-task', (_e, id, file) => {
   const token = pushUndo({ kind: 'delete', file, cap, label: (cap.title || 'task').replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
   f.save(); sendSnap(); pushUndoToWindow(token);
   if (mainWin) mainWin.webContents.send('tasks-changed');
+});
+// move a subtask to another task (owner 2026-10-09: drag in the tasks window, "Move to…" in the Edit panel), also from
+// one note to the other. One Undo puts both notes back exactly, only if neither changed since (the Clear-done rollback)
+ipcMain.handle('move-subtask', (_e, fromFile, fromId, subTitle, toFile, toId) => {
+  if (![fromFile, toFile].every(f => f === 'work' || f === 'personal')) return { ok: false };
+  if (fromFile === toFile && fromId === toId) return { ok: true, changed: false };
+  const src = fileFor(fromFile), dst = fromFile === toFile ? src : fileFor(toFile);
+  const target = dst.findById(toId);
+  if (!target) return { ok: false };
+  const files = src === dst ? [src] : [src, dst];
+  const before = files.map(f => fs.readFileSync(f.path, 'utf8'));
+  const taken = src.takeSubtask(fromId, subTitle);
+  if (!taken) return { ok: false };
+  dst.putSubtask(toId, taken);
+  files.forEach(f => f.save());
+  const caps = files.map((f, i) => ({ path: f.path, before: before[i], after: fs.readFileSync(f.path, 'utf8') }));
+  const token = pushUndo({ kind: 'move-sub', caps, label: `${subTitle} → ${target.title}`.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
+  pushUndoToWindow(token); sendSnap();
+  if (mainWin) mainWin.webContents.send('tasks-changed');
+  return { ok: true, changed: true };
 });
 ipcMain.handle('delete-subtask', (_e, file, parentId, title, session) => subtaskWrite(file, parentId, session, f => f.deleteSubtask(parentId, title)));
 ipcMain.handle('uncomplete-task', (_e, id, file) => {
@@ -1101,6 +1126,74 @@ ipcMain.handle('copy-text', async (_e, text) => { await clipboard.writeText(Stri
 ipcMain.handle('open-note', (_e, file) => {
   shell.openPath(file === 'work' ? state.settings.workPath : state.settings.personalPath);
 });
+// open subtasks first, physically in the note (owner 2026-10-09, an exception to "writes only on the user's clicks"):
+// every app start puts each task's open subtasks above its done ones. Only notes that need it are written; no undo bubble
+// (nothing is on screen yet). A missing / unreadable note is skipped (the snapshot shows its honest error).
+function sortNoteSubtasks() {
+  for (const tag of ['work', 'personal']) {
+    if (!noteOn(tag)) continue;
+    try { const f = fileFor(tag); if (f.sortSubtasks()) { f.save(); LOG('SUBTASKS-SORTED ' + tag); } }
+    catch (e) { LOG('SUBTASKS-SORT-SKIP ' + tag + ' ' + e.message); }
+  }
+}
+// ---- task attachments (owner 2026-10-09): pointers kept in state.attachments["<note>|<task title>"], never in the note.
+// The editor sets them (att-set); the island + tasks window only open one by its index (att-open): main looks it up and
+// runs lib/attach.js plan(), so no renderer ever hands main a path or a command to run.
+function attRekey(file, from, to) {
+  const all = state.attachments || {}, a = all[ATT.key(file, from)];
+  if (!a) return;
+  delete all[ATT.key(file, from)]; all[ATT.key(file, to)] = a; saveState();
+}
+ipcMain.handle('att-sessions', (_e, tool) => recentSessions(tool, require('os').homedir()));
+ipcMain.handle('att-pick', async (_e, kind) => { // the native picker: 'file' | 'folder'
+  const { dialog } = require('electron');
+  const res = await dialog.showOpenDialog(mainWin || undefined, { properties: [kind === 'folder' ? 'openDirectory' : 'openFile'] });
+  return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+});
+ipcMain.handle('att-set', (_e, file, id, list) => {
+  if (file !== 'work' && file !== 'personal') return { ok: false };
+  const t = fileFor(file).findById(id);
+  if (!t) return { ok: false };
+  const clean = (Array.isArray(list) ? list : []).map(a => { // a dropped / picked path: file or folder is what the disk says
+    if (a && (a.type === 'file' || a.type === 'folder') && a.path) { try { a = { ...a, type: fs.statSync(a.path).isDirectory() ? 'folder' : 'file' }; } catch (e) { return null; } }
+    return ATT.clean(a);
+  }).filter(Boolean).slice(0, 30);
+  state.attachments = state.attachments || {};
+  if (clean.length) state.attachments[ATT.key(file, t.title)] = clean; else delete state.attachments[ATT.key(file, t.title)];
+  saveState(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
+  return { ok: true, att: clean };
+});
+let codexAppId = null; // the ChatGPT / Codex desktop app has no link scheme: start it by its Windows app id
+function startCodexApp() {
+  const go = idv => { if (idv) require('child_process').spawn('explorer.exe', ['shell:AppsFolder\\' + idv], { detached: true, stdio: 'ignore' }).unref(); };
+  if (codexAppId) return go(codexAppId);
+  require('child_process').execFile('powershell.exe', ['-NoProfile', '-Command', "(Get-StartApps | Where-Object { $_.AppID -like 'OpenAI.Codex*' } | Select-Object -First 1).AppID"],
+    { windowsHide: true, timeout: 15000 }, (err, out) => { codexAppId = String(out || '').trim() || null; go(codexAppId); });
+}
+ipcMain.handle('att-open', async (_e, file, id, index) => {
+  if (file !== 'work' && file !== 'personal') return { ok: false };
+  const t = fileFor(file).findById(id);
+  const a = t && ((state.attachments || {})[ATT.key(file, t.title)] || [])[index];
+  const p = a && ATT.plan(ATT.clean(a) || {});
+  if (!p) return { ok: false };
+  if (SANDBOX) { LOG('ATT-OPEN-SANDBOX ' + JSON.stringify(p)); return { ok: true, copied: p.copy || null }; } // E2E never opens anything
+  try {
+    if (p.open) { const err = await shell.openPath(p.open); if (err) return { ok: false, reason: 'missing' }; }
+    else if (p.external) await shell.openExternal(p.external);
+    else if (p.cmd) require('child_process').spawn('cmd.exe', [p.cmd], { windowsVerbatimArguments: true, detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    else if (p.app) {
+      await clipboard.writeText(p.copy || '');
+      if (p.app === 'codex') startCodexApp(); else await shell.openExternal(p.app + '://');
+      return { ok: true, copied: p.copy };
+    }
+  } catch (err) { LOG('ATT-OPEN-FAIL ' + err.message); return { ok: false }; }
+  return { ok: true };
+});
+// tasks-window folds (owner 2026-10-09): every row starts folded at app start; the rows you open stay open while the app
+// runs. Kept here because the tasks window is destroyed on close. Memory only: a restart folds everything again.
+const openRows = new Set();
+ipcMain.handle('fold-get', () => [...openRows]);
+ipcMain.handle('fold-set', (_e, keys, open) => { for (const k of [].concat(keys)) open ? openRows.add(String(k)) : openRows.delete(String(k)); });
 
 // Windows toasts need the installed shortcut's app id (electron-builder appId); a dev run has no shortcut, so skip it there
 if (process.platform === 'win32' && app.isPackaged) app.setAppUserModelId(AUMID);
@@ -1125,6 +1218,7 @@ else {
     registerShortcut();
     setTimeout(checkForUpdate, 8000); setInterval(checkForUpdate, 24 * 3600e3); // after boot settles; a tray app runs for days
     if (state.onboarded) applyAutoStart(state.settings.autoStart); // self-heal every start: ONE entry under AUMID, leftovers removed
+    if (state.onboarded) sortNoteSubtasks();
     LOG('TRAY-READY');
     // one shakedown pop at launch — manual launches only; a system (--hidden) boot stays quiet
     const quietBoot = process.argv.includes('--hidden');
@@ -1153,10 +1247,10 @@ else {
           const panelKind = () => mainWin.webContents.executeJavaScript('window.Panels.kind'); // the side panel that's open (null = none)
           const closePanel = () => mainWin.webContents.executeJavaScript('window.Panels.close()');
           LOG('UTEST row-click-opened-editor: ' + ((await panelKind()) ? 'UNEXPECTED' : 'no (correct)'));
-          await step('subtask-text-edits', `(async()=>{ const s=document.querySelector('#task-list .wsubrow'); if(!s) return 'no-subtask'; const was=s.querySelector('.sb').textContent; s.querySelector('.st').click(); await new Promise(z=>setTimeout(z,900)); const again=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); return 'bracket '+was+'→'+(again?again.querySelector('.sb').textContent:'gone'); })()`);
+          await step('subtask-text-edits', `(async()=>{ if(!document.querySelector('#task-list .wsubrow')){ const h=document.querySelector('#task-list .wrow.has-detail .tt'); if(h){ h.click(); await new Promise(z=>setTimeout(z,300)); } } const s=document.querySelector('#task-list .wsubrow'); if(!s) return 'no-subtask'; const was=s.querySelector('.sb').textContent; s.querySelector('.st').click(); await new Promise(z=>setTimeout(z,900)); const again=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); return 'bracket '+was+'→'+(again?again.querySelector('.sb').textContent:'gone'); })()`);
           LOG('UTEST subtask-text-edits(main): panel=' + (await panelKind()));
           await closePanel(); await new Promise(z => setTimeout(z, 500));
-          await step('subtask-bracket-ticks', `(async()=>{ const s=document.querySelector('#task-list .wsubrow'); if(!s) return 'no-subtask'; const was=s.querySelector('.sb').textContent; s.querySelector('.sb').click(); await new Promise(z=>setTimeout(z,900)); const again=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); const now=again?again.querySelector('.sb').textContent:'gone'; if(again) again.querySelector('.sb').click(); await new Promise(z=>setTimeout(z,800)); const back=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); return 'bracket '+was+'→'+now+'→'+(back?back.querySelector('.sb').textContent:'gone'); })()`);
+          await step('subtask-bracket-ticks', `(async()=>{ if(!document.querySelector('#task-list .wsubrow')){ const h=document.querySelector('#task-list .wrow.has-detail .tt'); if(h){ h.click(); await new Promise(z=>setTimeout(z,300)); } } const s=document.querySelector('#task-list .wsubrow'); if(!s) return 'no-subtask'; const was=s.querySelector('.sb').textContent; s.querySelector('.sb').click(); await new Promise(z=>setTimeout(z,900)); const again=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); const now=again?again.querySelector('.sb').textContent:'gone'; if(again) again.querySelector('.sb').click(); await new Promise(z=>setTimeout(z,800)); const back=[...document.querySelectorAll('#task-list .wsubrow')].find(x=>x.dataset.sub===s.dataset.sub); return 'bracket '+was+'→'+now+'→'+(back?back.querySelector('.sb').textContent:'gone'); })()`);
           await step('open-note-btn', `(async()=>{ const b=document.getElementById('btn-open-note'); const onWork=!b.hidden; document.getElementById('tab-done').click(); await new Promise(z=>setTimeout(z,300)); const onDone=!b.hidden; document.getElementById('tab-work').click(); await new Promise(z=>setTimeout(z,300)); return 'work='+(onWork?'shown':'HIDDEN')+' done='+(onDone?'SHOWN':'hidden')+' title='+b.title; })()`);
           const iStep = (name, js) => island.webContents.executeJavaScript(js)
             .then(r => LOG(`UTEST ${name}: ${r}`)).catch(e => LOG(`UTEST ${name} ERR: ${e.message.slice(0, 120)}`));

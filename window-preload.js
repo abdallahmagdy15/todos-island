@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('api', {
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   saveSettings: s => ipcRenderer.invoke('save-settings', s),
@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('api', {
   deleteTask: (id, file) => ipcRenderer.invoke('delete-task', id, file),
   undoAction: token => ipcRenderer.invoke('undo-action', token),
   undoExpire: token => ipcRenderer.invoke('undo-expire', token),
+  moveSubtask: (fromFile, fromId, title, toFile, toId) => ipcRenderer.invoke('move-subtask', fromFile, fromId, title, toFile, toId),
   deleteSubtask: (file, parentId, title, session) => ipcRenderer.invoke('delete-subtask', file, parentId, title, session),
   uncomplete: (id, file) => ipcRenderer.invoke('uncomplete-task', id, file),
   moveTask: (file, id, dir) => ipcRenderer.invoke('move-task', file, id, dir),
@@ -22,6 +23,13 @@ contextBridge.exposeInMainWorld('api', {
   clearDoneAll: () => ipcRenderer.invoke('clear-done-all'),
   composeTask: data => ipcRenderer.invoke('compose-task', data),
   openNote: file => ipcRenderer.invoke('open-note', file),
+  attSessions: tool => ipcRenderer.invoke('att-sessions', tool), // attachments (owner 2026-10-09)
+  attPick: kind => ipcRenderer.invoke('att-pick', kind),
+  attSet: (file, id, list) => ipcRenderer.invoke('att-set', file, id, list),
+  attOpen: (file, id, index) => ipcRenderer.invoke('att-open', file, id, index),
+  pathOf: f => webUtils.getPathForFile(f), // a file dropped on the editor → its path on disk
+  foldGet: () => ipcRenderer.invoke('fold-get'), // rows opened since the app started (main keeps them; the window dies on close)
+  foldSet: (keys, open) => ipcRenderer.invoke('fold-set', keys, open),
   openUpdate: () => ipcRenderer.invoke('open-update'),
   checkUpdate: () => ipcRenderer.invoke('check-update'), // Settings → About "Check now"
   openAboutLink: kind => ipcRenderer.invoke('open-about-link', kind), // 'notes' | 'repo' — main owns the URLs

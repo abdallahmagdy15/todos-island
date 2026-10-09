@@ -336,3 +336,6 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 @keyframes tuBreathe { 50% { box-shadow: inset 0 0 0 1px var(--accent-border), inset 0 0 0 5px color-mix(in srgb, var(--accent) 10%, transparent); } }
 @media (prefers-reduced-motion: reduce) { .time-up, .time-up.out { animation: none; } }
 .sec-peek .swap .ic { width: 12px; height: 12px; stroke-width: 2; }
+
+/* notebook themes (owner 2026-10-09): the island is a strip of the same paper (solid: island.js skips the glass canvas) */
+:root[data-bg="dot"] #pill, :root[data-bg="kraft"] #pill { background-color: var(--pill-bg); background-image: var(--pattern); background-size: var(--pattern-size); text-shadow: none; }

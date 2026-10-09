@@ -27,7 +27,7 @@
   }
   async function close() {
     if (!kind) return;
-    toggleMenu(false);
+    toggleMenu(false); closeWiz();
     await saveNow(); // a pending edit lands before the panel goes
     kind = null;
     side.classList.remove('open');
@@ -67,7 +67,7 @@
     if (kind === 'edit' && (file !== FILE || id !== ID)) await saveNow(); // switching tasks: the old one lands first
     const same = kind === 'edit' && file === FILE && id === ID;
     FILE = file; ID = id;
-    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; }
+    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); }
     show('edit');
     await load(!same);
     if (opts.focus === 'sub') setTimeout(() => $('ed-sub').focus({ preventScroll: true }), 80);
@@ -78,8 +78,8 @@
     if (s && s.lang && s.lang !== LANG) setLang(s.lang);
     const t = s.sections.flatMap(x => x.items).find(x => x.id === ID) || null;
     $('ed-missing').hidden = !!t;
-    $('ed-form').hidden = !t;
-    $('ed-foot').hidden = !t;
+    $('ed-form').hidden = !t || wizOpen; // the Attach steps keep the view until they close
+    $('ed-foot').hidden = !t || wizOpen;
     if (!t) return;
     $('ed-badge').textContent = T(t.file === 'work' ? 'win.st.file.work' : 'win.st.file.personal');
     if (full) {
@@ -90,11 +90,12 @@
       $('ed-saved').textContent = '';
       updatePreview();
     }
+    paintAtt(t.att || []);
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
     const subs = [...t.subs.filter(x => !x.done), ...t.subs.filter(x => x.done)]; // open first (owner 2026-09-30); the note keeps its order
     $('ed-subs').innerHTML = subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
+      `<li class="${x.done ? 'done' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-move" type="button" data-submove title="${esc(T('ed.sub.move'))}" aria-label="${esc(T('ed.sub.moveAria', { t: plain(x.t) }))}">${window.UI.icon('moveTo')}</button><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
   }
   function paintActive() {
@@ -162,6 +163,7 @@
     const li = e.target.closest('li[data-sub]');
     if (!li || e.target.closest('.sub-edit')) return;
     if (e.target.closest('.st')) { startSubEdit(li); return; }
+    if (e.target.closest('[data-submove]')) { openMove(li); return; }
     await saveNow();
     if (e.target.closest('.sub-del')) { window.SFX.play('delete'); await window.api.deleteSubtask(FILE, ID, li.dataset.sub, session); }
     else if (e.target.closest('[data-subprio]')) { // one click steps the importance: none → ! → !! → !!! → none (owner 2026-09-29)
@@ -200,6 +202,169 @@
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } // Esc cancels the rename, not the panel
     });
     input.addEventListener('blur', () => finish(true));
+  }
+  // ---- attachments (owner 2026-10-09): POINTERS on the task (a path, a link, an AI session to reopen), kept in app
+  // state by main, never in the note. Added, edited and removed only here (and so while adding: Add opens this editor).
+  // Attach → a type → for an AI session: the tool, Terminal or Desktop, then one of its recent sessions on this PC.
+  // Files / folders also come by dropping them on the panel.
+  let att = [];
+  function paintAtt(list) {
+    att = list;
+    $('ed-att-field').hidden = !list.length; // the block shows only when something is attached
+    $('ed-att').innerHTML = list.map((a, i) => `<li title="${esc(a.path || a.url || a.dir || '')}">${window.UI.icon(window.UI.attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(window.UI.attHint(a))}</span><button class="sub-del" type="button" data-attdel="${i}" aria-label="${esc(T('att.del', { t: a.name }))}">&times;</button></li>`).join('');
+  }
+  async function saveAtt(list) {
+    await saveNow(); // a pending title edit lands first: attachments are filed under the task's title
+    const r = await window.api.attSet(FILE, ID, list);
+    if (r && r.ok) { paintAtt(r.att); flashSaved(T('set.save.saved')); } else flashSaved(T('att.fail'), true);
+  }
+  $('ed-att').addEventListener('click', e => {
+    const d = e.target.closest('[data-attdel]');
+    if (!d) return;
+    window.SFX.play('delete');
+    saveAtt(att.filter((_, i) => i !== +d.dataset.attdel));
+  });
+  // the Attach steps take over the WHOLE editor view (owner 2026-10-09); the task's name stays on top. Back steps back,
+  // and from the first step (or Esc, or once something is attached) the normal editor returns.
+  const wiz = $('ed-att-wiz');
+  let draft = {}, wizOpen = false;
+  const choice = (data, ic, label, small) => `<button class="chip" type="button" ${data}>${ic ? window.UI.icon(ic) : ''}<span>${esc(label)}</span>${small ? `<small>${esc(small)}</small>` : ''}</button>`;
+  function openWiz() {
+    wizOpen = true; draft = {};
+    $('att-task').textContent = $('ed-title').value.split('\n')[0];
+    $('ed-form').hidden = true; $('ed-foot').hidden = true; $('ed-att-view').hidden = false;
+    wizStep('type');
+    $('ed-att-view').closest('.side-scroll').scrollTop = 0;
+  }
+  function closeWiz() {
+    if (!wizOpen) return;
+    wizOpen = false; draft = {}; wiz.innerHTML = '';
+    $('ed-att-view').hidden = true; $('ed-form').hidden = false; $('ed-foot').hidden = false;
+  }
+  function stepBack() {
+    if (draft.mode != null) { delete draft.mode; wizStep('mode'); }
+    else if (draft.tool) { delete draft.tool; wizStep('tool'); }
+    else if (draft.type) { draft = {}; wizStep('type'); }
+    else { closeWiz(); $('ed-att-add').focus(); }
+  }
+  function paintSessions() {
+    const q = ($('att-q') ? $('att-q').value : '').trim().toLowerCase(), list = draft.list || [];
+    const hits = list.map((s, i) => [s, i]).filter(([s]) => !q || s.name.toLowerCase().includes(q) || s.dir.toLowerCase().includes(q));
+    wiz.querySelector('.att-sess').innerHTML = !list.length ? `<div class="att-none">${esc(T('att.noSess'))}</div>`
+      : hits.length ? hits.map(([s, i]) => `<button type="button" data-s="${i}"><span class="sn">${esc(s.name)}</span><span class="sd" dir="ltr">${esc(s.dir)}</span></button>`).join('')
+      : `<div class="att-none">${esc(T('att.noMatch'))}</div>`;
+  }
+  async function wizStep(n) {
+    if (n === 'type') {
+      wiz.innerHTML = `<div class="att-step">${esc(T('att.q.type'))}</div><div class="att-choices">${[
+        ['session', 'terminal'], ['file', 'file'], ['folder', 'folder'], ['link', 'link']
+      ].map(([k, ic]) => choice(`data-type="${k}"`, ic, T('att.t.' + k))).join('')}<button class="chip" type="button" disabled>${window.UI.icon('file')}<span>${esc(T('att.t.email'))}</span><small>${esc(T('att.later'))}</small></button></div>`;
+    } else if (n === 'tool') {
+      wiz.innerHTML = `<div class="att-step">${esc(T('att.q.tool'))}</div><div class="att-choices">${[['claude', 'Claude Code'], ['codex', 'Codex'], ['opencode', 'opencode']].map(([k, v]) => choice(`data-tool="${k}"`, null, v)).join('')}</div>`;
+    } else if (n === 'mode') {
+      wiz.innerHTML = `<div class="att-step">${esc(T('att.q.mode'))}</div><div class="att-choices">${choice('data-mode="terminal"', 'terminal', T('att.cmd'), T('att.cmd.hint'))}${choice('data-mode="desktop"', 'monitor', T('att.app'), T('att.app.hint'))}</div>`;
+    } else if (n === 'session') {
+      // searchable (owner 2026-10-09): by name or folder
+      wiz.innerHTML = `<div class="att-step">${esc(T('att.q.session'))}</div><input type="text" id="att-q" class="att-q" spellcheck="false" autocomplete="off" placeholder="${esc(T('att.q.find'))}" aria-label="${esc(T('att.q.find'))}"><div class="att-sess"><div class="att-none">${esc(T('att.loading'))}</div></div>`;
+      $('att-q').addEventListener('input', paintSessions);
+      setTimeout(() => $('att-q') && $('att-q').focus(), 30);
+      const tool = draft.tool, list = await window.api.attSessions(tool);
+      if (!wizOpen || draft.tool !== tool || draft.mode == null) return; // closed or moved on meanwhile
+      draft.list = list; paintSessions();
+    } else if (n === 'link') {
+      wiz.innerHTML = `<div class="att-step">${esc(T('att.q.link'))}</div><div class="addsub"><input type="text" id="att-url" placeholder="https://…" dir="ltr" spellcheck="false"><button type="button" data-addlink>${esc(T('win.btn.add'))}</button></div>`;
+      setTimeout(() => $('att-url').focus(), 30);
+    }
+  }
+  $('ed-att-add').addEventListener('click', () => { window.SFX.play('tick'); openWiz(); });
+  $('att-back').addEventListener('click', () => { window.SFX.play('tick'); stepBack(); });
+  wiz.addEventListener('click', async e => {
+    const el = k => e.target.closest(`[data-${k}]`);
+    if (el('type')) {
+      const k = el('type').dataset.type;
+      if (k === 'session' || k === 'link') { draft = { type: k }; wizStep(k === 'session' ? 'tool' : 'link'); return; }
+      const p = await window.api.attPick(k);
+      if (!p) return;
+      closeWiz(); saveAtt([...att, { type: k, path: p }]);
+      return;
+    }
+    if (el('tool')) { draft.tool = el('tool').dataset.tool; wizStep('mode'); return; }
+    if (el('mode')) { draft.mode = el('mode').dataset.mode; wizStep('session'); return; }
+    if (el('s')) {
+      const s = draft.list[+el('s').dataset.s];
+      const a = { type: 'session', tool: draft.tool, mode: draft.mode, id: s.id, dir: s.dir, name: s.name };
+      closeWiz(); saveAtt([...att, a]);
+      return;
+    }
+    if (el('addlink')) {
+      const v = $('att-url').value.trim();
+      if (!/^https?:\/\/\S+$/i.test(v)) { window.Motion.nudge($('att-url')); $('att-url').focus(); return; }
+      closeWiz(); saveAtt([...att, { type: 'link', url: v }]);
+    }
+  });
+  $('ed-att-view').addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeWiz(); $('ed-att-add').focus(); }
+    else if (e.key === 'Enter' && e.target.id === 'att-url') { e.preventDefault(); wiz.querySelector('[data-addlink]').click(); }
+    else if (e.key === 'Enter' && e.target.id === 'att-q') { e.preventDefault(); const f = wiz.querySelector('[data-s]'); if (f) f.click(); }
+  });
+  // drop files / folders from Explorer anywhere on the editor
+  $('side-edit').addEventListener('dragover', e => { if (kind === 'edit' && e.dataTransfer && [...e.dataTransfer.types].includes('Files')) { e.preventDefault(); $('ed-form').classList.add('drop-on'); } });
+  $('side-edit').addEventListener('dragleave', e => { if (!$('side-edit').contains(e.relatedTarget)) $('ed-form').classList.remove('drop-on'); });
+  $('side-edit').addEventListener('drop', e => {
+    $('ed-form').classList.remove('drop-on');
+    const files = [...((e.dataTransfer && e.dataTransfer.files) || [])];
+    if (kind !== 'edit' || !files.length) return;
+    e.preventDefault();
+    const add = files.map(f => window.api.pathOf(f)).filter(Boolean).map(p => ({ type: 'file', path: p })); // main tells file from folder
+    if (add.length) { window.SFX.play('tick'); saveAtt([...att, ...add]); }
+  });
+
+  // Move to… (owner 2026-10-09): a small picker right under the subtask — a search + the open tasks of both notes; a pick
+  // moves the subtask there (main 'move-subtask', its own Undo). Dragging it onto a row in the list does the same.
+  let movePick = null;
+  function closeMove() { if (movePick) { movePick.remove(); movePick = null; } }
+  async function openMove(li) {
+    const again = movePick && movePick.previousElementSibling === li;
+    closeMove();
+    if (again) return; // the same button closes it
+    const s = await window.api.getSnapshot();
+    const groups = s.sections.filter(g => g.items.length).map(g => ({ file: g.file, items: g.items.filter(t => !(g.file === FILE && t.id === ID)) }));
+    const pick = movePick = document.createElement('li');
+    pick.className = 'move-pick';
+    pick.innerHTML = `<input type="text" class="mv-q" spellcheck="false" placeholder="${esc(T('ed.sub.movePh'))}" aria-label="${esc(T('ed.sub.movePh'))}"><div class="mv-list" role="listbox"></div>`;
+    li.after(pick);
+    const q = pick.querySelector('.mv-q'), list = pick.querySelector('.mv-list');
+    const paint = () => {
+      const w = q.value.trim().toLowerCase(), both = groups.length > 1;
+      const html = groups.map(g => {
+        const its = g.items.filter(t => !w || plain(t.title).toLowerCase().includes(w));
+        if (!its.length) return '';
+        return (both ? `<div class="mv-h"><span class="hash">##</span> ${esc(T(g.file === 'work' ? 'win.tab.work' : 'win.tab.personal'))}</div>` : '')
+          + its.map(t => `<button class="mv-opt" type="button" role="option" data-file="${g.file}" data-id="${esc(t.id)}">${inline(t.title)}</button>`).join('');
+      }).join('');
+      list.innerHTML = html || `<div class="mv-none">${esc(T('ed.sub.moveNone'))}</div>`;
+    };
+    paint();
+    q.addEventListener('input', paint);
+    const opts = () => [...list.querySelectorAll('.mv-opt')];
+    pick.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMove(); li.querySelector('[data-submove]').focus(); return; }
+      const o = opts(), i = o.indexOf(document.activeElement);
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (o.length) o[i === -1 ? (e.key === 'ArrowDown' ? 0 : o.length - 1) : (i + (e.key === 'ArrowDown' ? 1 : o.length - 1)) % o.length].focus(); }
+      else if (e.key === 'Enter' && e.target === q && o[0]) { e.preventDefault(); o[0].click(); }
+    });
+    list.addEventListener('click', async e => {
+      const o = e.target.closest('.mv-opt');
+      if (!o) return;
+      const sub = li.dataset.sub;
+      closeMove();
+      await saveNow();
+      window.SFX.play('tick');
+      const r = await window.api.moveSubtask(FILE, ID, sub, o.dataset.file, o.dataset.id);
+      if (r && r.ok) flashSaved(T('ed.sub.moved'));
+      load(false);
+    });
+    q.focus();
   }
   $('ed-addsub').addEventListener('click', async () => {
     const v = $('ed-sub').value.trim();

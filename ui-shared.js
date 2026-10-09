@@ -60,6 +60,14 @@
     file: '<path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/>',
     swap: '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
     moon: '<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>',
+    moveTo: '<path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>', // corner-down-right: a subtask's "Move to…"
+    // task attachments (owner 2026-10-09)
+    paperclip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+    folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+    terminal: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
+    monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8"/><path d="M12 17v4"/>',
+    arrowLeft: '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
     // the copy wheel's petals (#5): open subtasks / all subtasks · today / all days · Markdown / plain text
     subsOpen: '<rect x="3" y="4" width="6" height="6" rx="1.5"/><rect x="3" y="14" width="6" height="6" rx="1.5"/><path d="M13 7h8"/><path d="M13 17h8"/>',
     subsAll: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
@@ -151,7 +159,7 @@
   // one vocabulary everywhere: the * state is "Now" (★); clearing it is "Not now"; children are "subtasks"
   const undoVerb = u => u.kind === 'delete' ? T('u.deleted')
     : u.kind === 'toggle' ? (u.starring ? T('u.markedNow') : T('u.clearedNow'))
-    : u.kind === 'reorder' ? T('u.moved')
+    : u.kind === 'reorder' || u.kind === 'move-sub' ? T('u.moved')
     : u.kind === 'clear' ? T('u.cleared')
     : u.kind === 'settings' ? T('u.reset')
     : u.kind === 'edit' ? T('u.edited')
@@ -465,6 +473,33 @@
     return api;
   }
 
+  // ---- task attachments (owner 2026-10-09): the 📎 mark beside priority + date, always folded; a CLICK drops the list
+  // under it (underTab: closes 1 s after leaving, on Esc, on a click outside); a click on an item opens it in main
+  // (by index — main holds the paths). A desktop session copies its name: the item says so for a moment.
+  const ATT_TOOL = { claude: 'Claude Code', codex: 'Codex', opencode: 'opencode' };
+  const attIcon = a => a.type === 'session' ? (a.mode === 'terminal' ? 'terminal' : 'monitor') : { file: 'file', folder: 'folder', link: 'link' }[a.type] || 'file';
+  const attHint = a => a.type === 'session' ? `${ATT_TOOL[a.tool] || a.tool} · ${T(a.mode === 'terminal' ? 'att.cmd' : 'att.app')}` : T('att.t.' + a.type);
+  const attClipHtml = t => (t.att && t.att.length ? `<button class="aclip" type="button" data-attclip="${esc(t.id)}" data-file="${t.file}" title="${esc(T('att.title'))}" aria-label="${esc(T('att.aria', { n: t.att.length }))}" aria-expanded="false">${icon('paperclip')}<span>${t.att.length}</span></button>` : '');
+  function attPeek(host, clip, t, { open, onClose }) {
+    const el = document.createElement('div');
+    el.className = 'clist apop'; el.setAttribute('role', 'menu'); el.setAttribute('aria-label', T('att.title'));
+    el.innerHTML = t.att.map((a, i) => `<button type="button" role="menuitem" data-i="${i}" title="${esc(a.name)}">${icon(attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(attHint(a))}</span></button>`).join('');
+    clip.setAttribute('aria-expanded', 'true');
+    const api = underTab(host, clip, el, 'att', fromLeave => { clip.setAttribute('aria-expanded', 'false'); if (onClose) onClose(fromLeave); });
+    el.addEventListener('click', async e => {
+      e.stopPropagation();
+      const b = e.target.closest('button[data-i]');
+      if (!b) return;
+      const r = await open(+b.dataset.i);
+      const hint = b.querySelector('.ah');
+      if (r && r.copied) { b.classList.add('ok'); hint.textContent = T('att.copied'); setTimeout(() => api.close(), 1400); }
+      else if (r && r.ok) api.close();
+      else { b.classList.add('bad'); hint.textContent = T('att.fail'); }
+    });
+    setTimeout(() => { const f = el.querySelector('button'); if (f && clip.matches(':focus-visible')) f.focus(); }, 0);
+    return api;
+  }
+
   // the subtask Copy button (owner 2026-10-05, pick D2; replaced copy-on-rest): an icon at the end of each subtask row
   const subCopyHtml = () => `<button class="scopy" type="button" data-subcopy title="${esc(T('sub.copy'))}" aria-label="${esc(T('sub.copy'))}">${icon('copy')}</button>`;
   // a click on it: copy that subtask as plain words (no bangs, no ** _ ~~ marks), the icon turns into a check
@@ -761,7 +796,7 @@
     btn.title = tip; btn.setAttribute('aria-label', tip);
   }
   // theme color + text sizes from settings (every window calls this with each snapshot's settings)
-  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune'], SIZE_K = [0.92, 1, 1.1, 1.2];
+  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'dot', 'kraft'], PAPER = ['dot', 'kraft'], SIZE_K = [0.92, 1, 1.1, 1.2];
   function applyTheme(s) {
     if (!s) return;
     const r = document.documentElement, a = ACCENTS.includes(s.accent) ? s.accent : 'blue';
@@ -772,14 +807,15 @@
     // Glass (0 = solid, 1–4): the scene + glass panels in every window that paints a scene (.ambient: tasks, editor, share).
     // The chrome never goes as clear as the island's — it sits over text you read.
     const g = Number.isInteger(s.glassLevel) ? s.glassLevel : 3;
-    r.classList.toggle('glass-on', g > 0 && !!document.querySelector('.ambient'));
-    r.style.setProperty('--g-chrome', [1, 0.8, 0.66, 0.54, 0.42][g] ?? 0.54);
+    r.classList.toggle('glass-on', g > 0 && !!document.querySelector('.ambient') && !PAPER.includes(r.dataset.bg)); // paper is never glass
+    const paper = PAPER.includes(r.dataset.bg); // notebook paper: the panels are solid paper too
+    r.style.setProperty('--g-chrome', paper ? 1 : [1, 0.8, 0.66, 0.54, 0.42][g] ?? 0.54);
     // the reading panels follow the same Glass steps as the island (Solid · 20 · 35 · 50 · 65 % of the scene through);
     // the last value = tokens.css --sheet, the contrast gate's worst case
-    r.style.setProperty('--g-sheet', [1, 0.76, 0.62, 0.5, 0.38][g] ?? 0.5);
+    r.style.setProperty('--g-sheet', paper ? 1 : [1, 0.76, 0.62, 0.5, 0.38][g] ?? 0.5);
     // the scene behind the window follows the same steps (owner 2026-09-28: "relative to the transparency selected"):
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES };
+  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, attClipHtml, attPeek, attIcon, attHint, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
 })();

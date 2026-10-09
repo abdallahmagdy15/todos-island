@@ -167,6 +167,9 @@ const STRINGS_EN = {
   'side.close': 'Close (Esc)', // the side panel's ✕ (Edit / Share)
   'ed.sub.del': 'Delete subtask {t}', 'ed.sub.none': 'No subtasks yet.',
   'ed.sub.prio': 'Importance: click to step ! → !! → !!! → none', 'ed.sub.prioAria': 'Priority of {t}: {p}',
+  'att.title': "Attachments", 'att.aria': "{n} attachments", 'att.add': "Attach", 'att.del': "Remove {t}", 'att.cmd': "Terminal", 'att.app': "Desktop app", 'att.cmd.hint': "opens the exact session", 'att.app.hint': "opens the app, copies the name", 'att.copied': "Name copied: paste it in the app", 'att.fail': "Couldn’t open it", 'att.t.session': "AI session", 'att.t.file': "File", 'att.t.folder': "Folder", 'att.t.link': "Link", 'att.t.email': "Email / calendar", 'att.later': "later", 'att.back': "Back", 'att.q.type': "What do you attach?", 'att.q.tool': "Which tool?", 'att.q.mode': "Reopen it how?", 'att.q.session': "Which session? (recent on this PC)", 'att.q.link': "Paste the link", 'att.q.find': "Find a session by name or folder", 'att.noMatch': "No session matches that.", 'att.loading': "Looking for sessions…", 'att.noSess': "No sessions found for this tool on this PC.", // task attachments (owner 2026-10-09)
+  'ed.sub.move': 'Move to another task', 'ed.sub.moveAria': 'Move {t} to another task', 'ed.sub.movePh': 'Find a task…',
+  'ed.sub.moveNone': 'No other open tasks.', 'ed.sub.moved': 'Moved ✓',
   'ed.sub.rename': 'Click to rename', 'ed.sub.tick': 'Mark {t} done', 'ed.sub.untick': 'Mark {t} not done',
   'ed.missing': 'Task not found — it may have been completed or removed.',
   'ed.task': 'Task',
@@ -428,6 +431,7 @@ const STRINGS_EN = {
   'set.bg.lagoon': "Lagoon",
   'set.bg.bloom': "Bloom",
   'set.bg.dune': "Dune",
+  'set.bg.dot': "Dot-grid journal", 'set.bg.kraft': "Kraft paper", // notebook themes (owner 2026-10-09)
   'set.accent': "Theme color",
   'set.accent.hint': "buttons, Now and focus rings follow it",
   'set.accent.blue': "Blue",

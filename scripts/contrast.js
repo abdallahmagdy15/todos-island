@@ -106,6 +106,11 @@ function themeVars(vars) {
   return v;
 }
 const THEME_CHECKS = [];
+for (const p of ['dot', 'kraft']) for (const bg of ['paper', 'card']) {
+  for (const fg of ['ink', 'muted', 'faint', 'p1', 'p2', 'p3', 'ok']) THEME_CHECKS.push([`pp-${p}-${fg}`, `pp-${p}-${bg}`, 4.5, true]);
+  THEME_CHECKS.push([p === 'kraft' ? 'pp-kraft-accent' : 'accent', `pp-${p}-${bg}`, 4.5, true]);
+  if (p === 'kraft') for (const a of ['violet', 'teal', 'pink', 'graphite']) THEME_CHECKS.push([`pp-kraft-acc-${a}`, `pp-kraft-${bg}`, 4.5, true]);
+}
 for (const t of BG_THEMES) {
   for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'p2', 'p3']) THEME_CHECKS.push([fg, `frost-min over isl-${t}-${i}`, 4.5, true]);
   for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'glass-p2', 'glass-p3', 'glass-ok']) {

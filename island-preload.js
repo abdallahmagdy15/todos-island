@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   openShare: () => ipcRenderer.invoke('open-share'),
   openUpdate: () => ipcRenderer.invoke('open-update'),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
+  attOpen: (file, id, index) => ipcRenderer.invoke('att-open', file, id, index), // a task attachment (owner 2026-10-09)
   copyText: text => ipcRenderer.invoke('copy-text', text), // the quick Copy tab
   saveShareFmt: fmt => ipcRenderer.invoke('save-settings', { shareFmt: fmt }), // the copy wheel's Markdown / plain petal
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
