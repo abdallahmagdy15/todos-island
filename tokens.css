@@ -405,4 +405,8 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .undo-ring circle { fill: none; stroke-width: 2.6; }
 .undo-ring .bg { stroke: var(--rule); }
 .undo-ring .fg { stroke: var(--accent); stroke-linecap: round; }
+/* ✕ dismiss beside Undo (owner 2026-10-09): quiet, a hover fill like the bar's other buttons */
+.undo-x { flex: none; width: 24px; height: 24px; display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--faint); cursor: pointer; transition: background var(--d-1) ease, color var(--d-1) ease; }
+.undo-x:hover { background: var(--hover); color: var(--ink); }
+.undo-x .ic { width: 14px; height: 14px; stroke-width: 2.2; }
 @media (prefers-reduced-motion: reduce) { #undo-bar.on, #undo-toast.on, #undo-bar.out, #undo-toast.out { animation: none; } .undo-on > :not(#undo-bar):not(#undo-toast) { transform: none; } }

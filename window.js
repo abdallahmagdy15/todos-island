@@ -940,7 +940,7 @@ async function saveSettings() {
     workRemindersOn: $('set-work-rem').checked, offRemindersOn: $('set-off-rem').checked,
     dayStart: readTime('set-start', (snap && snap.settings.dayStart) || '09:00'), dayEnd: readTime('set-end', (snap && snap.settings.dayEnd) || '17:00'),
     dismissSec: readNumber('set-dismiss', 5, 600, 7),
-    undoSec: readNumber('set-undo', 5, 120, 5),
+    undoSec: readNumber('set-undo', 3, 120, 5), // owner 2026-10-09: 3 s is allowed
     hoverSec: readNumber('set-hover', 0.5, 10, 1),
     shortcut: shortcutValue || 'Control+`',
     weekendAware: $('set-weekend').checked, weekendDays: $('set-weekend-days').value, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked, updateCheck: $('set-update').checked, hideFromCapture: $('set-capture').checked,

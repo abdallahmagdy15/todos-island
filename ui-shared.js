@@ -205,7 +205,8 @@
     const label = at < 0 ? esc(txt) : esc(txt.slice(0, at)) + '<b>' + esc(d.label) + '</b>' + esc(txt.slice(at + d.label.length));
     el.innerHTML = `<span class="undo-label">${label}</span>
       <svg class="undo-ring" viewBox="0 0 20 20" aria-hidden="true"><circle class="bg" cx="10" cy="10" r="${R}"/><circle class="fg" cx="10" cy="10" r="${R}" stroke-dasharray="${LEN.toFixed(2)}"/></svg>
-      <button class="undo-btn" data-undo type="button" title="${esc(T('u.undoTitle'))}">${T('u.undo')}</button>`;
+      <button class="undo-btn" data-undo type="button" title="${esc(T('u.undoTitle'))}">${T('u.undo')}</button>
+      <button class="undo-x" data-undo-x type="button" title="${esc(T('u.dismiss'))}" aria-label="${esc(T('u.dismiss'))}">${icon('x')}</button>`;
     el.hidden = false;
     el.classList.add('on');
     if (el.parentElement) el.parentElement.classList.add('undo-on');
@@ -232,6 +233,8 @@
       el._outT = setTimeout(() => { el.hidden = true; el.classList.remove('out'); }, 180);
     };
     el.querySelector('[data-undo]').addEventListener('click', () => { dispose(); swapBack(); if (onUndo) onUndo(d.token); });
+    // ✕ (owner 2026-10-09): dismiss now = the ring ran out early; the change stays, the undo entry is dropped
+    el.querySelector('[data-undo-x]').addEventListener('click', () => { dispose(); swapBack(); if (onExpire) onExpire(d.token); });
     el._undo = { dispose, pause: on => { held = !!on; prev = performance.now(); } };
     return el._undo;
   }

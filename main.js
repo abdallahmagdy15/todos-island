@@ -578,14 +578,34 @@ function registerShortcut() {
   } catch (e) { LOG('SHORTCUT-ERROR ' + e.message); return false; }
 }
 
+// ONE startup entry (owner 2026-10-09, fix modeled on MudrikNow's normalizeStartupEntries): Electron names the HKCU Run
+// value after the AppUserModelID, so older builds left `electron.app.Todos Island` (before the id was set) and dev runs
+// left `electron.app.Electron` → Windows booted the app twice or more. Only the packaged app registers, always under
+// AUMID; every start deletes any other Run value that points at us (the installed exe, or this dev checkout).
+const AUMID = 'com.abdallahmagdy15.todos-island';
+const RUN_KEY = 'HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run';
+function cleanRunEntries() {
+  const { execFileSync } = require('child_process');
+  const opt = { encoding: 'utf-8', timeout: 2000, windowsHide: true };
+  const devPath = app.isPackaged ? null : app.getAppPath().toLowerCase();
+  let out = '';
+  try { out = execFileSync('reg', ['query', RUN_KEY], opt); } catch (e) { return; } // no Run key: nothing to clean
+  for (const line of out.split(/\r?\n/)) {
+    const m = line.match(/^\s{4}(.+?)\s{4}REG_(?:EXPAND_)?SZ\s{4}(.*)$/); // names may hold spaces ("electron.app.Todos Island")
+    if (!m || m[1] === AUMID) continue;
+    const data = m[2].toLowerCase();
+    if (!data.includes('\\todos island.exe') && !(devPath && data.includes(devPath))) continue; // never another app's entry
+    try { execFileSync('reg', ['delete', RUN_KEY, '/v', m[1], '/f'], opt); LOG(`AUTOSTART-CLEAN removed "${m[1]}"`); }
+    catch (e) { LOG(`AUTOSTART-CLEAN failed "${m[1]}": ${e.message}`); }
+  }
+}
 function applyAutoStart(on) {
-  // dev: electron.exe alone boots the default Electron welcome page — the app path must ride along.
   // --hidden marks a system launch (checked below) so boot stays quiet.
   if (SANDBOX) { LOG('AUTOSTART-SKIP sandbox ' + !!on); return; } // test runs must never rewrite the real login item
-  const args = [];
-  if (!app.isPackaged) args.push(app.getAppPath());
-  args.push('--hidden');
-  app.setLoginItemSettings({ openAtLogin: !!on, openAsHidden: true, args });
+  if (process.platform !== 'win32') return;
+  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: !!on, openAsHidden: true, args: ['--hidden'], name: AUMID });
+  else LOG('AUTOSTART-SKIP dev ' + !!on); // a dev run never registers itself (it left a second, electron.exe entry)
+  cleanRunEntries();
 }
 
 const { resolveLang, t: tt } = require('./lib/i18n.js');
@@ -1083,7 +1103,7 @@ ipcMain.handle('open-note', (_e, file) => {
 });
 
 // Windows toasts need the installed shortcut's app id (electron-builder appId); a dev run has no shortcut, so skip it there
-if (process.platform === 'win32' && app.isPackaged) app.setAppUserModelId('com.abdallahmagdy15.todos-island');
+if (process.platform === 'win32' && app.isPackaged) app.setAppUserModelId(AUMID);
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 else {
   app.on('second-instance', () => { openWindow(); });
@@ -1104,7 +1124,7 @@ else {
     armTimer(); // a focus timer from before a restart keeps running
     registerShortcut();
     setTimeout(checkForUpdate, 8000); setInterval(checkForUpdate, 24 * 3600e3); // after boot settles; a tray app runs for days
-    if (state.onboarded && state.settings.autoStart) applyAutoStart(true); // self-heal: rewrite any dev-era registration that boots bare electron.exe
+    if (state.onboarded) applyAutoStart(state.settings.autoStart); // self-heal every start: ONE entry under AUMID, leftovers removed
     LOG('TRAY-READY');
     // one shakedown pop at launch — manual launches only; a system (--hidden) boot stays quiet
     const quietBoot = process.argv.includes('--hidden');
