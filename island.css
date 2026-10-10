@@ -342,3 +342,11 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 
 /* notebook themes (owner 2026-10-09): the island is a strip of the same paper (solid: island.js skips the glass canvas) */
 :root[data-bg="dot"] #pill, :root[data-bg="kraft"] #pill { background-color: var(--pill-bg); background-image: var(--pattern); background-size: var(--pattern-size); text-shadow: none; }
+
+/* ==== Material: Frosted (owner 2026-10-10; tokens.css zeroes the liquid light) — Apple's classic vibrancy on the pill:
+   island.js paints the theme picture blurred + saturated with NO lens bend, under a thicker milky tint (GLASS_ALPHA_FROST).
+   No top arc, no rim light, no raised text: a hairline edge and the same soft outer shadow. ==== */
+:root[data-material="frosted"] :is(.gl-arc, .gl-rim) { display: none; }
+:root[data-material="frosted"] body[data-glass="lens"] #pill { text-shadow: none; border-color: var(--g-edge);
+  box-shadow: 0 0 0 0.5px var(--f-hair), 0 16px 40px -8px var(--isl-shadow), 0 3px 10px -2px var(--isl-shadow-near); }
+:root[data-material="frosted"] .btn-done { box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--accent) 75%, #000), 0 1px 1.5px var(--drop); }

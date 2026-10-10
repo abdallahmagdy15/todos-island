@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld('api', {
   resetSettings: () => ipcRenderer.invoke('reset-settings'),
   exportSettings: () => ipcRenderer.invoke('export-settings'),
   importSettings: () => ipcRenderer.invoke('import-settings'),
+  linkTask: (file, id, on) => ipcRenderer.invoke('link-task', file, id, on), // shadow in the other note (owner 2026-10-10)
+  moveTaskNote: (file, id) => ipcRenderer.invoke('move-task-note', file, id), // the whole task to the other note
   openOnboard: () => ipcRenderer.invoke('open-onboarding'),
   updateTask: (file, id, patch) => ipcRenderer.invoke('update-task', file, id, patch),
   toggleActive: (id, file) => ipcRenderer.invoke('toggle-active', id, file),

@@ -165,6 +165,8 @@
     : u.kind === 'clear' ? T('u.cleared')
     : u.kind === 'settings' ? T('u.reset')
     : u.kind === 'import' ? T('u.imported')
+    : u.kind === 'link' ? T('u.linked')
+    : u.kind === 'unlink' ? T('u.unlinked')
     : u.kind === 'edit' ? T('u.edited')
     : T('u.completed');
   const undoText = u => u.label ? `${undoVerb(u)}: ${u.label}` : undoVerb(u); // a settings reset has no task label
@@ -822,6 +824,9 @@
     const r = document.documentElement, a = ACCENTS.includes(s.accent) ? s.accent : 'blue';
     if (a === 'blue') delete r.dataset.accent; else r.dataset.accent = a;
     r.dataset.bg = BG_THEMES.includes(s.islandTheme) ? s.islandTheme : 'mist'; // island theme → the tasks window's color field too
+    // Material (owner 2026-10-10): frosted = Apple's classic vibrancy (tokens.css / window.css / island.css [data-material]).
+    // Notebook paper wears it too (owner 2026-10-10): no glass there, but the flat Apple controls apply.
+    if (s.material === 'frosted') r.dataset.material = 'frosted'; else delete r.dataset.material;
     r.style.setProperty('--ui-k', SIZE_K[s.labelSize] ?? 1);
     r.style.setProperty('--task-k', SIZE_K[s.taskSize] ?? 1);
     // Glass (0 = solid, 1–4): the scene + glass panels in every window that paints a scene (.ambient: tasks, editor, share).
@@ -837,5 +842,13 @@
     // the clearest step shows --scene-a in full (what the contrast gate checks), frostier steps show less of it
     r.style.setProperty('--scene-k', [0, 0.55, 0.7, 0.85, 1][g] ?? 0.85);
   }
-  window.UI = { setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, attClipHtml, attPeek, attIcon, attHint, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
+  // linked ("shadow") task mark (owner 2026-10-10): a link icon on the shadow AND on the linked original; the tooltip says
+  // where it lives and where else it shows. Glyph only (core #8).
+  function linkMarkHtml(t) {
+    const home = t.shadow ? t.home : t.file, also = t.shadow ? (home === 'work' ? 'personal' : 'work') : t.linked;
+    if (!also) return '';
+    const name = n => T(n === 'work' ? 'win.tab.work' : 'win.tab.personal'), tip = T('link.mark', { n: name(also), h: name(home) });
+    return `<span class="lmark" title="${esc(tip)}" aria-label="${esc(tip)}">${icon('link')}</span>`;
+  }
+  window.UI = { linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, attClipHtml, attPeek, attIcon, attHint, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
 })();

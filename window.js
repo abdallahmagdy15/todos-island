@@ -38,6 +38,7 @@ function renameId(from, to) {
   if (restId === from) restId = to;
 }
 window.addEventListener('task-id', e => renameId(e.detail.from, e.detail.to));
+window.addEventListener('task-moved', e => { if (currentTab !== e.detail.file) showTab(e.detail.file); refresh(); }); // Move to the other note: follow it
 window.api.onWindowOpened(() => { resort(); refresh(); });
 
 // the list is patched per row (owner 2026-09-29: "everything in place while I'm editing"): a refresh, a Now toggle or a
@@ -136,14 +137,14 @@ function rowHtml(t) {
     ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="true"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
-  <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} draggable="true">
+  <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} ${t.shadow ? 'data-shadow draggable="false"' : 'draggable="true"'}>
     <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(plain(t.title))}"></button>
     <div class="wrow-main">
       <span class="wtitle"><span class="tt">${inline(t.title)}</span></span>
       ${expandBody}
       ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
     </div>
-    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">${window.UI.icon('timer')}${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${t.priority ? bangCls(t.priority) : 'ghost'}" data-prio="${esc(t.priority || '')}" role="button" title="${esc(T('prio.click'))}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}${window.UI.attClipHtml(t)}</span>
+    <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">${window.UI.icon('timer')}${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${t.priority ? bangCls(t.priority) : 'ghost'}" data-prio="${esc(t.priority || '')}" role="button" title="${esc(T('prio.click'))}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}${window.UI.attClipHtml(t)}${window.UI.linkMarkHtml(t)}</span>
   </div></div></div>`;
 }
 function renderList() {
@@ -300,7 +301,7 @@ const T = (k, prm) => window.I18N.t(LANG, k, prm);
 function updateTabCounts() {
   if (!snap) return;
   // sections are keyed by their ENGLISH name ('Work' / 'Personal'), never the translated label (Arabic read 0 — fixed 2026-09-30)
-  const n = tag => { const s = snap.sections.find(x => x.name.toLowerCase() === tag); return s ? s.items.length : 0; };
+  const n = tag => { const s = snap.sections.find(x => x.name.toLowerCase() === tag); return s ? s.items.filter(t => !t.shadow).length : 0; }; // a shadow counts in its home tab only
   // counts in mono; a broken source never reads as 0 — it reads "!"
   const label = (tag, name) => fileErr(tag) ? `${name}<span class="cnt bad" title="${T('win.tab.err')}">!</span>` : `${name}<span class="cnt">${n(tag)}</span>`;
   $('tab-work').innerHTML = label('work', T('win.tab.work'));
@@ -344,7 +345,7 @@ window.addEventListener('resize', () => moveTabCursor(false));
 }
 function renderChrome() { // status mark, error strip, status line — the notes-are-the-state layer
   const errs = snap.errors || [];
-  const nowCount = snap.sections.flatMap(s => s.items).filter(t => t.active).length;
+  const nowCount = snap.sections.flatMap(s => s.items).filter(t => t.active && !t.shadow).length; // a linked Now task counts once
   const mark = $('mark');
   mark.textContent = errs.length ? '[!]' : nowCount ? '[\u2605]' : '[ ]';
   mark.className = 'mark' + (errs.length ? ' err' : nowCount ? ' now' : '');
@@ -662,6 +663,7 @@ $('task-list').addEventListener('drop', async e => {
     return;
   }
   const over = e.target.closest('.wrow');
+  if (over && over.hasAttribute('data-shadow')) { dragId = null; return; } // a linked task from the other note: not a place in this one
   const beforeId = over && over.dataset.id !== dragId ? over.dataset.id : null; // no target = move to end
   if (dragId) {
     window.SFX.play('tick');
@@ -867,6 +869,12 @@ $('bg-sw').addEventListener('keydown', e => {
   setBg(bgTiles[n].dataset.bg); bgTiles[n].focus(); autoSave();
 });
 // Appearance: System / Light / Dark for every window (main sets nativeTheme.themeSource on save)
+let matSel = 'liquid';
+function setMat(v) {
+  matSel = v === 'frosted' ? 'frosted' : 'liquid';
+  document.querySelectorAll('#mat-seg .seg-btn').forEach(b => { const on = b.dataset.mat === matSel; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
+}
+document.querySelectorAll('#mat-seg .seg-btn').forEach(b => b.addEventListener('click', () => { setMat(b.dataset.mat); autoSave(); }));
 let appearSel = 'system';
 function setAppear(v) {
   appearSel = v;
@@ -896,6 +904,7 @@ async function loadSettings() {
   setAccent(window.UI.ACCENTS.includes(s.accent) ? s.accent : 'blue');
   setBg(window.UI.BG_THEMES.includes(s.islandTheme) ? s.islandTheme : 'mist');
   setAppear(s.appearance || 'system');
+  setMat(s.material);
   $('set-work-rem').checked = s.workRemindersOn !== false; $('set-work-interval').value = s.workIntervalMin;
   $('set-off-rem').checked = s.offRemindersOn !== false; $('set-off-interval').value = s.offIntervalMin;
   $('set-work-interval').disabled = !$('set-work-rem').checked; $('set-off-interval').disabled = !$('set-off-rem').checked;
@@ -995,7 +1004,7 @@ async function saveSettings() {
     focusByTime: $('set-focus').checked,
     mode: $('set-mode').value,
     uiLang: langSel,
-    glassLevel: glassStep.value, accent: accentSel, islandTheme: bgSel, appearance: appearSel, labelSize: labelStep.value, taskSize: taskStep.value,
+    glassLevel: glassStep.value, accent: accentSel, islandTheme: bgSel, appearance: appearSel, material: matSel, labelSize: labelStep.value, taskSize: taskStep.value,
     workPath: $('set-work').value.trim() || undefined,
     personalPath: $('set-personal').value.trim() || undefined
   });

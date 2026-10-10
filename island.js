@@ -57,9 +57,9 @@ function rowHtml(t) {
   const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${inline(n)}</div>`).join('');
   const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs, '', t.file + ':' + t.id)}</div></div>` : '';
   const timed = snap && snap.timer && snap.timer.id === t.id;
-  return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" draggable="true">
+  return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" ${t.shadow ? 'data-shadow draggable="false"' : 'draggable="true"'}>
     <div class="row-main"><span class="rtitle"><span class="tt">${inline(t.title)}</span></span>${detail}</div>
-    <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}${window.UI.attClipHtml(t)}</span>
+    <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}${window.UI.attClipHtml(t)}${window.UI.linkMarkHtml(t)}</span>
   </div></div></div>`;
 }
 
@@ -254,6 +254,9 @@ function render() {
   // peek (owner 2026-10-05, task #9): a click on the "## Work/Personal" header flips to the OTHER note for this showing
   const timeNote = snap.workday ? 'Work' : 'Personal';
   if (focus) sections = sections.filter(s => s.name === (peekOther ? (timeNote === 'Work' ? 'Personal' : 'Work') : timeNote));
+  // a linked ("shadow") task shows in the other note — but never twice: when its home note is on screen too, the home row wins
+  const shownNotes = new Set(sections.map(s => s.name.toLowerCase()));
+  sections = sections.map(s => ({ ...s, items: s.items.filter(t => !t.shadow || !shownNotes.has(t.home)) }));
   sections = sections.map(s => ({ ...s, items: freezeSort(s.items) }));
   const flat = sections.flatMap(s => s.items);
   if (!frozenOrder) frozenOrder = new Map(flat.map((t, i) => [t.id, i]));
@@ -284,7 +287,7 @@ function render() {
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
           <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${inline(a.title)}</span></span>
-          <span class="meta">${snap.timer && snap.timer.id === a.id ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${bangHtml(a)}${dueHtml(a)}${window.UI.attClipHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
+          <span class="meta">${snap.timer && snap.timer.id === a.id ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${bangHtml(a)}${dueHtml(a)}${window.UI.attClipHtml(a)}${window.UI.linkMarkHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
         </div>
         ${subs}
       </div></div></div>`;
@@ -529,7 +532,7 @@ $('body').addEventListener('drop', async e => {
   e.preventDefault();
   const over = e.target.closest('.row');
   const beforeId = over && over.dataset.id !== dragId ? over.dataset.id : null;
-  if (dragId && over) {
+  if (dragId && over && !over.hasAttribute('data-shadow')) { // a linked task from the other note: not a place in this one
     const file = over.dataset.file; // rows within one section reorder in that section's file
     window.SFX.play('tick');
     await window.api.reorderTask(file, dragId, beforeId);
@@ -683,6 +686,11 @@ window.api.onShown(info => {
 // Softer (owner 2026-09-28): every step frosts thicker than before (was .8/.65/.5/.35) and the picture is desaturated
 // (island.css .gl-bd saturate(--isl-sat)). The clearest step is now .5 — exactly what the contrast gate checks.
 const GLASS_ALPHA = [1, 0.85, 0.75, 0.62, 0.5]; // Frost (Settings → Glass): 0 = solid · 1–4 = 15/25/38/50 % of the theme shows
+// Frosted material (owner 2026-10-10): Apple's vibrancy tint is milkier — every step a little thicker than liquid's,
+// so the contrast gate's liquid worst case (.5) still bounds it
+const GLASS_ALPHA_FROST = [1, 0.88, 0.82, 0.76, 0.7];
+const FROST_BLUR = 30; // px: the one heavy blur of the theme picture (frosted), drawn once per paint by the canvas
+const frosted = () => document.documentElement.dataset.material === 'frosted';
 const GL_PAD = 16; // the backdrop canvas overhangs the pill so the blur never pulls in transparent edges
 // mesh gradients: four soft color points over a base, as fractions of the pill box ([color, x, y, rx, ry]).
 // Colors are tokens (--bg-<theme>-0..4, light + dark in tokens.css, gated by contrast.js).
@@ -693,7 +701,7 @@ const MESH = {
   bloom: [[4, 0.25, 0.95, 0.35, 0.6], [2, 0.6, 1, 0.4, 0.7], [3, 0.1, 0.3, 0.4, 0.7], [1, 0.9, 0.15, 0.45, 0.8]],
   dune: [[3, 0.95, 0.95, 0.35, 0.6], [2, 0.35, 1, 0.4, 0.7], [1, 0.8, 0.25, 0.4, 0.7], [4, 0.1, 0.1, 0.45, 0.8]]
 };
-let glassLevel = 3, bgTheme = 'mist', haveFrame = false;
+let glassLevel = 3, bgTheme = 'mist', material = 'liquid', haveFrame = false;
 // the one hover truth = the pointer over the pill or one of its pop-ups (anything in #wrap but #wrap itself), NOT the
 // window: the window carries a transparent, click-through shadow margin (owner 2026-10-10). Over something solid → the
 // window takes clicks and the dismiss timer pauses; over the margin or gone → clicks fall through to the app beneath.
@@ -710,7 +718,7 @@ function applyGlass() {
   const lens = glassLevel > 0;
   document.body.dataset.glass = lens ? 'lens' : 'solid';
   document.body.classList.toggle('gl-ready', haveFrame);
-  $('pill').style.setProperty('--g-alpha', lens ? GLASS_ALPHA[glassLevel].toFixed(2) : '1');
+  $('pill').style.setProperty('--g-alpha', lens ? (frosted() ? GLASS_ALPHA_FROST : GLASS_ALPHA)[glassLevel].toFixed(2) : '1');
   if (lens) { const c = $('gl-bd'); c.width = 0; sizeCanvas(); } // width 0 forces sizeCanvas to reallocate + paint (theme / level change)
 }
 function sizeCanvas() {
@@ -765,6 +773,13 @@ function paint() {
   const src = document.createElement('canvas'); src.width = w; src.height = h;
   const sctx = src.getContext('2d', { willReadFrequently: true });
   paintMesh(sctx, w, h);
+  if (frosted()) { // Apple vibrancy: no lens bend — the picture, saturation-boosted and blurred hard, in one canvas filter
+    const ctx = c.getContext('2d'), sat = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--isl-sat')) || 1;
+    ctx.filter = 'none'; ctx.drawImage(src, 0, 0); // the sharp picture underneath: the blur's soft edges never go see-through
+    ctx.filter = `blur(${FROST_BLUR}px) saturate(${sat})`; ctx.drawImage(src, 0, 0); ctx.filter = 'none';
+    haveFrame = true; document.body.classList.add('gl-ready');
+    return;
+  }
   const sd = sctx.getImageData(0, 0, w, h).data, ctx = c.getContext('2d'), out = ctx.createImageData(w, h), od = out.data;
   const [i0, i1, i2] = lensIndex(w, h);
   const sat = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--isl-sat')) || 1; // CSS saturate() matrix
@@ -881,7 +896,8 @@ function handleSnap(s) {
     const g = Number.isInteger(s.settings.glassLevel) ? s.settings.glassLevel : 3;
     const t = window.UI.BG_THEMES.includes(s.settings.islandTheme) ? s.settings.islandTheme : 'mist';
     const gl = window.UI.PAPER.includes(t) ? 0 : g; // a notebook theme is solid paper: no glass canvas at all
-    if (gl !== glassLevel || t !== bgTheme) { glassLevel = gl; bgTheme = t; applyGlass(); }
+    const m = s.settings.material === 'frosted' ? 'frosted' : 'liquid';
+    if (gl !== glassLevel || t !== bgTheme || m !== material) { glassLevel = gl; bgTheme = t; material = m; applyGlass(); }
   }
   if (!snap) expanded = false;
   if (animating) { pendingSnap = s; return; }

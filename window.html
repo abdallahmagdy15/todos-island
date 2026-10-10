@@ -112,6 +112,15 @@
           </div>
         </div>
         <div class="srow">
+          <div class="slabel"><label id="mat-lbl" data-i18n="set.mat">Material</label><span class="shint" data-i18n="set.mat.hint">how the glass looks in every window</span></div>
+          <div class="sctl">
+            <div class="seg" id="mat-seg" role="radiogroup" aria-labelledby="mat-lbl">
+              <button class="seg-btn" data-mat="liquid" type="button" role="radio" data-i18n="set.mat.liquid">Liquid glass</button>
+              <button class="seg-btn" data-mat="frosted" type="button" role="radio" data-i18n="set.mat.frosted">Frosted</button>
+            </div>
+          </div>
+        </div>
+        <div class="srow">
           <div class="slabel"><label id="bg-lbl" data-i18n="set.bg">Theme</label><span class="shint" data-i18n="set.bg.hint">the picture under the island's glass; this window's color field follows it</span></div>
           <div class="sctl">
             <div class="bgsws" id="bg-sw" role="radiogroup" aria-labelledby="bg-lbl">
@@ -398,6 +407,9 @@
             <div class="menu" id="ed-menu" role="menu" hidden>
               <button role="menuitem" id="ed-up" type="button" data-i18n="ed.up">Move up</button>
               <button role="menuitem" id="ed-down" type="button" data-i18n="ed.down">Move down</button>
+              <hr>
+              <button role="menuitem" id="ed-link" type="button"></button>
+              <button role="menuitem" id="ed-move-note" type="button"></button>
               <hr>
               <button role="menuitem" id="ed-delete" class="danger" type="button" data-i18n="ed.del">Delete task</button>
             </div>

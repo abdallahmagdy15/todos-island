@@ -607,6 +607,9 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 .side-x .ic { width: 15px; height: 15px; }
 .side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s-4); }
+/* the editor's actions (⋯ · Complete) follow the content instead of sitting at the window bottom (owner 2026-10-10:
+   a short task left a big empty gap above them); a long task still scrolls and keeps them in view */
+#side-edit .side-scroll { flex: 0 1 auto; }
 .side-foot { flex: none; display: flex; flex-direction: column; gap: var(--s-2); padding: 12px var(--s-4) 14px; border-top: 1px solid var(--rule-soft); }
 .badge { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); background: var(--chip); border-radius: var(--r-1); padding: 2px 7px; }
 
@@ -862,3 +865,20 @@ button.sh-sec:hover { color: var(--ink); }
 /* notebook themes (owner 2026-10-09): the window is the page — dots / kraft flecks under everything, no glass scene */
 :root[data-bg="dot"] body, :root[data-bg="kraft"] body { background-color: var(--paper); background-image: var(--pattern); background-size: var(--pattern-size); }
 #task-list.page-turn { transform-origin: left center; } [dir="rtl"] #task-list.page-turn { transform-origin: right center; }
+
+/* ==== Material: Frosted (owner 2026-10-10; tokens.css zeroes the liquid light, these rules give Apple's flat shapes) ====
+   The scene behind the window is blurred hard and saturation-boosted once (a static layer, so no per-frame cost), which
+   is what macOS vibrancy shows behind a window. Push buttons = solid white + hairline + tiny drop; the default button =
+   flat accent; quiet toolbar buttons = a plain grey fill on hover; fields = a hairline well with the macOS focus ring. */
+:root[data-material="frosted"] .ambient { inset: -90px; filter: blur(var(--f-blur)) saturate(var(--f-sat)); }
+:root[data-material="frosted"] :is(.btn-soft, .chip, .recorder, .addsub button) {
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 0.5px var(--f-hair), 0 1px 1.5px var(--drop); }
+:root[data-material="frosted"] .btn-accent { background: var(--accent);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--accent) 75%, #000), 0 1px 1.5px var(--drop); }
+:root[data-material="frosted"] .btn-accent:disabled { color: var(--ink); background: var(--ctl); box-shadow: 0 0 0 0.5px var(--f-hair); }
+:root[data-material="frosted"] :is(.hdr-btn, .wtrash, .search-clear, .btn-text, .undo-btn, .st-keys):is(:hover, [aria-expanded="true"]) {
+  background: var(--f-track); box-shadow: none; }
+:root[data-material="frosted"] :is(#search, #sh-search, .new-task textarea, .settings-card input[type=text], .settings-card select, .addsub input, #ed-title, input.dtime) {
+  box-shadow: inset 0 0 0 0.5px var(--f-hair); }
+:root[data-material="frosted"] :is(#search, #sh-search, .new-task textarea, .settings-card input, .settings-card select, .addsub input, #ed-title, input.dtime):focus {
+  background: var(--field); box-shadow: inset 0 0 0 0.5px var(--f-hair), 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }

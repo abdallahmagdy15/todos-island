@@ -92,6 +92,7 @@
       updatePreview();
     }
     paintAtt(t.att || []);
+    paintNoteMenu(t, s.settings && s.settings.mode);
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
     const subs = [...t.subs.filter(x => !x.done), ...t.subs.filter(x => x.done)]; // open first (owner 2026-09-30); the note keeps its order
@@ -350,7 +351,7 @@
   function paintMoveList() {
     if (!mvSnap) return;
     const w = $('mv-q').value.trim().toLowerCase();
-    const pool = mvSub === 'done' ? (mvSnap.done || []) : mvSnap.sections.flatMap(x => x.items);
+    const pool = mvSub === 'done' ? (mvSnap.done || []) : mvSnap.sections.flatMap(x => x.items).filter(x => !x.shadow); // a linked task once
     const its = pool.filter(t => t.file === mvPage && !(t.file === FILE && t.id === ID) && (!w || plain(t.title).toLowerCase().includes(w)));
     for (const [seg, k, v] of [['mv-page', 'page', mvPage], ['mv-sub', 'sub', mvSub]])
       $(seg).querySelectorAll('.seg-btn').forEach(b => { const on = b.dataset[k] === v; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
@@ -425,6 +426,29 @@
   });
   $('ed-up').addEventListener('click', async () => { toggleMenu(false); await saveNow(); window.SFX.play('tick'); await window.api.moveTask(FILE, ID, 'up'); load(false); });
   $('ed-down').addEventListener('click', async () => { toggleMenu(false); await saveNow(); window.SFX.play('tick'); await window.api.moveTask(FILE, ID, 'down'); load(false); });
+  // linked / moved between notes (owner 2026-10-10). Link = also SHOW this task in the other note (app state, the other
+  // .md never changes); Move = the whole task block really moves into the other note. Both one Undo. Hidden when the
+  // other note is switched off (one-note mode).
+  let linkedTo = null;
+  function paintNoteMenu(t, mode) {
+    const other = t.file === 'work' ? 'personal' : 'work', note = T(other === 'work' ? 'win.tab.work' : 'win.tab.personal');
+    const both = !mode || mode === 'both';
+    linkedTo = t.linked || null;
+    $('ed-link').hidden = $('ed-move-note').hidden = !both;
+    $('ed-link').textContent = T(linkedTo ? 'ed.unlink' : 'ed.link', { n: note });
+    $('ed-move-note').textContent = T('ed.moveNote', { n: note });
+  }
+  $('ed-link').addEventListener('click', async () => {
+    toggleMenu(false); await saveNow(); window.SFX.play('tick');
+    await window.api.linkTask(FILE, ID, !linkedTo); load(false);
+  });
+  $('ed-move-note').addEventListener('click', async () => {
+    toggleMenu(false); await saveNow(); window.SFX.play('tick');
+    const r = await window.api.moveTaskNote(FILE, ID);
+    if (!r || !r.ok || !r.id) return load(false);
+    window.dispatchEvent(new CustomEvent('task-moved', { detail: { file: r.file, id: r.id } })); // the window shows that tab
+    dirty = false; edit(r.file, r.id); // the editor follows the task
+  });
   $('ed-delete').addEventListener('click', async () => {
     toggleMenu(false); await saveNow();
     window.SFX.play('delete'); await window.api.deleteTask(ID, FILE); // undo lives in the window's toast
@@ -498,7 +522,8 @@
   const byUpdate = arr => arr.map((t, i) => [t, i, window.ShareText.activity(t)]).sort((x, y) => (y[2] - x[2]) || (x[1] - y[1])).map(x => x[0]);
   const keyOf = t => (t.isDone ? 'd:' : 'o:') + t.id;
   function lists(tag) {
-    const sec = shSnap.sections.find(s => s.name === (tag === 'work' ? 'Work' : 'Personal'));
+    const sec0 = shSnap.sections.find(s => s.name === (tag === 'work' ? 'Work' : 'Personal'));
+    const sec = sec0 && { ...sec0, items: sec0.items.filter(t => !t.shadow) }; // Share reports a task in its HOME note only (owner 2026-10-10)
     const items = sec ? sec.items : [];
     return {
       now: byUpdate(items.filter(t => t.active)),
@@ -614,7 +639,7 @@
   // ---- day filter: segments + the small calendar (dots = days something changed; future days disabled) ----
   function changedDays() {
     const keys = new Set(), add = ts => { if (ts) { const d = new Date(ts); keys.add(`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`); } };
-    const all = [...shSnap.sections.flatMap(x => x.items), ...(shSnap.done || [])];
+    const all = [...shSnap.sections.flatMap(x => x.items).filter(x => !x.shadow), ...(shSnap.done || [])];
     for (const t of all) { add(t.updatedTs); for (const x of t.subs || []) { add(x.u ? new Date(x.u).getTime() : 0); add(x.c ? new Date(x.c).getTime() : 0); } }
     return keys;
   }

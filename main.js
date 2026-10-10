@@ -13,6 +13,7 @@ const { makePngBuffer } = require('./lib/icon.js');
 const { tapStep } = require('./lib/gesture.js');
 const ATT = require('./lib/attach.js');
 const BACKUP = require('./lib/backup.js');
+const LINKS = require('./lib/links.js');
 const { recentSessions } = require('./lib/sessions.js');
 
 // test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
@@ -39,6 +40,7 @@ const DEFAULT_SETTINGS = {
   islandTheme: 'mist', // owner default 2026-10-01 (back from lagoon) — the picture under the island's glass: mist | dusk | lagoon | bloom | dune | dot | kraft (notebook paper, 2026-10-09)
   shareFmt: 'text', // Share + the island's quick Copy: 'text' (plain, WhatsApp-friendly) | 'md' (the note as written)
   hideFromCapture: true, // the island stays on your screen but Teams / OBS / screenshots can't see it (Windows "exclude from capture")
+  material: 'liquid', // owner 2026-10-10: liquid (clear glass, specular light) | frosted (Apple's classic vibrancy: heavy blur, milky tint, hairline)
   glassLevel: 3, // frost: 0 = solid · 1–4 = 15/25/38/50 % of the theme shows through the island's glass
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
   personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
@@ -152,7 +154,8 @@ function snapshot() {
       subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
       lines: f.blockLines(t), // Share → Markdown: the block as the note has it, stamp stripped
-      att: (state.attachments || {})[ATT.key(t.uid)] || [] // pointers (owner 2026-10-09): app state keyed by the hidden id, never the note
+      att: (state.attachments || {})[ATT.key(t.uid)] || [], // pointers (owner 2026-10-09): app state keyed by the hidden id, never the note
+      linked: (t.uid && (state.links || {})[t.uid]) || null // also shown in that note (owner 2026-10-10, lib/links.js)
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
     id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
@@ -189,6 +192,10 @@ function snapshot() {
   const sections = (inWorkday()
     ? [{ name: 'Work', items: work.items }, { name: 'Personal', items: personal.items }]
     : [{ name: 'Personal', items: personal.items }, { name: 'Work', items: work.items }]).filter(s => on(s.name.toLowerCase()));
+  // linked ("shadow") tasks (owner 2026-10-10): a task linked to the other note also shows there (lib/links.js). The copy
+  // keeps its HOME file + id, so every action writes the home note; sorted into the other list by the same order.
+  const linked = LINKS.withShadows(sections, state.links).map(s => (s.items.some(t => t.shadow) ? { ...s, items: sort([...s.items]) } : s));
+  sections.splice(0, sections.length, ...linked);
   const lu = latestUndo();
   const undo = lu
     ? { token: lu.token, kind: lu.kind, label: lu.label, starring: lu.kind === 'toggle' ? lu.prev === false : undefined, left: Math.max(0, Math.round((lu.expires - Date.now()) / 1000)) }
@@ -765,7 +772,15 @@ ipcMain.handle('undo-action', (_e, token) => {
   const e = undoLog.get(token);
   if (!e || Date.now() > e.expires) { undoLog.delete(token); return { ok: false }; }
   undoLog.delete(token); // one-time — consumed
+  if (e.kind === 'link' || e.kind === 'unlink') { // state only: the link goes back to what it was
+    state.links = state.links || {};
+    if (e.prev) state.links[e.uid] = e.prev; else delete state.links[e.uid];
+    saveState(); sendSnap();
+    if (mainWin) mainWin.webContents.send('tasks-changed');
+    return { ok: true };
+  }
   if (e.kind === 'clear' || e.kind === 'move-sub') {
+    if (e.link) { state.links = state.links || {}; state.links[e.link.uid] = e.link.target; saveState(); } // a moved task's link comes back
     // whole-file rollback, but only if nobody touched the note since the clear — never clobber edits made in Obsidian
     const changed = [];
     for (const c of e.caps) {
@@ -783,6 +798,7 @@ ipcMain.handle('undo-action', (_e, token) => {
     const cur = state.settings;
     state.settings = e.prev;
     if (e.prevAtt) state.attachments = e.prevAtt;
+    if (e.prevLinks) state.links = e.prevLinks;
     saveState();
     applySettingsSideEffects(cur);
     return { ok: true };
@@ -840,6 +856,7 @@ function saveSettings(s) { // the ONE settings write (the Settings form and an i
   if (clean.weekendDays !== undefined && !['auto', 'sat-sun', 'fri-sat'].includes(clean.weekendDays)) delete clean.weekendDays;
   if (clean.appearance !== undefined && !['system', 'light', 'dark'].includes(clean.appearance)) delete clean.appearance;
   if (clean.islandTheme !== undefined && !['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'dot', 'kraft'].includes(clean.islandTheme)) delete clean.islandTheme;
+  if (clean.material !== undefined && !['liquid', 'frosted'].includes(clean.material)) delete clean.material;
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };
@@ -889,11 +906,12 @@ ipcMain.handle('import-settings', async () => {
   let b;
   try { b = BACKUP.readBackup(JSON.parse(fs.readFileSync(p, 'utf8')), DEFAULT_SETTINGS); } catch (e) { b = { error: 'not-ours' }; }
   if (b.error) return { ok: false, reason: b.error };
-  const prev = { ...state.settings }, prevAtt = JSON.parse(JSON.stringify(state.attachments || {}));
+  const prev = { ...state.settings }, prevAtt = JSON.parse(JSON.stringify(state.attachments || {})), prevLinks = { ...(state.links || {}) };
   const result = saveSettings(b.settings);
   state.attachments = { ...(state.attachments || {}), ...b.attachments };
+  state.links = { ...(state.links || {}), ...b.links };
   saveState(); sendSnap();
-  const token = pushUndo({ kind: 'import', prev, prevAtt, label: null, expires: Date.now() + state.settings.undoSec * 1000 });
+  const token = pushUndo({ kind: 'import', prev, prevAtt, prevLinks, label: null, expires: Date.now() + state.settings.undoSec * 1000 });
   pushUndoToWindow(token);
   LOG('SETTINGS-IMPORT ' + p + ' errors=' + Object.keys(result.errors).join(','));
   return { ok: true, errors: result.errors };
@@ -1207,10 +1225,63 @@ function sortNoteSubtasks() {
       if (sorted || ided) { f.save(); LOG(`NOTE-TIDY ${tag} sorted=${sorted} ids=${ided}`); }
     } catch (e) { LOG('NOTE-TIDY-SKIP ' + tag + ' ' + e.message); }
   }
+  pruneTaskLinks();
   if (state.attachments && ATT.migrateKeys(state.attachments, (tag, title) => {
     try { const t = noteOn(tag) && fileFor(tag).topTasks().find(x => x.title === title); return (t && t.uid) || null; } catch (e) { return null; }
   })) saveState();
 }
+// links whose task is gone, done, or already lives in its target note are dropped (a note that can't be read keeps its links)
+function pruneTaskLinks() {
+  if (!state.links || !Object.keys(state.links).length) return;
+  const open = {};
+  for (const tag of LINKS.NOTES) { try { open[tag] = noteOn(tag) ? new Set(fileFor(tag).topTasks().filter(t => !t.checked).map(t => t.uid).filter(Boolean)) : null; } catch (e) { open[tag] = null; } }
+  const next = LINKS.pruneLinks(state.links, open);
+  if (Object.keys(next).length !== Object.keys(state.links).length) { LOG('LINKS-PRUNED ' + (Object.keys(state.links).length - Object.keys(next).length)); state.links = next; saveState(); }
+}
+// a task's hidden id, given one now if it has none yet (a task added by hand since startup); null = no such task
+function uidOf(file, id) {
+  const f = fileFor(file), t = f.findById(id);
+  if (!t) return null;
+  if (!t.uid) { f.ensureIds(otherUids(file)); f.save(); }
+  return t.uid;
+}
+// Link / unlink (owner 2026-10-10): "also show this task in the other note" — state.json only, one Undo (kind link/unlink)
+ipcMain.handle('link-task', (_e, file, id, on) => {
+  if (file !== 'work' && file !== 'personal') return { ok: false };
+  const uid = uidOf(file, id), t = uid && fileFor(file).findById(id);
+  if (!uid) return { ok: false };
+  state.links = state.links || {};
+  const prev = state.links[uid] || null, next = on ? LINKS.otherNote(file) : null;
+  if (prev === next) return { ok: true, changed: false };
+  if (next) state.links[uid] = next; else delete state.links[uid];
+  saveState(); sendSnap();
+  const token = pushUndo({ kind: next ? 'link' : 'unlink', uid, prev, label: t.title.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
+  pushUndoToWindow(token);
+  if (mainWin) mainWin.webContents.send('tasks-changed');
+  return { ok: true, changed: true };
+});
+// Move a whole task to the other note (owner 2026-10-10): its block moves file to file (lib/parse.js takeTask/putTask),
+// ids + stamps travel, so attachments follow. Undo = the both-files rollback of a subtask move (kind move-sub); a link
+// that would now point at the task's own note is dropped and comes back with the Undo.
+ipcMain.handle('move-task-note', (_e, file, id) => {
+  if (file !== 'work' && file !== 'personal') return { ok: false };
+  const to = LINKS.otherNote(file);
+  if (!noteOn(to)) return { ok: false };
+  const src = fileFor(file), dst = fileFor(to), t = src.findById(id);
+  if (!t || t.checked) return { ok: false };
+  const uid = uidOf(file, id), title = t.title;
+  const before = [src, dst].map(f => fs.readFileSync(f.path, 'utf8'));
+  if (!dst.putTask(src.takeTask(id))) return { ok: false };
+  src.save(); dst.save();
+  const caps = [src, dst].map((f, i) => ({ path: f.path, before: before[i], after: fs.readFileSync(f.path, 'utf8') }));
+  const link = uid && state.links && state.links[uid] === to ? { uid, target: to } : null;
+  if (link) { delete state.links[uid]; saveState(); }
+  const token = pushUndo({ kind: 'move-sub', caps, link, label: `${title.replace(/\*\*/g, '')} → ${to === 'work' ? 'Work' : 'Personal'}`, expires: Date.now() + state.settings.undoSec * 1000 });
+  pushUndoToWindow(token); sendSnap();
+  if (mainWin) mainWin.webContents.send('tasks-changed');
+  const moved = dst.topTasks().find(x => uid ? x.uid === uid : x.title === title);
+  return { ok: true, file: to, id: moved ? dst.id(moved) : null };
+});
 // the ids in use in the OTHER note (a note's own ids must not count as duplicates when it is ensureIds'd alone)
 const otherUids = mine => { const s = new Set(); for (const tag of ['work', 'personal']) { if (tag === mine) continue; try { if (noteOn(tag)) for (const e of fileFor(tag).doc) if (e.type === 'task' && e.task.uid) s.add(e.task.uid); } catch (e) {} } return s; };
 // ---- task attachments (owner 2026-10-09): pointers kept in state.attachments[<task hidden id>], never in the note.
