@@ -611,6 +611,17 @@ $('btn-add').addEventListener('click', () => {
   window.SFX.play('tick');
   window.api.openWindow('new-' + tag);
 });
+// Hide from screen sharing, one click from the top bar (owner 2026-10-10; the same setting as Settings + the tray).
+// Screen-share icon with a block slash = hidden from Teams / OBS / screenshots; without the slash = it shows in them.
+// No highlight in either state (owner): only the icon changes.
+let captureHidden = true;
+function paintCapture(on) {
+  captureHidden = on;
+  const b = $('btn-capture'), tip = T(on ? 'isl.cap.hidden' : 'isl.cap.shown');
+  b.innerHTML = window.UI.icon(on ? 'screenShareOff' : 'screenShare');
+  b.title = tip; b.setAttribute('aria-label', tip); b.setAttribute('aria-pressed', String(on));
+}
+$('btn-capture').addEventListener('click', () => { window.SFX.play('tick'); paintCapture(!captureHidden); window.api.setCaptureHide(captureHidden); });
 $('btn-pin').addEventListener('click', () => {
   pinned = !pinned;
   window.SFX.play('pin');
@@ -630,7 +641,7 @@ function retract() {
   if (retracting) return;
   retracting = true;
   peekOther = false; // a peek lasts one showing: the next pop is the time-based note again
-  islandHovered = false; counting = false; paused = false; // a hidden window never gets its mouseleave
+  islandHovered = false; overSolid = false; counting = false; paused = false; // a hidden window never gets its mouseleave
   clearHover(); // …so the rested row and its Edit tab reset too
   sdResetAll(); // and every fold closes
   stopAlarm('quiet'); // closing the island silences the timer alarm
@@ -655,7 +666,8 @@ window.api.onShown(info => {
   if (snap) render();
   $('body').scrollTop = 0;
   // hover is only trusted if the island was already up; a fresh pop starts un-hovered and counts down at once
-  islandHovered = info.fresh && document.documentElement.matches(':hover');
+  overSolid = info.fresh && !!document.querySelector('#wrap > *:hover'); islandHovered = overSolid;
+  window.api.through(!overSolid);
   counting = false; paused = false; armDismiss(); // every show: a fresh full countdown at once (paused only while the pointer is on it)
   const pill = $('pill');
   pill.getAnimations().forEach(a => a.cancel());
@@ -682,8 +694,18 @@ const MESH = {
   dune: [[3, 0.95, 0.95, 0.35, 0.6], [2, 0.35, 1, 0.4, 0.7], [1, 0.8, 0.25, 0.4, 0.7], [4, 0.1, 0.1, 0.45, 0.8]]
 };
 let glassLevel = 3, bgTheme = 'mist', haveFrame = false;
-document.documentElement.addEventListener('mouseenter', () => { islandHovered = true; armDismiss(); });
-document.documentElement.addEventListener('mouseleave', () => { islandHovered = false; armDismiss(); }); // leave → it resumes where it paused
+// the one hover truth = the pointer over the pill or one of its pop-ups (anything in #wrap but #wrap itself), NOT the
+// window: the window carries a transparent, click-through shadow margin (owner 2026-10-10). Over something solid → the
+// window takes clicks and the dismiss timer pauses; over the margin or gone → clicks fall through to the app beneath.
+let overSolid = false;
+const solidAt = el => !!(el instanceof Element && el.closest('#wrap > *'));
+function setSolid(on) {
+  if (on === overSolid) return;
+  overSolid = on; window.api.through(!on);
+  islandHovered = on; armDismiss(); // leave → it resumes where it paused
+}
+document.addEventListener('mousemove', e => setSolid(solidAt(e.target)));
+document.documentElement.addEventListener('mouseleave', () => setSolid(false));
 function applyGlass() {
   const lens = glassLevel > 0;
   document.body.dataset.glass = lens ? 'lens' : 'solid';
@@ -855,6 +877,7 @@ function handleSnap(s) {
   if (s && s.settings) {
     window.SFX.enabled = !!s.settings.soundOn;
     window.UI.applyTheme(s.settings);
+    paintCapture(!!s.settings.hideFromCapture);
     const g = Number.isInteger(s.settings.glassLevel) ? s.settings.glassLevel : 3;
     const t = window.UI.BG_THEMES.includes(s.settings.islandTheme) ? s.settings.islandTheme : 'mist';
     const gl = window.UI.PAPER.includes(t) ? 0 : g; // a notebook theme is solid paper: no glass canvas at all

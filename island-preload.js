@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('api', {
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   attOpen: (file, id, index) => ipcRenderer.invoke('att-open', file, id, index), // a task attachment (owner 2026-10-09)
   copyText: text => ipcRenderer.invoke('copy-text', text), // the quick Copy tab
+  setCaptureHide: on => ipcRenderer.invoke('save-settings', { hideFromCapture: !!on }), // the top-bar eye (owner 2026-10-10)
   saveShareFmt: fmt => ipcRenderer.invoke('save-settings', { shareFmt: fmt }), // the copy wheel's Markdown / plain petal
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
   reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
@@ -25,5 +26,6 @@ contextBridge.exposeInMainWorld('api', {
   timerStop: () => ipcRenderer.invoke('timer-stop'),
   onTimerEnded: cb => ipcRenderer.on('timer-ended', (_e, d) => cb(d)),
   hide: () => ipcRenderer.send('hide-island'),
-  resize: (h, top) => ipcRenderer.send('island-size', h, top)
+  resize: (h, top) => ipcRenderer.send('island-size', h, top),
+  through: on => ipcRenderer.send('island-through', on)
 });

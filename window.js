@@ -364,8 +364,10 @@ const hhmm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinute
 const whenText = at => { const d = new Date(at); return d.toDateString() === new Date().toDateString() ? hhmm(d) : `${d.getDate()} ${window.UI.MONTHS[d.getMonth()]} ${hhmm(d)}`; };
 let lastSeenWrite = 0;
 function renderLastWrite() {
-  const lw = snap && snap.lastWrite;
+  const lw = snap && snap.lastWrite, sa = snap && snap.settingsSavedAt;
   const el = $('st-write');
+  // the NEWER of a note write and a settings save (owner 2026-10-10: settings changes left "Nothing saved yet")
+  if (sa && (!lw || sa > lw.at)) { el.textContent = T('win.st.settings', { t: whenText(sa) }); return; }
   if (!lw) { el.textContent = T('win.st.none'); return; }
   el.textContent = T('win.st.last', { f: lw.file, t: whenText(lw.at) });
   if (lw.at !== lastSeenWrite) { // M8-style flash: a write just landed in the note

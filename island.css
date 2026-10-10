@@ -15,9 +15,11 @@ body[data-glass="lens"] #pill { text-shadow: 0 -1px 0 var(--d-hi), 0 1px 1.5px v
 .ic { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
 @property --g-alpha { syntax: '<number>'; inherits: true; initial-value: 1; } /* animatable see-through */
-/* NO outer box-shadow on the pill: the transparent window is snug, a shadow would clip into a visible square.
-   Inset shadows are drawn inside the pill, so they are safe — they give the glass its thickness. */
-#wrap { padding: 8px; position: relative; }
+/* The soft OUTER shadow (owner 2026-10-10, "like Mac apps") lives in a transparent margin around the pill: --sh-side on
+   the sides (= ISLAND_SHADOW in main.js, the window is the pill + 2 × it), --sh-bottom below (the window grows with
+   #wrap). Without that room it would clip at the window edge into a square — the reason it was banned before. The margin
+   is click-through (main.js applyThrough / island.js setSolid). Inset shadows give the glass its thickness. */
+#wrap { --sh-side: 32px; --sh-bottom: 52px; padding: 8px var(--sh-side) var(--sh-bottom); position: relative; }
 #pill {
   position: relative; isolation: isolate; /* the glass layers stack under the content (negative z) */
   width: 576px; margin: 0 auto;
@@ -29,7 +31,8 @@ body[data-glass="lens"] #pill { text-shadow: 0 -1px 0 var(--d-hi), 0 1px 1.5px v
   box-shadow:
     inset 0 1px 0 0 var(--spec), inset 0 -1px 0 0 var(--spec-bounce),
     inset 0 22px 26px -24px var(--spec-glow), inset 0 -26px 32px -26px var(--inner-shade),
-    inset 1.5px 0 0 0 var(--fringe-a), inset -1.5px 0 0 0 var(--fringe-b);
+    inset 1.5px 0 0 0 var(--fringe-a), inset -1.5px 0 0 0 var(--fringe-b),
+    0 16px 40px -8px var(--isl-shadow), 0 3px 10px -2px var(--isl-shadow-near); /* round 2 (owner: too faint) */
 }
 .defs { position: absolute; width: 0; height: 0; overflow: hidden; }
 

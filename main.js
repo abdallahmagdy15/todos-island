@@ -50,7 +50,16 @@ const migrateSettings = s => {
   if (s.islandTheme === 'wallpaper') s.islandTheme = 'mist'; // the Wallpaper theme was removed in v1.11 (owner)
   return s;
 };
-const saveState = () => fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
+// settingsSavedAt (owner 2026-10-10): the status line said "Nothing saved yet" after every settings change, because it only
+// knew note writes. Every path that changes settings (the form, reset, import, undo, tray, the island's toggle) ends in
+// saveState, so the time is stamped HERE when the settings part differs from the last write. Memory only, like lastWrite.
+let settingsSavedAt = null, lastSettingsJson = null;
+const saveState = () => {
+  const sj = JSON.stringify(state.settings);
+  if (lastSettingsJson !== null && sj !== lastSettingsJson) settingsSavedAt = Date.now();
+  lastSettingsJson = sj;
+  fs.writeFileSync(STATE_PATH, JSON.stringify(state, null, 2));
+};
 // onboarded: false only on a truly fresh install (no state.json) — existing installs never see the first-run setup
 let state = { settings: { ...DEFAULT_SETTINGS }, lastShown: 0, onboarded: false };
 try {
@@ -74,6 +83,7 @@ try {
   }
 }
 
+lastSettingsJson = JSON.stringify(state.settings); // the loaded settings are the baseline: only a later change counts as a save
 let tray = null, island = null, mainWin = null;
 // native chrome colors — must match tokens.css (--paper / --head / --muted) so the title bar blends in
 const THEME = {
@@ -188,7 +198,7 @@ function snapshot() {
   // Done: newest done first (the u stamp = done date); unstamped done tasks keep note order after them.
   // Work notes already file each newly done task at the top of ## Done, so the note reads in the same order.
   const done = [...work.done, ...personal.done].sort((a, b) => b.updatedTs - a.updatedTs);
-  return { sections, errors, sources, lastWrite, done, workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update, appVersion: curVersion(), lastCheck, timer: state.timer || null };
+  return { sections, errors, sources, lastWrite, settingsSavedAt, done, workday: inWorkday(), nextFire: nextFireAt(), settings: state.settings, lang: uiLang(), undo, update, appVersion: curVersion(), lastCheck, timer: state.timer || null };
 }
 
 function sendSnap() { if (island) island.webContents.send('snapshot', snapshot()); }
@@ -358,19 +368,29 @@ async function showIsland(opts = {}) {
   // focusable while shown: a non-focusable (WS_EX_NOACTIVATE) window that was hidden and shown again drops every real mouse
   // click on Windows — the island looked alive but ignored clicks after a timed pop (owner report, 2026-09-27; reproduced
   // with real OS clicks, CDP clicks never showed it). showInactive still never takes focus: only the user's own click does.
-  sendSnap(); island.setFocusable(true); island.setSkipTaskbar(true); island.showInactive();
+  sendSnap(); island.setFocusable(true); island.setSkipTaskbar(true); applyThrough(); island.showInactive();
   island.webContents.send('island-shown', { fresh: !wasHidden }); // always: resets renderer state (cancels stuck animations, replays drop-in)
   if (state.settings.soundOn) island.webContents.send('play-sound');
   // keyboard summon only: the island takes focus so arrows/Enter/Space work. Timed pops NEVER steal focus.
-  if (opts.focus) { island.setFocusable(true); island.setSkipTaskbar(true); island.focus(); island.webContents.send('island-focus'); }
+  if (opts.focus) { island.setFocusable(true); island.setSkipTaskbar(true); applyThrough(); island.focus(); island.webContents.send('island-focus'); }
 }
 // ⚠️ setFocusable re-creates the window's extended styles on Windows and DROPS skipTaskbar: the island turned up in the
 // taskbar (with the Electron logo) after a show (owner report 2026-10-06). Re-assert it after every setFocusable.
-function hideIsland() { if (island) { island.hide(); island.setFocusable(false); island.setSkipTaskbar(true); } }
+function hideIsland() { if (island) { island.hide(); island.setFocusable(false); island.setSkipTaskbar(true); islandThrough = true; applyThrough(); } }
+// Soft shadow (owner 2026-10-10, "a light shadow like Mac apps"): the window is wider/taller than the pill by a transparent
+// margin (ISLAND_SHADOW here, --sh-side / --sh-bottom in island.css) so the pill's outer shadow has room instead of
+// clipping into a square. That margin must not eat clicks meant for the app underneath, so the island window is
+// CLICK-THROUGH by default (setIgnoreMouseEvents + forward: moves still reach the renderer) and island.js turns clicks on
+// only while the pointer is over the pill or one of its pop-ups ('island-through'). setFocusable re-creates the window's
+// extended styles (like skipTaskbar), so applyThrough() re-asserts it after every setFocusable.
+const ISLAND_SHADOW = 32; // side margin; must equal --sh-side in island.css
+let islandThrough = true;
+function applyThrough() { if (island && !island.isDestroyed()) island.setIgnoreMouseEvents(islandThrough, islandThrough ? { forward: true } : undefined); }
+ipcMain.on('island-through', (_e, on) => { if (!!on === islandThrough) return; islandThrough = !!on; applyThrough(); });
 
 function createIsland() {
   const wa = screen.getPrimaryDisplay().workArea;
-  const W = 592;
+  const W = 576 + 2 * ISLAND_SHADOW; // the pill + the shadow margin on both sides
   island = new BrowserWindow({
     width: W, height: 120, x: wa.x + Math.round((wa.width - W) / 2), y: wa.y + 10,
     frame: false, transparent: true, resizable: false, movable: false, skipTaskbar: true,
@@ -380,6 +400,7 @@ function createIsland() {
     webPreferences: { preload: path.join(__dirname, 'island-preload.js'), backgroundThrottling: false }
   });
   island.setAlwaysOnTop(true, 'screen-saver');
+  applyThrough();
   applyCaptureHide();
   lockZoom(island.webContents);
   island.loadFile('island.html');
@@ -629,6 +650,7 @@ function rebuildTrayMenu() {
     { type: 'separator' },
     { label: tt(L, 'tray.capture'), type: 'checkbox', checked: !!state.settings.hideFromCapture, click: item => {
       state.settings.hideFromCapture = item.checked; saveState(); applyCaptureHide(); sendSnap();
+      if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('tasks-changed'); // the form's switch + status line follow
       if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('tasks-changed'); // Settings switch follows
     } },
     { type: 'separator' },
@@ -781,7 +803,12 @@ ipcMain.handle('undo-action', (_e, token) => {
 ipcMain.handle('undo-expire', (_e, token) => { undoLog.delete(token); }); // fired by the popup's own countdown — memory released with the bubble
 ipcMain.handle('get-snapshot', () => snapshot());
 ipcMain.handle('open-editor', (_e, file, id) => openEditor(file, id));
-ipcMain.handle('save-settings', (_e, s) => saveSettings(s));
+ipcMain.handle('save-settings', (e, s) => {
+  const r = saveSettings(s);
+  // a change from elsewhere (the island's capture toggle, its copy-format pick) → the tasks window re-reads: form switch + status line
+  if (mainWin && !mainWin.isDestroyed() && e.sender !== mainWin.webContents) mainWin.webContents.send('tasks-changed');
+  return r;
+});
 function saveSettings(s) { // the ONE settings write (the Settings form and an import): checks every value, then applies it
   const clean = Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined));
   const result = { ok: true, errors: {} };
