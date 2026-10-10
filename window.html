@@ -240,10 +240,11 @@
         </div>
         <div class="about-status" id="about-status" role="status" aria-live="polite"><span id="about-status-text"></span><button class="btn-soft sm" id="about-action" type="button" hidden></button></div>
         </section>
-        <section class="sgroup">
+        <section class="sgroup adv-card">
         <button class="adv-toggle" id="adv-toggle" type="button" aria-expanded="false" aria-controls="set-advanced">
-          <span class="hash">##</span> <span data-i18n="set.h.advanced">Advanced</span>
-          <svg class="ic chev" data-icon="chevronDown" viewBox="0 0 24 24"></svg>
+          <span class="adv-title"><span class="adv-name"><span class="hash">##</span> <span data-i18n="set.h.advanced">Advanced</span></span>
+            <span class="shint" data-i18n="set.adv.hint">more reminder, island and app options — rarely changed</span></span>
+          <span class="btn-soft sm adv-pill"><span id="adv-state" data-i18n="set.adv.show">Show</span><svg class="ic chev" data-icon="chevronDown" viewBox="0 0 24 24"></svg></span>
         </button>
         <div class="adv" id="set-advanced" hidden>
         <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.reminders">Reminders</span></h2>
@@ -288,6 +289,10 @@
         <div class="srow">
           <div class="slabel"><label data-i18n="set.setup">Run setup again</label><span class="shint" data-i18n="set.setup.hint">the first-run wizard — change what you want, the rest stays</span></div>
           <div class="sctl"><button id="btn-rerun-setup" class="btn-soft sm" type="button" data-i18n="set.setup.btn">Open setup</button></div>
+        </div>
+        <div class="srow">
+          <div class="slabel"><label data-i18n="set.backup">Back up settings</label><span class="shint" data-i18n="set.backup.hint">one .json file with every setting and the attachments — import it on any PC</span></div>
+          <div class="sctl row"><button id="btn-export-settings" class="btn-soft sm" type="button" data-i18n="set.backup.export">Export…</button><button id="btn-import-settings" class="btn-soft sm" type="button" data-i18n="set.backup.import">Import…</button></div>
         </div>
         <div class="srow">
           <div class="slabel"><label data-i18n="set.reset">Reset settings</label><span class="shint" data-i18n="set.reset.hint">every setting back to its first-run value — your note files are never touched</span></div>

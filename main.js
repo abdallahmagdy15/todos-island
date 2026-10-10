@@ -10,8 +10,9 @@ const dueTextOf = t => [t.due ? `${t.due.d} ${t.due.m}` : null, t.time != null ?
 const { composeTask } = require('./lib/compose.js');
 const { planSetup, NOTE_NAME } = require('./lib/setup.js');
 const { makePngBuffer } = require('./lib/icon.js');
-const { inPeekZone, peekStep } = require('./lib/peek.js');
+const { tapStep } = require('./lib/gesture.js');
 const ATT = require('./lib/attach.js');
+const BACKUP = require('./lib/backup.js');
 const { recentSessions } = require('./lib/sessions.js');
 
 // test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
@@ -133,21 +134,21 @@ const nextFireAt = () => scheduleNext(schedSettings(), state.lastShown, Date.now
 const RANK = { '!!!': 3, '!!': 2, '!': 1 };
 function snapshot() {
   const collect = (f, group) => f.topTasks().filter(t => !t.checked).map(t => ({
-    id: f.id(t), file: group, title: t.title, // raw: **bold** etc. render in the app (UI.inline)
+    id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, active: !!t.active,
     dueText: dueTextOf(t), dueTime: t.time != null ? fmtTime(t.time) : null,
       dueTs: t.due || t.time != null ? resolveDue(t.due, t.time) : null,
       notes: f.notesOf(t),
-      subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
+      subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
       lines: f.blockLines(t), // Share → Markdown: the block as the note has it, stamp stripped
-      att: (state.attachments || {})[ATT.key(group, t.title)] || [] // pointers (owner 2026-10-09): app state, never the note
+      att: (state.attachments || {})[ATT.key(t.uid)] || [] // pointers (owner 2026-10-09): app state keyed by the hidden id, never the note
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
-    id: f.id(t), file: group, title: t.title, // raw: **bold** etc. render in the app (UI.inline)
+    id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, dueText: dueTextOf(t),
     notes: f.notesOf(t),
-    subs: f.subtasksOf(t).map(s => ({ t: s.title, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
+    subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
     lines: f.blockLines(t),
     created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
   }));
@@ -659,16 +660,18 @@ function appIcon() {
   for (const [scaleFactor, px] of [[1, 32], [1.25, 40], [1.5, 48], [2, 64]]) appIconImg.addRepresentation({ scaleFactor, buffer: makePngBuffer(px) });
   return appIconImg;
 }
-// Top-edge peek (owner 2026-10-06, pick P1): rest the pointer at the very top middle of the primary screen (a strip 25 %
-// of its width, 3 px tall, nothing drawn) for 1 s → the island shows. Pure rules in lib/peek.js; a cheap 120 ms poll.
-let peekState = { since: null, armed: true };
-function peekTick() {
-  if (!island || island.isDestroyed()) return;
-  let pt, d;
-  try { pt = screen.getCursorScreenPoint(); d = screen.getPrimaryDisplay(); } catch (e) { return; }
-  const r = peekStep(peekState, inPeekZone(pt, d.bounds), Date.now());
-  peekState = r.state;
-  if (r.fire && state.onboarded && !island.isVisible()) { LOG('PEEK'); showIsland(); }
+// Touchpad hold + double tap (owner 2026-10-10: one finger rests, another taps twice; replaced the top-edge peek and then
+// the three-finger double tap, whose first tap opened Windows Search) → the island shows. lib/touchpad.js
+// reads the raw touchpad reports into the island window (it lives as long as the app), lib/gesture.js decides. Never while
+// onboarding or while the island is already up. No touchpad / no koffi = no gesture, nothing else changes.
+let tapState = null;
+function startTouchpad() {
+  if (process.platform !== 'win32') return;
+  require('./lib/touchpad.js').start(island, fingers => {
+    const r = tapStep(tapState, fingers, Date.now());
+    tapState = r.state;
+    if (r.fire && state.onboarded && island && !island.isDestroyed() && !island.isVisible()) { LOG('TAP-SHOW'); showIsland(); }
+  }, LOG);
 }
 function createTray() {
   tray = new Tray(trayImage());
@@ -683,7 +686,6 @@ function createTray() {
   };
   tick();
   setInterval(tick, 15000);
-  setInterval(peekTick, 120);
 }
 
 ipcMain.on('island-size', (_e, h, top = 0) => {
@@ -755,9 +757,10 @@ ipcMain.handle('undo-action', (_e, token) => {
     if (mainWin) mainWin.webContents.send('tasks-changed');
     return changed.length ? { ok: false, reason: 'changed', files: changed } : { ok: true };
   }
-  if (e.kind === 'settings') { // undo a reset: the captured settings object goes back, files were never touched
+  if (e.kind === 'settings' || e.kind === 'import') { // undo a reset / import: the captured settings (+ attachments) go back
     const cur = state.settings;
     state.settings = e.prev;
+    if (e.prevAtt) state.attachments = e.prevAtt;
     saveState();
     applySettingsSideEffects(cur);
     return { ok: true };
@@ -778,7 +781,8 @@ ipcMain.handle('undo-action', (_e, token) => {
 ipcMain.handle('undo-expire', (_e, token) => { undoLog.delete(token); }); // fired by the popup's own countdown — memory released with the bubble
 ipcMain.handle('get-snapshot', () => snapshot());
 ipcMain.handle('open-editor', (_e, file, id) => openEditor(file, id));
-ipcMain.handle('save-settings', (_e, s) => {
+ipcMain.handle('save-settings', (_e, s) => saveSettings(s));
+function saveSettings(s) { // the ONE settings write (the Settings form and an import): checks every value, then applies it
   const clean = Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined));
   const result = { ok: true, errors: {} };
   if (clean.shortcut !== undefined && clean.shortcut !== state.settings.shortcut) {
@@ -831,6 +835,41 @@ ipcMain.handle('save-settings', (_e, s) => {
   }
   sendSnap();
   return result;
+}
+// ---- settings export / import (owner 2026-10-10): one .json = every setting + the attachments (lib/backup.js) ----
+// Import = the normal settings save (a note path missing on this PC is refused, the rest lands) + the attachments merged
+// in by hidden id; ONE Undo puts both back (kind 'import'). Sandbox runs take the path from TODO_ISLAND_PICK.
+ipcMain.handle('export-settings', async () => {
+  let p = SANDBOX ? path.join(app.getPath('userData'), BACKUP.fileName()) : null;
+  if (!p) {
+    const { dialog } = require('electron');
+    const res = await dialog.showSaveDialog(mainWin || undefined, { defaultPath: path.join(app.getPath('documents'), BACKUP.fileName()), filters: [{ name: 'JSON', extensions: ['json'] }] });
+    if (res.canceled || !res.filePath) return { ok: false, canceled: true };
+    p = res.filePath;
+  }
+  try { fs.writeFileSync(p, JSON.stringify(BACKUP.makeBackup(state, curVersion()), null, 2)); } catch (e) { LOG('EXPORT-FAIL ' + e.message); return { ok: false }; }
+  LOG('SETTINGS-EXPORT ' + p);
+  return { ok: true, name: path.basename(p) };
+});
+ipcMain.handle('import-settings', async () => {
+  let p = SANDBOX && process.env.TODO_ISLAND_PICK;
+  if (!p) {
+    const { dialog } = require('electron');
+    const res = await dialog.showOpenDialog(mainWin || undefined, { properties: ['openFile'], filters: [{ name: 'JSON', extensions: ['json'] }] });
+    if (res.canceled || !res.filePaths.length) return { ok: false, canceled: true };
+    p = res.filePaths[0];
+  }
+  let b;
+  try { b = BACKUP.readBackup(JSON.parse(fs.readFileSync(p, 'utf8')), DEFAULT_SETTINGS); } catch (e) { b = { error: 'not-ours' }; }
+  if (b.error) return { ok: false, reason: b.error };
+  const prev = { ...state.settings }, prevAtt = JSON.parse(JSON.stringify(state.attachments || {}));
+  const result = saveSettings(b.settings);
+  state.attachments = { ...(state.attachments || {}), ...b.attachments };
+  saveState(); sendSnap();
+  const token = pushUndo({ kind: 'import', prev, prevAtt, label: null, expires: Date.now() + state.settings.undoSec * 1000 });
+  pushUndoToWindow(token);
+  LOG('SETTINGS-IMPORT ' + p + ' errors=' + Object.keys(result.errors).join(','));
+  return { ok: true, errors: result.errors };
 });
 // ---- settings reset + setup re-run ----
 // side effects shared by reset and its undo — everything EXCEPT file work. The reset itself writes
@@ -903,9 +942,7 @@ ipcMain.handle('update-task', (_e, file, id, patch) => {
   if (patch.dueText !== undefined) ({ due, time } = dueFromText(patch.dueText));
   const t = f.findById(id);
   const starToggled = t && patch.active !== undefined && !!patch.active !== !!t.active; // editor's ★ path counts as a star interaction
-  const oldTitle = t && t.title;
   f.update(id, { title: patch.title, priority: patch.priority, due, time, active: patch.active });
-  if (t && t.title !== oldTitle) attRekey(file, oldTitle, t.title); // attachments follow a renamed task
   if (t && state.timer && state.timer.file === file && state.timer.id === id) { state.timer.id = f.id(t); state.timer.title = t.title; saveState(); } // the timer follows an edited task
   if (patch.desc !== undefined) f.setNotes(id, patch.desc);
   if (patch.session && t) {
@@ -1131,21 +1168,27 @@ ipcMain.handle('open-note', (_e, file) => {
 // open subtasks first, physically in the note (owner 2026-10-09, an exception to "writes only on the user's clicks"):
 // every app start puts each task's open subtasks above its done ones. Only notes that need it are written; no undo bubble
 // (nothing is on screen yet). A missing / unreadable note is skipped (the snapshot shows its honest error).
+// Hidden ids (owner 2026-10-10, same exception): every task and subtask line without one gets one here, unique across
+// both notes (lib/parse.js ensureIds: the id is appended in the line's hidden comment, nothing else changes). Then the
+// old "<note>|<title>" attachment keys move onto those ids, once.
 function sortNoteSubtasks() {
+  const seen = new Set();
   for (const tag of ['work', 'personal']) {
     if (!noteOn(tag)) continue;
-    try { const f = fileFor(tag); if (f.sortSubtasks()) { f.save(); LOG('SUBTASKS-SORTED ' + tag); } }
-    catch (e) { LOG('SUBTASKS-SORT-SKIP ' + tag + ' ' + e.message); }
+    try {
+      const f = fileFor(tag), sorted = f.sortSubtasks(), ided = f.ensureIds(seen);
+      if (sorted || ided) { f.save(); LOG(`NOTE-TIDY ${tag} sorted=${sorted} ids=${ided}`); }
+    } catch (e) { LOG('NOTE-TIDY-SKIP ' + tag + ' ' + e.message); }
   }
+  if (state.attachments && ATT.migrateKeys(state.attachments, (tag, title) => {
+    try { const t = noteOn(tag) && fileFor(tag).topTasks().find(x => x.title === title); return (t && t.uid) || null; } catch (e) { return null; }
+  })) saveState();
 }
-// ---- task attachments (owner 2026-10-09): pointers kept in state.attachments["<note>|<task title>"], never in the note.
+// the ids in use in the OTHER note (a note's own ids must not count as duplicates when it is ensureIds'd alone)
+const otherUids = mine => { const s = new Set(); for (const tag of ['work', 'personal']) { if (tag === mine) continue; try { if (noteOn(tag)) for (const e of fileFor(tag).doc) if (e.type === 'task' && e.task.uid) s.add(e.task.uid); } catch (e) {} } return s; };
+// ---- task attachments (owner 2026-10-09): pointers kept in state.attachments[<task hidden id>], never in the note.
 // The editor sets them (att-set); the island + tasks window only open one by its index (att-open): main looks it up and
 // runs lib/attach.js plan(), so no renderer ever hands main a path or a command to run.
-function attRekey(file, from, to) {
-  const all = state.attachments || {}, a = all[ATT.key(file, from)];
-  if (!a) return;
-  delete all[ATT.key(file, from)]; all[ATT.key(file, to)] = a; saveState();
-}
 ipcMain.handle('att-sessions', (_e, tool) => recentSessions(tool, require('os').homedir()));
 ipcMain.handle('att-pick', async (_e, kind) => { // the native picker: 'file' | 'folder'
   const { dialog } = require('electron');
@@ -1154,14 +1197,15 @@ ipcMain.handle('att-pick', async (_e, kind) => { // the native picker: 'file' | 
 });
 ipcMain.handle('att-set', (_e, file, id, list) => {
   if (file !== 'work' && file !== 'personal') return { ok: false };
-  const t = fileFor(file).findById(id);
+  const f = fileFor(file), t = f.findById(id);
   if (!t) return { ok: false };
   const clean = (Array.isArray(list) ? list : []).map(a => { // a dropped / picked path: file or folder is what the disk says
     if (a && (a.type === 'file' || a.type === 'folder') && a.path) { try { a = { ...a, type: fs.statSync(a.path).isDirectory() ? 'folder' : 'file' }; } catch (e) { return null; } }
     return ATT.clean(a);
   }).filter(Boolean).slice(0, 30);
   state.attachments = state.attachments || {};
-  if (clean.length) state.attachments[ATT.key(file, t.title)] = clean; else delete state.attachments[ATT.key(file, t.title)];
+  if (!t.uid) { f.ensureIds(otherUids(file)); f.save(); } // a task added by hand since startup gets its id now
+  if (clean.length) state.attachments[ATT.key(t.uid)] = clean; else delete state.attachments[ATT.key(t.uid)];
   saveState(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: true, att: clean };
 });
@@ -1175,7 +1219,7 @@ function startCodexApp() {
 ipcMain.handle('att-open', async (_e, file, id, index) => {
   if (file !== 'work' && file !== 'personal') return { ok: false };
   const t = fileFor(file).findById(id);
-  const a = t && ((state.attachments || {})[ATT.key(file, t.title)] || [])[index];
+  const a = t && ((state.attachments || {})[ATT.key(t.uid)] || [])[index];
   const p = a && ATT.plan(ATT.clean(a) || {});
   if (!p) return { ok: false };
   if (SANDBOX) { LOG('ATT-OPEN-SANDBOX ' + JSON.stringify(p)); return { ok: true, copied: p.copy || null }; } // E2E never opens anything
@@ -1216,6 +1260,7 @@ else {
     }
     createIsland();
     createTray();
+    startTouchpad();
     armTimer(); // a focus timer from before a restart keeps running
     registerShortcut();
     setTimeout(checkForUpdate, 8000); setInterval(checkForUpdate, 24 * 3600e3); // after boot settles; a tray app runs for days

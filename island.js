@@ -65,7 +65,7 @@ function rowHtml(t) {
 
 // Dismiss timer. ONE rule, applied by armDismiss() after anything that could matter (render, hover, pin, show):
 //   pinned / broken note → no timer, held full
-//   otherwise it COUNTS from the moment the island shows (owner 2026-10-06: timed pop, shortcut and top-edge peek alike;
+//   otherwise it COUNTS from the moment the island shows (owner 2026-10-06: timed pop, shortcut and touchpad tap alike;
 //   keyboard mode no longer holds it) · the pointer on the island PAUSES it · leaving RESUMES from where it was (never a
 //   restart; at least 1.5 s left so it doesn't vanish under a leaving pointer) · re-renders never restart or pause it.
 let dismissBar = null, paused = false;

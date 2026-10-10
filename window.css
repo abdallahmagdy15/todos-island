@@ -312,11 +312,14 @@ input.dtime::placeholder { color: var(--faint); font-family: var(--font-sans); }
 .md-h.mt { margin-top: var(--s-6); }
 h2.md-h { margin-bottom: var(--s-1); }
 
-/* ---- settings: no cards (owner 2026-09-28) — plain sections with a heading, split by a hairline ---- */
-#view-settings { height: 100%; overflow-y: auto; padding: var(--s-2) var(--s-5) var(--s-5); }
-.settings-card { width: 100%; max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; }
-.sgroup { padding: var(--s-4) 0 var(--s-2); }
-.sgroup + .sgroup { border-top: 1px solid var(--rule-soft); }
+/* ---- settings: one frosted card per section (owner 2026-10-10: "each section separated, better visibility"; replaces
+   the 2026-09-28 flat hairline sections). The card is the add-task box's surface (--card / the sheet frost at the Glass
+   level), so the contrast gate that covers .new-task covers it too. ---- */
+#view-settings { height: 100%; overflow-y: auto; padding: var(--s-3) var(--s-5) var(--s-5); }
+.settings-card { width: 100%; max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--s-3); }
+.sgroup { padding: var(--s-3) var(--s-4) var(--s-2); border-radius: calc(var(--r-3) + 2px); background: var(--card); box-shadow: inset 0 0 0 1px var(--rule-soft); }
+.glass-on .sgroup { background: rgba(var(--sheet-rgb), var(--g-sheet, 0.5));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-sat)); backdrop-filter: blur(16px) saturate(var(--glass-sat)); }
 .sgroup > .md-h:first-child { margin-top: 0; }
 .srow {
   display: flex; align-items: center; justify-content: space-between; gap: var(--s-5);
@@ -484,7 +487,7 @@ kbd {
 .glass-on .toast, .glass-on .notice { --card: rgba(var(--sheet-rgb), 0.9); }
 @media (prefers-reduced-transparency: reduce) {
   .glass-on .ambient { display: none; }
-  .glass-on .new-task, .glass-on .side { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass-on .new-task, .glass-on .side, .glass-on .sgroup:not(.adv-card), .glass-on .sgroup.adv-card:has(.adv-toggle[aria-expanded="true"]) { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
 /* Glass steps (Glass, Label size, Task size): the same clear track as tabs and .seg (tokens.css); the steps before the
@@ -534,19 +537,33 @@ header .upd { margin-inline-start: var(--s-3); }
 .bgsw.sel { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 .bgsw:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
 
-/* Settings → Advanced: a heading that opens and closes the rarely-changed rows */
+/* Settings → Advanced (owner 2026-10-10: "show that it is a wrapper collapsing the next area, and its open button clear"):
+   closed = a DASHED drawer outline (more inside) with a hint line and a clear Show ⌄ pill; open = a normal card whose rows
+   sit behind an accent rail (they belong to the drawer); the pill says Hide ⌃. The whole row is the button. */
+.sgroup.adv-card { background: transparent; box-shadow: none; border: 1px dashed var(--rule); padding: var(--s-2) var(--s-4); }
+.glass-on .sgroup.adv-card { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.sgroup.adv-card:has(.adv-toggle[aria-expanded="true"]) { border-style: solid; border-color: var(--rule-soft); background: var(--card); padding-bottom: var(--s-2); }
+.glass-on .sgroup.adv-card:has(.adv-toggle[aria-expanded="true"]) { background: rgba(var(--sheet-rgb), var(--g-sheet, 0.5));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-sat)); backdrop-filter: blur(16px) saturate(var(--glass-sat)); }
+.adv-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.adv-title .shint { font-weight: 400; }
+.adv-name { display: flex; align-items: baseline; gap: var(--s-2); }
+.adv-pill { flex: none; margin-inline-start: auto; align-self: center; gap: 4px; }
+.adv-toggle:hover .adv-pill { --c: var(--ctl-hover); }
+.adv-toggle:active { transform: none; } /* the wide row never dips; the pill does */
+.adv-toggle:active .adv-pill { transform: scale(0.96); }
+.adv-card .adv { margin: var(--s-1) 0 0; padding: var(--s-1) 0 0; padding-inline-start: var(--s-4);
+  border-inline-start: 2px solid color-mix(in srgb, var(--accent) 35%, transparent); }
 .adv-toggle {
   display: flex; align-items: baseline; gap: var(--s-2); width: 100%; margin-top: var(--s-6); padding: 8px 0;
   border: 0; border-top: 1px solid var(--rule-soft); background: transparent; cursor: pointer;
   font-family: inherit; font-size: var(--fs-4); font-weight: 650; color: var(--ink); text-align: start;
 }
 .adv-toggle .hash { font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--accent); }
-.adv-toggle .chev { width: 16px; height: 16px; align-self: center; margin-inline-start: auto; color: var(--muted); transition: transform var(--d-2) var(--ease-out); }
+.adv-toggle .chev { width: 14px; height: 14px; color: currentColor; transition: transform var(--d-2) var(--ease-out); }
 .adv-toggle[aria-expanded="true"] .chev { transform: rotate(180deg); }
-.adv-toggle:hover .chev { color: var(--ink); }
 .adv { padding-top: var(--s-2); }
-.sgroup > .adv-toggle { margin-top: 0; border-top: 0; padding: 2px 0 8px; }
-.sgroup > .adv-toggle[aria-expanded="true"] { border-bottom: 1px solid var(--rule-soft); }
+.sgroup > .adv-toggle { margin-top: 0; border-top: 0; padding: 6px 0; align-items: center; }
 
 
 /* ==== side panel (owner 2026-09-28): Edit and Share live INSIDE the window, never in a new one ====

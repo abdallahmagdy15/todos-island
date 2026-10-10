@@ -594,6 +594,19 @@ $('btn-reset-settings').addEventListener('click', async () => { // settings only
   await window.api.resetSettings();
   await loadSettings(); // the form shows the defaults immediately; the undo bubble is the safety net
 });
+$('btn-export-settings').addEventListener('click', async () => {
+  window.SFX.play('tick');
+  const r = await window.api.exportSettings();
+  if (r.ok) statusFlash(T('set.backup.saved', { name: r.name })); else if (!r.canceled) statusFlash(T('set.backup.fail'), 'bad');
+});
+$('btn-import-settings').addEventListener('click', async () => { // undoable like Reset — no native confirm
+  window.SFX.play('tick');
+  const r = await window.api.importSettings();
+  if (r.canceled) return;
+  if (!r.ok) return notice(T(r.reason === 'empty' ? 'set.backup.empty' : 'set.backup.notOurs'), 'bad');
+  await loadSettings();
+  if (Object.keys(r.errors || {}).length) notice(T('set.backup.partial'), 'bad');
+});
 $('err-strip').addEventListener('click', e => {
   if (e.target.closest('[data-retry]')) refresh();
   if (e.target.closest('[data-open-settings]')) $('tab-settings').click();
@@ -861,6 +874,7 @@ document.querySelectorAll('#appear-seg .seg-btn').forEach(b => b.addEventListene
 // Advanced settings: collapsed by default; the open/closed choice is remembered per viewer (a convenience only)
 function setAdvanced(open) {
   $('set-advanced').hidden = !open; $('adv-toggle').setAttribute('aria-expanded', String(open));
+  const st = $('adv-state'); st.dataset.i18n = open ? 'set.adv.hide' : 'set.adv.show'; st.textContent = T(st.dataset.i18n); // the pill says what a click does
   try { localStorage.setItem('ti-adv-open', open ? '1' : '0'); } catch (e) {}
 }
 $('adv-toggle').addEventListener('click', () => setAdvanced($('set-advanced').hidden));

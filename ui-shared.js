@@ -162,6 +162,7 @@
     : u.kind === 'reorder' || u.kind === 'move-sub' ? T('u.moved')
     : u.kind === 'clear' ? T('u.cleared')
     : u.kind === 'settings' ? T('u.reset')
+    : u.kind === 'import' ? T('u.imported')
     : u.kind === 'edit' ? T('u.edited')
     : T('u.completed');
   const undoText = u => u.label ? `${undoVerb(u)}: ${u.label}` : undoVerb(u); // a settings reset has no task label
@@ -712,17 +713,21 @@
 
   // Apple-style time wheel (owner 2026-09-28: "interactive, not only typing"). Clicking an HH:MM text field opens a
   // small popover with two snapping wheels (hours 00–23 · minutes 00–59) under it; the field stays typeable (a valid
-  // typed time turns the wheels). The 3-D curl is a scroll-driven animation (compositor, no JS per frame); one mouse-wheel
-  // notch = one step; a wheel settling commits: the field gets the value + 'input' and 'change' (settings autosave /
-  // onboarding listen to those). Esc, Enter, a click outside or leaving the field closes it.
-  const TW_ROW = 32;
+  // typed time turns the wheels). The 3-D curl is a scroll-driven animation (compositor, no JS per frame); a wheel settling
+  // commits: the field gets the value + 'input' and 'change' (settings autosave / onboarding listen to those). Esc, Enter,
+  // a click outside or leaving the field closes it.
+  // Owner 2026-10-10: the wheels LOOP (… 58 59 00 01 …) and scroll faster. Each column holds TW_COPIES copies of its
+  // numbers; after a settle it jumps (instantly, same picture) back to the middle copy, so it never reaches an end. The
+  // mouse wheel moves a TARGET row: deltas add up (TW_DELTA per row, so a mouse notch ≈ 2 rows and a touchpad glides),
+  // and notches that come fast (under TW_FAST ms apart) count double.
+  const TW_ROW = 32, TW_COPIES = 5, TW_DELTA = 50, TW_FAST = 90;
   let twOpen = null; // the one open wheel: { input, pop, close }
   function timeWheel(input) {
     if (!input || input.dataset.wheel) return;
     input.dataset.wheel = '1';
     input.setAttribute('aria-haspopup', 'dialog');
-    const col = (n, label) => `<div class="tw-col" tabindex="0" role="listbox" aria-label="${label}"><div class="tw-pad"></div>${
-      Array.from({ length: n }, (_, i) => `<div class="tw-item" role="option" data-v="${i}">${String(i).padStart(2, '0')}</div>`).join('')}<div class="tw-pad"></div></div>`;
+    const col = (n, label) => `<div class="tw-col" tabindex="0" role="listbox" aria-label="${label}" data-n="${n}"><div class="tw-pad"></div>${
+      Array.from({ length: n * TW_COPIES }, (_, i) => `<div class="tw-item" role="option" data-i="${i}">${String(i % n).padStart(2, '0')}</div>`).join('')}<div class="tw-pad"></div></div>`;
     function open() {
       if (twOpen && twOpen.input === input) return;
       if (twOpen) twOpen.close();
@@ -738,11 +743,15 @@
       pop.style.left = Math.max(8, Math.min(innerWidth - pw - 8, rc.right - pw)) + 'px';
       pop.style.transformOrigin = (below ? 'top ' : 'bottom ') + (rc.right - pw >= 8 ? 'right' : 'left');
       const cur = normTime(input.value) || '09:00';
-      const setCol = (c, v, smooth) => c.scrollTo({ top: v * TW_ROW, behavior: smooth ? 'smooth' : 'instant' });
-      setCol(hc, +cur.slice(0, 2)); setCol(mc, +cur.slice(3, 5));
+      const N = c => +c.dataset.n, rowOf = c => Math.round(c.scrollTop / TW_ROW);
+      const goRow = (c, i, smooth) => { c._tw = Math.max(0, Math.min(N(c) * TW_COPIES - 1, i)); c.scrollTo({ top: c._tw * TW_ROW, behavior: smooth ? 'smooth' : 'instant' }); };
+      // the row showing value v nearest to where the column is now (so typing 00 after 59 turns forward, not 59 rows back)
+      const setCol = (c, v, smooth) => { const n = N(c), at = c._tw != null ? c._tw : 2 * n + v; goRow(c, at + (((v - at) % n) + n + Math.floor(n / 2)) % n - Math.floor(n / 2), smooth); };
+      goRow(hc, 2 * 24 + +cur.slice(0, 2)); goRow(mc, 2 * 60 + +cur.slice(3, 5));
+      const recenter = c => { const n = N(c), i = rowOf(c); if (i < n || i >= (TW_COPIES - 1) * n) goRow(c, 2 * n + (i % n)); else c._tw = i; };
       const commit = () => {
-        const h = Math.round(hc.scrollTop / TW_ROW), m = Math.round(mc.scrollTop / TW_ROW);
-        const v = String(Math.min(23, h)).padStart(2, '0') + ':' + String(Math.min(59, m)).padStart(2, '0');
+        recenter(hc); recenter(mc);
+        const v = String(rowOf(hc) % 24).padStart(2, '0') + ':' + String(rowOf(mc) % 60).padStart(2, '0');
         if (v === normTime(input.value)) return;
         input.value = v;
         input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -750,10 +759,19 @@
       };
       for (const c of [hc, mc]) {
         c.addEventListener('scrollend', commit);
-        c.addEventListener('wheel', e => { e.preventDefault(); c.scrollBy({ top: Math.sign(e.deltaY) * TW_ROW, behavior: 'smooth' }); }, { passive: false });
-        c.addEventListener('click', e => { const it = e.target.closest('.tw-item'); if (it) setCol(c, +it.dataset.v, true); });
+        let acc = 0, lastWheel = 0;
+        c.addEventListener('wheel', e => {
+          e.preventDefault();
+          const px = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY; // line mode → pixels
+          acc += px * (e.timeStamp - lastWheel < TW_FAST ? 2 : 1); lastWheel = e.timeStamp;
+          const steps = Math.trunc(acc / TW_DELTA);
+          if (!steps) return;
+          acc -= steps * TW_DELTA;
+          goRow(c, (c._tw != null ? c._tw : rowOf(c)) + steps, true);
+        }, { passive: false });
+        c.addEventListener('click', e => { const it = e.target.closest('.tw-item'); if (it) goRow(c, +it.dataset.i, true); });
         c.addEventListener('keydown', e => {
-          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); c.scrollBy({ top: (e.key === 'ArrowDown' ? 1 : -1) * TW_ROW, behavior: 'smooth' }); }
+          if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); goRow(c, (c._tw != null ? c._tw : rowOf(c)) + (e.key === 'ArrowDown' ? 1 : -1), true); }
           else if (e.key === 'ArrowRight' && c === hc) { e.preventDefault(); mc.focus(); }
           else if (e.key === 'ArrowLeft' && c === mc) { e.preventDefault(); hc.focus(); }
         });
