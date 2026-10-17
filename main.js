@@ -14,7 +14,9 @@ const { tapStep } = require('./lib/gesture.js');
 const ATT = require('./lib/attach.js');
 const BACKUP = require('./lib/backup.js');
 const LINKS = require('./lib/links.js');
+const ICONS = require('./lib/icons.js');
 const { recentSessions } = require('./lib/sessions.js');
+const THEMES = require('./lib/themes.js'); // theme presets (owner 2026-10-18): defaults, validation, one-tile patches
 
 // test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
 // E2E runs use this so they never touch the owner's real notes.
@@ -35,13 +37,14 @@ const DEFAULT_SETTINGS = {
   autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
   accent: 'blue', // owner default 2026-10-01 (back from teal) — theme color: blue | violet | teal | pink | graphite (tokens.css [data-accent])
-  labelSize: 0, taskSize: 1, // text sizes 0–3 = small · default · large · larger (UI.applyTheme → --ui-k / --task-k)
+  labelSize: 0, taskSize: 1, // text sizes 0–5 = small · default · large · larger · XXL · 3XL (UI.applyTheme → --ui-k / --task-k)
   appearance: 'system', // system | light | dark → nativeTheme.themeSource (every window follows)
   islandTheme: 'mist', // owner default 2026-10-01 (back from lagoon) — the picture under the island's glass: mist | dusk | lagoon | bloom | dune | dot | kraft (notebook paper, 2026-10-09)
   shareFmt: 'text', // Share + the island's quick Copy: 'text' (plain, WhatsApp-friendly) | 'md' (the note as written)
   hideFromCapture: true, // the island stays on your screen but Teams / OBS / screenshots can't see it (Windows "exclude from capture")
   material: 'liquid', // owner 2026-10-10: liquid (clear glass, specular light) | frosted (Apple's classic vibrancy: heavy blur, milky tint, hairline)
   glassLevel: 3, // frost: 0 = solid · 1–4 = 15/25/38/50 % of the theme shows through the island's glass
+  ...THEMES.DEFAULTS, // paper knobs (owner 2026-10-18): hand font, Arabic hand, pattern, paper shades — the table in lib/themes.js
   workPath: path.join(DEFAULT_DIR, NOTE_NAME.work),
   personalPath: path.join(DEFAULT_DIR, NOTE_NAME.personal)
 };
@@ -50,6 +53,7 @@ const migrateSettings = s => {
   delete s.intervalMin;
   delete s.tintLevel; // v1.7 Tint setting — removed with the live screen glass (v1.8)
   if (s.islandTheme === 'wallpaper') s.islandTheme = 'mist'; // the Wallpaper theme was removed in v1.11 (owner)
+  if (THEMES.isPaper(s) && s.material === 'liquid') s.material = 'frosted'; // notebook themes are Frosted only (owner 2026-10-18)
   return s;
 };
 // settingsSavedAt (owner 2026-10-10): the status line said "Nothing saved yet" after every settings change, because it only
@@ -151,19 +155,21 @@ function snapshot() {
     dueText: dueTextOf(t), dueTime: t.time != null ? fmtTime(t.time) : null,
       dueTs: t.due || t.time != null ? resolveDue(t.due, t.time) : null,
       notes: f.notesOf(t),
-      subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
+      subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null, i: (s.uid && (state.icons || {})[s.uid]) || null })), // t = the note's title = the address; i = its picked icon
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
       lines: f.blockLines(t), // Share → Markdown: the block as the note has it, stamp stripped
       att: (state.attachments || {})[ATT.key(t.uid)] || [], // pointers (owner 2026-10-09): app state keyed by the hidden id, never the note
-      linked: (t.uid && (state.links || {})[t.uid]) || null // also shown in that note (owner 2026-10-10, lib/links.js)
+      linked: (t.uid && (state.links || {})[t.uid]) || null, // also shown in that note (owner 2026-10-10, lib/links.js)
+      icon: (t.uid && (state.icons || {})[t.uid]) || null // the picked icon (owner 2026-10-15, lib/icons.js): state, never the note
   }));
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
     id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, dueText: dueTextOf(t),
     notes: f.notesOf(t),
-    subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null })), // t = the note's title = the address
+    subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null, i: (s.uid && (state.icons || {})[s.uid]) || null })), // t = the note's title = the address; i = its picked icon
     lines: f.blockLines(t),
-    created: t.created, updated: t.updated, updatedTs: stampMs(t.updated)
+    created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
+    icon: (t.uid && (state.icons || {})[t.uid]) || null // the picked icon (owner 2026-10-15, lib/icons.js): state, never the note
   }));
   const safe = (group, path) => {
     try {
@@ -794,11 +800,12 @@ ipcMain.handle('undo-action', (_e, token) => {
     if (mainWin) mainWin.webContents.send('tasks-changed');
     return changed.length ? { ok: false, reason: 'changed', files: changed } : { ok: true };
   }
-  if (e.kind === 'settings' || e.kind === 'import') { // undo a reset / import: the captured settings (+ attachments) go back
+  if (e.kind === 'settings' || e.kind === 'import' || e.kind === 'theme') { // undo a reset / import: the captured settings (+ attachments) go back
     const cur = state.settings;
     state.settings = e.prev;
     if (e.prevAtt) state.attachments = e.prevAtt;
     if (e.prevLinks) state.links = e.prevLinks;
+    if (e.prevIcons) state.icons = e.prevIcons;
     saveState();
     applySettingsSideEffects(cur);
     return { ok: true };
@@ -850,13 +857,15 @@ function saveSettings(s) { // the ONE settings write (the Settings form and an i
   if (clean.hideFromCapture !== undefined) clean.hideFromCapture = !!clean.hideFromCapture;
   if (clean.shareFmt !== undefined && !['text', 'md'].includes(clean.shareFmt)) delete clean.shareFmt;
   if (clean.accent !== undefined && !['blue', 'violet', 'teal', 'pink', 'graphite'].includes(clean.accent)) delete clean.accent;
-  for (const k of ['labelSize', 'taskSize']) if (clean[k] !== undefined) { const v = Math.round(+clean[k]); if (v >= 0 && v <= 3) clean[k] = v; else delete clean[k]; }
+  for (const k of ['labelSize', 'taskSize']) if (clean[k] !== undefined) { const v = Math.round(+clean[k]); if (v >= 0 && v <= 5) clean[k] = v; else delete clean[k]; }
   delete clean.tintLevel; // removed in v1.8
   for (const k of ['dayStart', 'dayEnd']) if (clean[k] !== undefined && !/^([01]\d|2[0-3]):[0-5]\d$/.test(clean[k])) delete clean[k]; // the scheduler splits HH:MM
   if (clean.weekendDays !== undefined && !['auto', 'sat-sun', 'fri-sat'].includes(clean.weekendDays)) delete clean.weekendDays;
   if (clean.appearance !== undefined && !['system', 'light', 'dark'].includes(clean.appearance)) delete clean.appearance;
   if (clean.islandTheme !== undefined && !['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'dot', 'kraft'].includes(clean.islandTheme)) delete clean.islandTheme;
   if (clean.material !== undefined && !['liquid', 'frosted'].includes(clean.material)) delete clean.material;
+  for (const [k, list] of Object.entries(THEMES.OPTIONS)) if (clean[k] !== undefined && !list.includes(clean[k])) delete clean[k]; // paper knobs (owner 2026-10-18)
+  if (THEMES.isPaper({ ...state.settings, ...clean })) clean.material = 'frosted'; // notebook = Frosted only, never glossy
   if (clean.glassLevel !== undefined) { const g = Math.round(+clean.glassLevel); if (g >= 0 && g <= 4) clean.glassLevel = g; else delete clean.glassLevel; }
   const wasOn = { work: noteOn('work'), personal: noteOn('personal') };
   state.settings = { ...state.settings, ...clean };
@@ -906,12 +915,13 @@ ipcMain.handle('import-settings', async () => {
   let b;
   try { b = BACKUP.readBackup(JSON.parse(fs.readFileSync(p, 'utf8')), DEFAULT_SETTINGS); } catch (e) { b = { error: 'not-ours' }; }
   if (b.error) return { ok: false, reason: b.error };
-  const prev = { ...state.settings }, prevAtt = JSON.parse(JSON.stringify(state.attachments || {})), prevLinks = { ...(state.links || {}) };
+  const prev = { ...state.settings }, prevAtt = JSON.parse(JSON.stringify(state.attachments || {})), prevLinks = { ...(state.links || {}) }, prevIcons = { ...(state.icons || {}) };
   const result = saveSettings(b.settings);
   state.attachments = { ...(state.attachments || {}), ...b.attachments };
   state.links = { ...(state.links || {}), ...b.links };
+  state.icons = { ...(state.icons || {}), ...b.icons };
   saveState(); sendSnap();
-  const token = pushUndo({ kind: 'import', prev, prevAtt, prevLinks, label: null, expires: Date.now() + state.settings.undoSec * 1000 });
+  const token = pushUndo({ kind: 'import', prev, prevAtt, prevLinks, prevIcons, label: null, expires: Date.now() + state.settings.undoSec * 1000 });
   pushUndoToWindow(token);
   LOG('SETTINGS-IMPORT ' + p + ' errors=' + Object.keys(result.errors).join(','));
   return { ok: true, errors: result.errors };
@@ -941,6 +951,20 @@ ipcMain.handle('reset-settings', () => {
   const token = pushUndo({ kind: 'settings', prev, label: null, expires: Date.now() + state.settings.undoSec * 1000 });
   pushUndoToWindow(token);
   LOG('SETTINGS-RESET');
+  return { ok: true };
+});
+// a theme tile in Settings → Look (owner 2026-10-18): one pick writes the whole look. Undoable like Reset —
+// kind 'settings' puts every previous knob back through the same applySettingsSideEffects.
+ipcMain.handle('apply-theme', (_e, id) => {
+  const patch = THEMES.patchFor(id);
+  if (!patch) return { ok: false };
+  const prev = state.settings;
+  state.settings = { ...state.settings, ...patch };
+  saveState();
+  applySettingsSideEffects(prev);
+  const token = pushUndo({ kind: 'theme', prev, label: (THEMES.byId(id) || {}).en || id, expires: Date.now() + state.settings.undoSec * 1000 }); // "Theme changed: Dot Journal"; rolls back like 'settings'
+  pushUndoToWindow(token);
+  LOG('THEME ' + id);
   return { ok: true };
 });
 ipcMain.handle('open-onboarding', () => openOnboarding()); // Settings button = the tray's "Set up again…": merge-over, never a wipe
@@ -1226,6 +1250,7 @@ function sortNoteSubtasks() {
     } catch (e) { LOG('NOTE-TIDY-SKIP ' + tag + ' ' + e.message); }
   }
   pruneTaskLinks();
+  pruneTaskIcons();
   if (state.attachments && ATT.migrateKeys(state.attachments, (tag, title) => {
     try { const t = noteOn(tag) && fileFor(tag).topTasks().find(x => x.title === title); return (t && t.uid) || null; } catch (e) { return null; }
   })) saveState();
@@ -1237,6 +1262,21 @@ function pruneTaskLinks() {
   for (const tag of LINKS.NOTES) { try { open[tag] = noteOn(tag) ? new Set(fileFor(tag).topTasks().filter(t => !t.checked).map(t => t.uid).filter(Boolean)) : null; } catch (e) { open[tag] = null; } }
   const next = LINKS.pruneLinks(state.links, open);
   if (Object.keys(next).length !== Object.keys(state.links).length) { LOG('LINKS-PRUNED ' + (Object.keys(state.links).length - Object.keys(next).length)); state.links = next; saveState(); }
+}
+// icons whose task/subtask is gone from every readable note are dropped (an unreadable or switched-off note keeps
+// its icons — they may still be there, like links). known = every uid in the notes, open AND done, tasks AND subtasks.
+function pruneTaskIcons() {
+  if (!state.icons || !Object.keys(state.icons).length) return;
+  let known = new Set(), blind = false;
+  for (const tag of ['work', 'personal']) {
+    try {
+      if (!noteOn(tag)) { blind = true; continue; }
+      const f = fileFor(tag);
+      for (const t of f.topTasks()) { if (t.uid) known.add(t.uid); for (const s of f.subtasksOf(t)) if (s.uid) known.add(s.uid); }
+    } catch (e) { blind = true; }
+  }
+  const next = ICONS.pruneIcons(state.icons, blind ? null : known);
+  if (Object.keys(next).length !== Object.keys(state.icons).length) { LOG('ICONS-PRUNED ' + (Object.keys(state.icons).length - Object.keys(next).length)); state.icons = next; saveState(); }
 }
 // a task's hidden id, given one now if it has none yet (a task added by hand since startup); null = no such task
 function uidOf(file, id) {
@@ -1306,6 +1346,21 @@ ipcMain.handle('att-set', (_e, file, id, list) => {
   if (clean.length) state.attachments[ATT.key(t.uid)] = clean; else delete state.attachments[ATT.key(t.uid)];
   saveState(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: true, att: clean };
+});
+// ---- per-task / per-subtask icons (owner 2026-10-15): state.icons[<hidden id>] = icon name — never the note.
+// The editor's picker sets them (icon-set); subTitle = the subtask's title, or anything else = the top task.
+ipcMain.handle('icon-set', (_e, file, id, subTitle, name) => {
+  if (file !== 'work' && file !== 'personal') return { ok: false };
+  name = ICONS.cleanName(name); // null = remove the icon
+  const f = fileFor(file), t = f.findById(id);
+  if (!t) return { ok: false };
+  const target = typeof subTitle === 'string' ? f.subtasksOf(t).find(s => s.title === subTitle) : t;
+  if (!target) return { ok: false };
+  if (!target.uid) { f.ensureIds(otherUids(file)); f.save(); } // a hand-typed line since startup gets its id now
+  state.icons = state.icons || {};
+  if (name) state.icons[target.uid] = name; else delete state.icons[target.uid];
+  saveState(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
+  return { ok: true, icon: name };
 });
 let codexAppId = null; // the ChatGPT / Codex desktop app has no link scheme: start it by its Windows app id
 function startCodexApp() {

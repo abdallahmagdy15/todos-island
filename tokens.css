@@ -1,3 +1,12 @@
+/* the notebook themes' hand fonts, bundled (OFL, fonts/OFL-*.txt). Owner picks 2026-10-17 (demo notebook-r3): Latin =
+   Architects Daughter · Shantell Sans · Caveat · Gochi Hand; Arabic = Marhey · Aref Ruqaa. Settings → Customize theme picks one
+   of each (html[data-hand] / [data-hand-ar]); without Windows having them installed these files are the only source. */
+@font-face { font-family: 'Architects Daughter'; src: url('fonts/ArchitectsDaughter-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Shantell Sans'; src: url('fonts/ShantellSans.ttf') format('truetype'); font-weight: 300 800; font-display: block; }
+@font-face { font-family: 'Caveat'; src: url('fonts/Caveat.ttf') format('truetype'); font-weight: 400 700; font-display: block; }
+@font-face { font-family: 'Gochi Hand'; src: url('fonts/GochiHand-Regular.ttf') format('truetype'); font-display: block; }
+@font-face { font-family: 'Marhey'; src: url('fonts/Marhey.ttf') format('truetype'); font-weight: 300 700; font-display: block; }
+@font-face { font-family: 'Aref Ruqaa'; src: url('fonts/ArefRuqaa-Regular.ttf') format('truetype'); font-display: block; }
 /* tokens.css — THE design-token source for every window (linked before each window's own sheet).
    "Ink & Notation": paper + ink chrome; color only means something —
    blue = interactive / Now · vermilion → ochre → slate = !!! → !! → ! · vermilion = danger.
@@ -8,10 +17,10 @@
   --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace; /* machine notation: bangs, dates, counts, ## */
 
   /* text sizes (Settings → Label size / Task text size): --ui-k scales every label, --task-k only task titles */
-  --ui-k: 1; --task-k: 1;
-  --fs-1: calc(11px * var(--ui-k)); --fs-2: calc(12.5px * var(--ui-k)); --fs-3: calc(13.5px * var(--ui-k));
-  --fs-4: calc(15px * var(--ui-k)); --fs-5: calc(18px * var(--ui-k));
-  --fs-task: calc(13.5px * var(--task-k)); --fs-task-lg: calc(15px * var(--task-k));
+  --ui-k: 1; --task-k: 1; --hand-k: 1; /* --hand-k: the paper themes' hand fonts read small, so they get ×1.12 (owner 2026-10-15) */
+  --fs-1: calc(11px * var(--ui-k) * var(--hand-k)); --fs-2: calc(12.5px * var(--ui-k) * var(--hand-k)); --fs-3: calc(13.5px * var(--ui-k) * var(--hand-k));
+  --fs-4: calc(15px * var(--ui-k) * var(--hand-k)); --fs-5: calc(18px * var(--ui-k) * var(--hand-k));
+  --fs-task: calc(13.5px * var(--task-k) * var(--hand-k)); --fs-task-lg: calc(15px * var(--task-k) * var(--hand-k));
   --r-1: 5px; --r-2: 9px; --r-3: 13px; --r-pill: 26px;
   --s-1: 4px; --s-2: 8px; --s-3: 12px; --s-4: 16px; --s-5: 24px; --s-6: 32px;
 
@@ -53,13 +62,17 @@
   --bg-lagoon-0: #e6f3f1; --bg-lagoon-1: #b7e8e4; --bg-lagoon-2: #b8ecc4; --bg-lagoon-3: #c9e2fa; --bg-lagoon-4: #d2f4ee;
   --bg-bloom-0: #f8eaf0; --bg-bloom-1: #ffd4e3; --bg-bloom-2: #ffd6c4; --bg-bloom-3: #eed6ff; --bg-bloom-4: #ffd6e4;
   /* notebook themes (owner 2026-10-09): paper + ink, mapped onto the app tokens by :root[data-bg="dot"|"kraft"] below */
-  --pp-dot-paper: #fbfaf6; --pp-dot-card: #fffefb; --pp-dot-dot: #cfcbc0; --pp-dot-ink: #232323; --pp-dot-muted: #57554f; --pp-dot-faint: #66635c;
+  --pp-dot-paper: #f7f5ef; --pp-dot-card: #fbfaf6; --pp-dot-dot: #e2ded3; /* Warm white (owner 2026-10-17); alt = Today */
+  --pp-dot-paper-alt: #efeeea; --pp-dot-card-alt: #f6f5f1; --pp-dot-dot-alt: #dcd9d2; --pp-dot-sheet-alt: 246, 245, 241;
+  --pp-dot-ink-soft: #3d3b37; --pp-kraft-ink-soft: #46413b; /* Gochi Hand's lighter ink (owner: "even lighter"), still ≥ 4.5:1 */
+  --pp-dot-ink: #232323; --pp-dot-muted: #57554f; --pp-dot-faint: #66635c;
   --pp-dot-p3: #b8341c; --pp-dot-p2: #8a5a00; --pp-dot-p1: #56607a; --pp-dot-ok: #2b7a3a;
-  --pp-kraft-paper: #c9a97f; --pp-kraft-card: #d4b68f; --pp-kraft-dot: #b08f5d; --pp-kraft-ink: #2e2b27; --pp-kraft-muted: #3b3833; --pp-kraft-faint: #45413c; /* soft charcoal, no brown (owner 2026-10-10: brown read light, near-black + the stroke read over-bold) */
+  --pp-kraft-paper: #dcc39f; --pp-kraft-card: #e4cdad; --pp-kraft-dot: #c4a678; /* Light (owner 2026-10-17; was #c9a97f); alt = Lighter */
+  --pp-kraft-paper-alt: #d3b68e; --pp-kraft-card-alt: #dcc29d; --pp-kraft-dot-alt: #bb9a6a; --pp-kraft-sheet-alt: 220, 194, 157; --pp-kraft-ink: #2e2b27; --pp-kraft-muted: #3b3833; --pp-kraft-faint: #45413c; /* soft charcoal, no brown (owner 2026-10-10: brown read light, near-black + the stroke read over-bold) */
   --pp-kraft-p3: #761a0e; --pp-kraft-p2: #523700; --pp-kraft-p1: #33322d; --pp-kraft-ok: #1a4520; --pp-kraft-accent: #0b3a7a;
   --pp-kraft-acc-violet: #2a2780; --pp-kraft-acc-teal: #003f55; --pp-kraft-acc-pink: #6a1460; --pp-kraft-acc-graphite: #2b2b2d;
-  --pp-dot-sheet: 255, 254, 251; --pp-kraft-sheet: 214, 186, 148; /* the panels' and composer's paper (rgb triplets) */
-  --pp-dot-stroke: 0.45px; --pp-kraft-stroke: 0.2px; /* the handwriting fonts have one thin weight: a hair of text stroke thickens them (owner 2026-10-10; dot light a touch more) */
+  --pp-dot-sheet: 251, 250, 246; --pp-kraft-sheet: 228, 205, 173; /* the panels' and composer's paper (rgb triplets) */
+  /* the text stroke moved to the hand font (--hand-stroke, html[data-hand], 2026-10-17) */
   --bg-dune-0: #f3eee4; --bg-dune-1: #f0dcbd; --bg-dune-2: #efdace; --bg-dune-3: #dbe1cb; --bg-dune-4: #f5e2c4;
   /* the reading panels over the scene (list, settings cards, editor, share) follow Settings → Glass like the island:
      rgba(--sheet-rgb, --g-sheet) with --g-sheet set per level by UI.applyTheme. --sheet = the CLEAREST level (65 %),
@@ -115,13 +128,17 @@
     --bg-dusk-0: #17111a; --bg-dusk-1: #924629; --bg-dusk-2: #a1355d; --bg-dusk-3: #5d47b9; --bg-dusk-4: #7c5027;
     --bg-lagoon-0: #0d1716; --bg-lagoon-1: #166661; --bg-lagoon-2: #23673e; --bg-lagoon-3: #295c9c; --bg-lagoon-4: #18665e;
     --bg-bloom-0: #1a0f15; --bg-bloom-1: #a6306d; --bg-bloom-2: #904432; --bg-bloom-3: #793db2; --bg-bloom-4: #9d376c;
-    --pp-dot-paper: #1d1d20; --pp-dot-card: #26262a; --pp-dot-dot: #3d3d43; --pp-dot-ink: #ece6d6; --pp-dot-muted: #bdb7a8; --pp-dot-faint: #a39e92;
+    --pp-dot-paper: #2a2d33; --pp-dot-card: #32353c; --pp-dot-dot: #3a3d44; /* Slate (owner 2026-10-17); alt = Today */
+    --pp-dot-paper-alt: #232326; --pp-dot-card-alt: #2b2b2f; --pp-dot-dot-alt: #323236; --pp-dot-sheet-alt: 43, 43, 47;
+    --pp-kraft-paper-alt: #3a2c1d; --pp-kraft-card-alt: #453524; --pp-kraft-dot-alt: #4c3a27; --pp-kraft-sheet-alt: 69, 53, 36; /* kraft dark has one shade */
+    --pp-dot-ink-soft: #d6d0c1; --pp-kraft-ink-soft: #dccfb4;
+    --pp-dot-ink: #ece6d6; --pp-dot-muted: #bdb7a8; --pp-dot-faint: #a39e92;
     --pp-dot-p3: #ff8f6b; --pp-dot-p2: #f0b55a; --pp-dot-p1: #aeb6c8; --pp-dot-ok: #7fcf8e;
     --pp-kraft-paper: #3a2c1d; --pp-kraft-card: #453524; --pp-kraft-dot: #4c3a27; --pp-kraft-ink: #f3e5cb; --pp-kraft-muted: #dcc7a2; --pp-kraft-faint: #c9b28b;
     --pp-kraft-p3: #ffa48c; --pp-kraft-p2: #f1c36a; --pp-kraft-p1: #d0c9ba; --pp-kraft-ok: #9ad7a4; --pp-kraft-accent: #a8ccff;
     --pp-kraft-acc-violet: #c4c2ff; --pp-kraft-acc-teal: #8fdcf2; --pp-kraft-acc-pink: #f7b4ec; --pp-kraft-acc-graphite: #d4d4d8;
-    --pp-dot-sheet: 38, 38, 42; --pp-kraft-sheet: 69, 53, 36;
-    --pp-dot-stroke: 0.25px; --pp-kraft-stroke: 0.25px; /* light text on dark paper already reads heavier */
+    --pp-dot-sheet: 50, 53, 60; --pp-kraft-sheet: 69, 53, 36;
+
     --bg-dune-0: #16130e; --bg-dune-1: #73542c; --bg-dune-2: #824c37; --bg-dune-3: #505e40; --bg-dune-4: #6e5632;
     --sheet-rgb: 18, 18, 17; --sheet: rgba(18, 18, 17, 0.38);
     --scene-a: 0.24; --isl-sat: 0.5; /* dark read MORE vivid than light (saturated deep hues on near-black) — calmer here */
@@ -329,7 +346,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 /* ---- focus timer (#10 + #6): the ⏱ tab, the arc dial, the ring chip and the end highlight ---- */
 .etab-timer.timing, .etab-timer:hover, .etab-timer:focus-visible { color: var(--accent); }
 .arcdial {
-  position: absolute; z-index: 90; width: 132px; padding: 6px 6px 8px; border-radius: 14px; /* small, the copy list's size (owner 2026-10-05) */ text-align: center;
+  position: absolute; z-index: 90; width: 176px; padding: 8px 8px 10px; border-radius: 18px; /* owner 2026-10-15: slightly bigger (was 132px) */ text-align: center;
   background: var(--pill-bg); color: var(--ink); /* solid, like the time wheel: no backdrop-filter (perf rule) */
   box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 18px 40px -16px rgba(0, 0, 0, 0.45);
   transform-origin: 85% 0; animation: adIn 300ms var(--ease-spring) both; -webkit-app-region: no-drag;
@@ -343,10 +360,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .ad-val { fill: none; stroke: var(--accent); stroke-width: 12; stroke-linecap: round; }
 .ad-knob { fill: var(--pill-bg); stroke: var(--accent); stroke-width: 3; }
 .ad-svg:focus-visible .ad-knob { stroke-width: 4.5; }
-.ad-svg .tk { fill: var(--faint); font-family: var(--font-mono); font-size: 16px; }
-.ad-read { margin-top: -22px; font-family: var(--font-mono); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
-.ad-acts { display: flex; justify-content: center; gap: 4px; margin-top: 6px; }
-.ad-btn { height: 22px; padding: 0 10px; border: 0; border-radius: 11px; cursor: pointer; font-family: inherit; font-size: 10.5px; font-weight: 700; }
+.ad-svg .tk { fill: var(--faint); font-family: var(--font-mono); font-size: 16px; } /* user units: scales with the svg */
+.ad-read { margin-top: -30px; font-family: var(--font-mono); font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.ad-acts { display: flex; justify-content: center; gap: 5px; margin-top: 8px; }
+.ad-btn { height: 29px; padding: 0 13px; border: 0; border-radius: 15px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700; }
 .ad-go { background: var(--accent); color: var(--accent-ink); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3); }
 .ad-stop { background: transparent; color: var(--muted); box-shadow: inset 0 0 0 1px var(--rule); }
 .ad-stop:hover { color: var(--danger, var(--p3)); }
@@ -422,13 +439,29 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .aclip .ic { width: 12px; height: 12px; }
 .aclip:hover, .aclip[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
 .aclip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.clist.apop { width: 240px; display: flex; flex-direction: column; gap: 1px; }
+.clist.apop { width: min(340px, calc(100vw - 16px)); display: flex; flex-direction: column; gap: 1px; } /* wider so long names read (owner 2026-10-15; was 240) */
 .apop button { display: flex; align-items: center; gap: 7px; min-width: 0; height: 28px; padding: 0 7px; border: 0; border-radius: 8px; background: transparent;
   color: var(--ink); font-family: inherit; font-size: 12px; text-align: start; cursor: pointer; }
 .apop button:hover, .apop button:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: none; }
 .apop .ic { width: 13px; height: 13px; flex: none; color: var(--muted); }
 .apop .an { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .apop .ah { flex: none; font-size: 10px; color: var(--faint); }
+/* task icons (owner 2026-10-15): drawn inline before a task / subtask title (it wraps with the text), muted so the words
+   still lead; the picker is a solid grid in the copy list's material (UI.iconPicker) */
+.tic { display: inline-block; width: 1.05em; height: 1.05em; vertical-align: -0.17em; margin-inline-end: 0.36em; color: var(--muted); stroke-width: 2; }
+.ipick { width: 300px; padding: 8px; display: flex; flex-direction: column; gap: 3px; }
+.ip-h { padding: 2px 4px 0; font-size: var(--fs-1); font-weight: 650; color: var(--faint); }
+.ip-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; }
+.ip-b { height: 36px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; }
+.ip-b .tic { width: 18px; height: 18px; margin: 0; vertical-align: 0; color: inherit; }
+.ip-b:hover, .ip-b:focus-visible, .ip-none:hover:not(:disabled), .ip-none:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: none; }
+.ip-b.sel { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent-border); }
+.ip-none { height: 28px; margin-top: 2px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-2); cursor: pointer; }
+.ip-none:disabled { opacity: 0.45; cursor: default; }
+.ip-q { height: 30px; padding: 0 10px; border: 1px solid var(--rule); border-radius: 8px; background: var(--input, var(--card)); color: var(--ink); font: inherit; font-size: var(--fs-2); }
+.ip-q:focus { border-color: var(--accent); outline: none; }
+.ip-list { display: flex; flex-direction: column; gap: 3px; max-height: 300px; overflow-y: auto; }
+.ip-empty { padding: 10px 4px; color: var(--faint); font-size: var(--fs-2); text-align: center; }
 .apop button.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); } .apop button.ok .ah { color: var(--ok); }
 .apop button.bad .ah { color: var(--danger); }
 .cl-grp { padding: 4px 4px 2px; font-size: 8.5px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
@@ -437,14 +470,14 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .cl-seg button:hover { color: var(--ink); }
 .cl-seg button.sel { background: var(--pill-bg); color: var(--accent); box-shadow: 0 1px 3px rgba(0, 0, 0, .18), inset 0 0 0 1px var(--accent-border); }
 .cl-seg .ic, .tp-stop .ic { width: 10px; height: 10px; stroke-width: 2.2; flex: none; }
-.tpill { display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 6px; border-radius: 16px; white-space: nowrap; } /* small, the copy list's size (owner 2026-10-05) */
-.tp-ring { width: 18px; height: 18px; transform: rotate(-90deg); flex: none; }
+.tpill { display: flex; align-items: center; gap: 8px; padding: 5px 5px 5px 8px; border-radius: 21px; white-space: nowrap; } /* owner 2026-10-15: bigger with the dial */
+.tp-ring { width: 24px; height: 24px; transform: rotate(-90deg); flex: none; }
 .tp-ring circle { fill: none; stroke-width: 3; }
 .tp-ring .bg { stroke: var(--rule); }
 .tp-ring .fg { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 1s linear; }
-.tp-left { font-family: var(--font-mono); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
-.tp-of { font-size: 8.5px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
-.tp-stop { display: inline-flex; align-items: center; gap: 3px; height: 22px; padding: 0 8px; border: 0; border-radius: 11px; cursor: pointer; font-family: inherit; font-size: 10.5px; font-weight: 700;
+.tp-left { font-family: var(--font-mono); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.tp-of { font-size: 11px; font-weight: 650; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+.tp-stop { display: inline-flex; align-items: center; gap: 4px; height: 29px; padding: 0 11px; border: 0; border-radius: 15px; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 700;
   color: var(--danger, var(--p3)); background: color-mix(in srgb, var(--danger, var(--p3)) 12%, var(--pill-bg)); }
 .tp-stop:hover { color: var(--pill-bg); background: var(--danger, var(--p3)); }
 /* the subtask Copy button (owner pick D2): icon only, at the end of the subtask row; it shows after a 1 s rest on the row
@@ -487,10 +520,21 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 /* linked ("shadow") task mark (owner 2026-10-10): the accent link glyph in a row's meta */
 .lmark { flex: none; display: inline-flex; align-items: center; color: var(--accent); }
 .lmark .ic { width: 13px; height: 13px; stroke-width: 2; }
-:root[data-bg="dot"], :root[data-bg="kraft"] { --font-sans: var(--font-hand); --font-mono: var(--font-hand); }
+:root[data-bg="dot"], :root[data-bg="kraft"] { --font-sans: var(--font-hand); --font-mono: var(--font-hand); --hand-k: 1.12; }
 /* faux bold looks blotchy on a one-weight hand font; an even stroke in the text's own color thickens it instead (inherited) */
-:root[data-bg="dot"] { -webkit-text-stroke-width: var(--pp-dot-stroke); }
-:root[data-bg="kraft"] { -webkit-text-stroke-width: var(--pp-kraft-stroke); }
+/* the hand font picks its own weight + stroke (Settings → Customize theme; owner picks 2026-10-17) */
+:root[data-bg="dot"], :root[data-bg="kraft"] { -webkit-text-stroke-width: var(--hand-stroke); font-weight: var(--hand-wt); }
+:root { --font-hand: 'Architects Daughter', 'Ink Free', cursive; --hand-wt: 400; --hand-stroke: 0.2px; } /* default = Architects Daughter Regular */
+:root[data-hand="shantell"] { --font-hand: 'Shantell Sans', 'Ink Free', cursive; --hand-wt: 350; --hand-stroke: 0px; }
+:root[data-hand="caveat"] { --font-hand: 'Caveat', 'Ink Free', cursive; --hand-wt: 500; --hand-stroke: 0px; --hand-k: 1.3; } /* Caveat draws small */
+:root[data-hand="gochi"] { --font-hand: 'Gochi Hand', 'Ink Free', cursive; --hand-wt: 400; --hand-stroke: 0px; }
+/* Architects Daughter (owner 2026-10-18): a touch more air between letters (they touched), and bold a bit lighter — the font
+   has one weight, so bold is Chromium's synthetic bold; on bold text the extra 0.2 px ink stroke is dropped. The list = every
+   rule that sets font-weight >= 600 (window.css, island.css, tokens.css), generated 2026-10-18 — add new bold selectors here. */
+:root[data-bg][data-hand="architects"]:not(:lang(ar)) { letter-spacing: 0.06em; }
+:root[data-bg][data-hand="architects"]:not(:lang(ar)) :is(#head-title, .about-mark, .about-name, .about-ver, .aclip, .active-card .ac-head > .rchk, .active-card .ac-title, .ad-btn, .ad-read, .addsub button, .adv-toggle, .adv-toggle .hash, .att-fold, .att-step, .att-task, .bang, .btn-accent, .btn-soft, .btn-text, .chip, .cl-grp, .cl-seg button, .ctl-label, .dcal-head, .err-banner, .err-banner button, .err-strip, .etab, .field > label, .fmtbar b, .inc-b, .inc-mini button, .inc-part, .ip-h, .logo, .mark, .md-h, .md-h .hash, .mv-count, .pchip, .pill-top button.undo-btn, .recorder, .saved, .sec, .sec .hash, .seg-btn, .sh-chk, .sh-optsum .opt-g, .sh-sec, .sh-sec .hash, .sh-tools .seg-btn .cnt, .side-title, .slabel .lbl, .slabel label, .step, .sub .sb, .subs-list li .sb, .subs-list li .sbp, .subs-list.selecting li[data-sub], .tab, .tab .cnt.bad, .tcustom .tag, .time-up, .timer-chip, .tp-left, .tp-of, .tp-stop, .tt-aa, .tt-nm, .tu-stop, .tw-item, .tw-sep, .undo-btn, .undo-label b, .unit-field .unit, .upd, .wrow .chk, .wrow.is-now .wtitle, .wsubrow .sb) { -webkit-text-stroke-width: 0; }
+:root[data-bg]:lang(ar) { --font-hand: 'Marhey', 'Sakkal Majalla', 'Segoe UI', sans-serif; --hand-wt: 300; --hand-stroke: 0px; }
+:root[data-bg][data-hand-ar="ruqaa"]:lang(ar) { --font-hand: 'Aref Ruqaa', 'Sakkal Majalla', 'Segoe UI', sans-serif; --hand-wt: 400; }
 /* a touch of air between the hand-drawn letters (owner 2026-10-10); inherited. Never in Arabic: spacing breaks its joined script */
 :root[data-bg="dot"], :root[data-bg="kraft"] { letter-spacing: 0.035em; }
 /* the priority bangs are pulled tight (-1px) for the wide monospace "!"; the hand fonts' "!" is a thin stroke, so there they
@@ -499,14 +543,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 :root[data-bg="dot"] .subs-list li .sbp, :root[data-bg="kraft"] .subs-list li .sbp { width: auto; min-width: 3.2ch; }
 :root[data-bg="dot"]:lang(ar), :root[data-bg="kraft"]:lang(ar) { letter-spacing: normal; }
 :root[data-bg="dot"] {
-  --font-hand: 'Patrick Hand', 'Segoe Print', 'Ink Free', cursive;
   --paper: var(--pp-dot-paper); --card: var(--pp-dot-card); --input: var(--pp-dot-card); --head: var(--pp-dot-paper); --pill-bg: var(--pp-dot-paper);
   --ink: var(--pp-dot-ink); --muted: var(--pp-dot-muted); --faint: var(--pp-dot-faint); --island-muted: var(--pp-dot-muted); --island-faint: var(--pp-dot-faint);
   --p3: var(--pp-dot-p3); --p2: var(--pp-dot-p2); --p1: var(--pp-dot-p1); --ok: var(--pp-dot-ok); --danger: var(--pp-dot-p3); --sheet-rgb: var(--pp-dot-sheet);
   --pattern: radial-gradient(circle, var(--pp-dot-dot) 1.15px, transparent 1.6px); --pattern-size: 18px 18px;
 }
 :root[data-bg="kraft"] {
-  --font-hand: 'Gochi Hand', 'Ink Free', 'Segoe Print', cursive;
   --paper: var(--pp-kraft-paper); --card: var(--pp-kraft-card); --input: var(--pp-kraft-card); --head: var(--pp-kraft-paper); --pill-bg: var(--pp-kraft-paper);
   --ink: var(--pp-kraft-ink); --muted: var(--pp-kraft-muted); --faint: var(--pp-kraft-faint); --island-muted: var(--pp-kraft-muted); --island-faint: var(--pp-kraft-faint);
   --p3: var(--pp-kraft-p3); --p2: var(--pp-kraft-p2); --p1: var(--pp-kraft-p1); --ok: var(--pp-kraft-ok); --danger: var(--pp-kraft-p3); --sheet-rgb: var(--pp-kraft-sheet);
@@ -522,7 +564,20 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 :root[data-bg="kraft"][data-accent="teal"] { --accent: var(--pp-kraft-acc-teal); }
 :root[data-bg="kraft"][data-accent="pink"] { --accent: var(--pp-kraft-acc-pink); }
 :root[data-bg="kraft"][data-accent="graphite"] { --accent: var(--pp-kraft-acc-graphite); }
-:root[data-bg="dot"]:lang(ar), :root[data-bg="kraft"]:lang(ar) { --font-hand: 'Aref Ruqaa', 'Sakkal Majalla', 'Segoe UI', sans-serif; }
+/* the fleck colour patterns draw with; every pattern works on both papers (owner picks 2026-10-17: dot grid · kraft fibers ·
+   ruled lines · plain cardstock); html[data-pattern] is set by UI.applyTheme, else the paper keeps its own */
+:root[data-bg="dot"] { --pp-fleck: var(--pp-dot-dot); } :root[data-bg="kraft"] { --pp-fleck: var(--pp-kraft-dot); }
+:root[data-bg][data-pattern="dots"] { --pattern: radial-gradient(circle, var(--pp-fleck) 1.15px, transparent 1.6px); --pattern-size: 18px 18px; }
+:root[data-bg][data-pattern="fibers"] { --pattern: radial-gradient(circle at 20% 30%, var(--pp-fleck) 0 1px, transparent 1.5px), radial-gradient(circle at 70% 60%, var(--pp-fleck) 0 1px, transparent 1.5px), radial-gradient(circle at 40% 80%, var(--pp-fleck) 0 .8px, transparent 1.3px); --pattern-size: 23px 19px, 31px 27px, 17px 29px; }
+:root[data-bg][data-pattern="lines"] { --pattern: linear-gradient(to bottom, transparent 27px, var(--pp-fleck) 27px, var(--pp-fleck) 28px); --pattern-size: 100% 28px; }
+:root[data-bg][data-pattern="plain"] { --pattern: none; }
+/* the second shade (owner picks 2026-10-17): data-shade-l="alt" / data-shade-d="alt" swap a paper for its *-alt tokens in that scheme */
+@media (prefers-color-scheme: light) { :root[data-shade-l="alt"] { --pp-dot-paper: var(--pp-dot-paper-alt); --pp-dot-card: var(--pp-dot-card-alt); --pp-dot-dot: var(--pp-dot-dot-alt); --pp-dot-sheet: var(--pp-dot-sheet-alt);
+  --pp-kraft-paper: var(--pp-kraft-paper-alt); --pp-kraft-card: var(--pp-kraft-card-alt); --pp-kraft-dot: var(--pp-kraft-dot-alt); --pp-kraft-sheet: var(--pp-kraft-sheet-alt); } }
+@media (prefers-color-scheme: dark) { :root[data-shade-d="alt"] { --pp-dot-paper: var(--pp-dot-paper-alt); --pp-dot-card: var(--pp-dot-card-alt); --pp-dot-dot: var(--pp-dot-dot-alt); --pp-dot-sheet: var(--pp-dot-sheet-alt);
+  --pp-kraft-paper: var(--pp-kraft-paper-alt); --pp-kraft-card: var(--pp-kraft-card-alt); --pp-kraft-dot: var(--pp-kraft-dot-alt); --pp-kraft-sheet: var(--pp-kraft-sheet-alt); } }
+/* Gochi Hand reads heavy: a softer ink (owner 2026-10-17 "even lighter"), gated ≥ 4.5:1 */
+:root[data-bg="dot"][data-hand="gochi"] { --ink: var(--pp-dot-ink-soft); } :root[data-bg="kraft"][data-hand="gochi"] { --ink: var(--pp-kraft-ink-soft); }
 /* Frosted on notebook paper (owner 2026-10-10): no glass to blur, but the flat Apple controls apply. In light the white
    push buttons / thumb / fields become the paper's own card, so nothing glows white on brown kraft or dotted paper. */
 @media (prefers-color-scheme: light) {

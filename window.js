@@ -115,13 +115,13 @@ function doneRowHtml(d) {
   const hasDetail = !!(notes.length || subs.length), open = hasDetail && (openRows.has(ck(d.id)));
   const body = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${notes.map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done${open ? ' open' : ''}${hasDetail ? ' has-detail' : ''}" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(plain(d.title))}"${hasDetail ? ` aria-expanded="${open}"` : ''}>
     <span class="chk checked view" aria-hidden="true"></span>
     <div class="wrow-main">
-      <span class="wtitle"><span class="tt">${inline(d.title)}</span></span>
+      <span class="wtitle"><span class="tt">${window.UI.taskIcon(d.icon)}${inline(d.title)}</span></span>
       ${body}
       ${!open && subs.length ? `<div class="wsub">${subs.filter(s => s.done).length}/${subs.length} subtasks</div>` : ''}
     </div>
@@ -134,13 +134,13 @@ function rowHtml(t) {
   const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (openRows.has(t.id));
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="true"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="true"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} ${t.shadow ? 'data-shadow draggable="false"' : 'draggable="true"'}>
     <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(plain(t.title))}"></button>
     <div class="wrow-main">
-      <span class="wtitle"><span class="tt">${inline(t.title)}</span></span>
+      <span class="wtitle"><span class="tt">${window.UI.taskIcon(t.icon)}${inline(t.title)}</span></span>
       ${expandBody}
       ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
     </div>
@@ -881,6 +881,88 @@ function setAppear(v) {
   document.querySelectorAll('#appear-seg .seg-btn').forEach(b => { const on = b.dataset.appear === v; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
 }
 document.querySelectorAll('#appear-seg .seg-btn').forEach(b => b.addEventListener('click', () => { setAppear(b.dataset.appear); autoSave(); }));
+// ---- theme presets (owner 2026-10-18): a tile = the whole look in one pick (apply-theme writes the patch, ONE Undo).
+// The tiles always mirror the settings (THEMES.themeOf, derived); any knob off a theme reads Custom, Back returns to the last one. ----
+let lastThemeId = 'mist';
+try { lastThemeId = localStorage.getItem('look.lastTheme') || 'mist'; } catch (e) {}
+const themeName = t => LANG === 'ar' ? t.ar : t.en;
+function renderThemeTiles(selId) {
+  $('theme-tiles').innerHTML = window.THEMES.THEMES.map(t =>
+    `<button class="ttile${t.id === selId ? ' sel' : ''}" type="button" role="radio" data-theme="${t.id}" title="${esc(themeName(t))}" aria-checked="${t.id === selId}"><span class="tt-pv" data-pv="${t.v.islandTheme}" data-hand="${t.v.paperHand || ''}" data-pattern="${t.v.paperPattern || ''}" aria-hidden="true"><span class="tt-aa">Aa</span><span class="tt-ab">أب</span></span><span class="tt-nm"><span class="tt-dot" data-acc="${t.v.accent}"></span><span>${esc(themeName(t))}</span></span></button>`).join('');
+  [...$('theme-tiles').children].forEach((b, i) => b.tabIndex = (selId ? b.dataset.theme === selId : i === 0) ? 0 : -1);
+}
+function updateThemeRow(s) {
+  const cur = window.THEMES.themeOf(s);
+  if (cur) { lastThemeId = cur.id; try { localStorage.setItem('look.lastTheme', lastThemeId); } catch (e) {} }
+  renderThemeTiles(cur ? cur.id : null);
+  $('theme-custom').hidden = !!cur;
+  if (!cur) {
+    const t = window.THEMES.byId(lastThemeId) || window.THEMES.THEMES[0];
+    $('theme-from').textContent = T('set.theme.from', { t: themeName(t) });
+    $('theme-back').textContent = T('set.theme.back', { t: themeName(t) });
+  }
+}
+async function applyThemePreset(id) {
+  window.SFX.play('tick');
+  const r = await window.api.applyTheme(id);
+  if (r && r.ok) await loadSettings(); // re-read what main now stores (the form + tiles follow)
+}
+$('theme-tiles').addEventListener('click', e => { const b = e.target.closest('.ttile'); if (b) applyThemePreset(b.dataset.theme); });
+$('theme-back').addEventListener('click', () => applyThemePreset(lastThemeId));
+$('theme-tiles').addEventListener('keydown', e => { // a roving radiogroup, like the island-theme tiles
+  const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  if (!d) return;
+  e.preventDefault();
+  const tiles = [...$('theme-tiles').children];
+  const rtl = document.documentElement.dir === 'rtl' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft');
+  const i = tiles.indexOf(document.activeElement), n = (i + (rtl ? -d : d) + tiles.length) % tiles.length;
+  tiles[n].focus(); // arrows only move; Enter / Space applies (one theme switch = one Undo, not one per arrow press)
+});
+// "Customize theme" drawer (owner 2026-10-18): every knob of the look, like the Advanced drawer
+function setLookAdvanced(open) {
+  $('look-advanced').hidden = !open; $('look-adv-toggle').setAttribute('aria-expanded', String(open));
+  const st = $('look-adv-state'); st.dataset.i18n = open ? 'set.adv.hide' : 'set.adv.show'; st.textContent = T(st.dataset.i18n);
+  try { localStorage.setItem('ti-look-adv-open', open ? '1' : '0'); } catch (e) {}
+}
+$('look-adv-toggle').addEventListener('click', () => setLookAdvanced($('look-advanced').hidden));
+try { setLookAdvanced(localStorage.getItem('ti-look-adv-open') === '1'); } catch (e) { setLookAdvanced(false); }
+// the paper knobs (owner 2026-10-18): segments inside Customize theme; the shade options follow the paper
+const paperSel = { ...window.THEMES.DEFAULTS };
+const SHADES = {
+  kraft: { light: [['light', 'set.shade.light', '#dcc39f'], ['lighter', 'set.shade.lighter', '#d3b68e']], dark: null }, // kraft dark has one shade
+  dot: { light: [['warm', 'set.shade.warm', '#f7f5ef'], ['today', 'set.shade.today', '#efeeea']],
+    dark: [['slate', 'set.shade.slate', '#2a2d33'], ['today', 'set.shade.today', '#232326']] },
+};
+const SHADE_KEYS = { kraft: { light: 'kraftShadeLight' }, dot: { light: 'dotShadeLight', dark: 'dotShadeDark' } };
+function markSeg(id, val) { document.querySelectorAll('#' + id + ' .seg-btn').forEach(b => { const on = b.dataset.v === val; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); }); }
+function renderShadeSegs(s) {
+  const paper = window.THEMES.isPaper(s);
+  $('paper-rows').hidden = !paper;
+  $('glass-row').hidden = paper; // paper is solid: no frost level
+  document.querySelector('#mat-seg [data-mat="liquid"]').disabled = paper; // notebook = Frosted only
+  $('mat-note').hidden = !paper;
+  if (paper) setMat('frosted'); // main forces it; the segment shows it
+  for (const which of ['light', 'dark']) {
+    const list = paper && SHADES[s.islandTheme] ? SHADES[s.islandTheme][which] : null;
+    $('shade-' + which + '-row').hidden = !list;
+    if (!list) continue;
+    const key = SHADE_KEYS[s.islandTheme][which], cur = paperSel[key];
+    $('shade-' + which + '-seg').innerHTML = list.map(([v, k, c]) =>
+      `<button class="seg-btn${cur === v ? ' sel' : ''}" type="button" role="radio" data-v="${v}" data-key="${key}" aria-checked="${cur === v}"><span class="shade-dot" style="background:${c}"></span>${T(k)}</button>`).join('');
+  }
+}
+for (const id of ['shade-light-seg', 'shade-dark-seg']) $(id).addEventListener('click', e => {
+  const b = e.target.closest('.seg-btn'); if (!b) return;
+  paperSel[b.dataset.key] = b.dataset.v; autoSave();
+});
+for (const [id, key] of [['pattern-seg', 'paperPattern'], ['hand-seg', 'paperHand'], ['hand-ar-seg', 'paperHandAr']])
+  document.querySelectorAll('#' + id + ' .seg-btn').forEach(b => b.addEventListener('click', () => { paperSel[key] = b.dataset.v; autoSave(); }));
+function syncPaperForm(s) { // the form follows stored settings: knobs (normalized), tiles, and the paper/glass state
+  const ns = window.THEMES.normalize(s);
+  for (const k of Object.keys(paperSel)) paperSel[k] = ns[k];
+  markSeg('pattern-seg', paperSel.paperPattern); markSeg('hand-seg', paperSel.paperHand); markSeg('hand-ar-seg', paperSel.paperHandAr);
+  updateThemeRow(s); renderShadeSegs(s);
+}
 // Advanced settings: collapsed by default; the open/closed choice is remembered per viewer (a convenience only)
 function setAdvanced(open) {
   $('set-advanced').hidden = !open; $('adv-toggle').setAttribute('aria-expanded', String(open));
@@ -889,7 +971,7 @@ function setAdvanced(open) {
 }
 $('adv-toggle').addEventListener('click', () => setAdvanced($('set-advanced').hidden));
 try { setAdvanced(localStorage.getItem('ti-adv-open') === '1'); } catch (e) { setAdvanced(false); }
-window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); refresh(); });
+window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); if (snap && snap.settings) syncPaperForm(snap.settings); refresh(); });
 function fstat(id, msg, kind) {
   const el = document.querySelector(`.fstat[data-for="${id}"]`);
   if (!el) return;
@@ -905,6 +987,7 @@ async function loadSettings() {
   setBg(window.UI.BG_THEMES.includes(s.islandTheme) ? s.islandTheme : 'mist');
   setAppear(s.appearance || 'system');
   setMat(s.material);
+  syncPaperForm(s); // theme tiles + paper knobs + the paper/glass drawer state
   $('set-work-rem').checked = s.workRemindersOn !== false; $('set-work-interval').value = s.workIntervalMin;
   $('set-off-rem').checked = s.offRemindersOn !== false; $('set-off-interval').value = s.offIntervalMin;
   $('set-work-interval').disabled = !$('set-work-rem').checked; $('set-off-interval').disabled = !$('set-off-rem').checked;
@@ -1005,6 +1088,7 @@ async function saveSettings() {
     mode: $('set-mode').value,
     uiLang: langSel,
     glassLevel: glassStep.value, accent: accentSel, islandTheme: bgSel, appearance: appearSel, material: matSel, labelSize: labelStep.value, taskSize: taskStep.value,
+    ...paperSel, // the paper knobs (Customize theme, owner 2026-10-18)
     workPath: $('set-work').value.trim() || undefined,
     personalPath: $('set-personal').value.trim() || undefined
   });
@@ -1025,6 +1109,7 @@ async function saveSettings() {
     return false;
   }
   const s = (await window.api.getSnapshot()).settings;
+  syncPaperForm(s); // a knob that left its theme turns the tiles Custom; the paper/glass state follows
   $('work-name').textContent = baseName(s.workPath); $('work-name').title = s.workPath;
   $('personal-name').textContent = baseName(s.personalPath); $('personal-name').title = s.personalPath;
   statusFlash(T('set.save.saved'));
@@ -1074,7 +1159,7 @@ window.api.onShowUndo(d => {
         freshFrom = null;
         notice(r.reason === 'changed' ? `Can't undo — ${r.files.join(', ')} changed since.` : 'Undo expired.', 'bad');
       }
-      if (r && r.ok && d.kind === 'settings') { await loadSettings(); } // a settings reset came back — re-fill the form
+      if (r && r.ok && (d.kind === 'settings' || d.kind === 'theme')) { await loadSettings(); } // a settings reset came back — re-fill the form
     }
   });
 });

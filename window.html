@@ -101,6 +101,13 @@
         </section>
         <section class="sgroup">
         <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.look">Look</span></h2>
+        <div class="srow tt-row">
+          <div class="slabel"><label id="theme-lbl" data-i18n="set.theme">Theme</label><span class="shint" data-i18n="set.theme.hint">the whole look in one pick</span></div>
+          <div class="sctl">
+            <div class="ttiles" id="theme-tiles" role="radiogroup" aria-labelledby="theme-lbl"></div>
+            <div class="tcustom" id="theme-custom" hidden><span class="tag" data-i18n="set.theme.custom">Custom</span> <span id="theme-from"></span> <button class="btn-text" id="theme-back" type="button"></button></div>
+          </div>
+        </div>
         <div class="srow">
           <div class="slabel"><label id="appear-lbl" data-i18n="set.appear">Appearance</label><span class="shint" data-i18n="set.appear.hint">light or dark for every window, or follow Windows</span></div>
           <div class="sctl">
@@ -112,16 +119,39 @@
           </div>
         </div>
         <div class="srow">
-          <div class="slabel"><label id="mat-lbl" data-i18n="set.mat">Material</label><span class="shint" data-i18n="set.mat.hint">how the glass looks in every window</span></div>
+          <div class="slabel"><label id="label-size-lbl" data-i18n="set.labelSize">Label size</label><span class="shint" data-i18n="set.labelSize.hint">buttons, headings and hints</span></div>
           <div class="sctl">
-            <div class="seg" id="mat-seg" role="radiogroup" aria-labelledby="mat-lbl">
-              <button class="seg-btn" data-mat="liquid" type="button" role="radio" data-i18n="set.mat.liquid">Liquid glass</button>
-              <button class="seg-btn" data-mat="frosted" type="button" role="radio" data-i18n="set.mat.frosted">Frosted</button>
+            <div class="steps" id="label-size-steps" role="radiogroup" aria-labelledby="label-size-lbl">
+              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.size.0">S</button>
+              <button class="step" type="button" role="radio" data-glass="1" data-i18n="set.size.1">M</button>
+              <button class="step" type="button" role="radio" data-glass="2" data-i18n="set.size.2">L</button>
+              <button class="step" type="button" role="radio" data-glass="3" data-i18n="set.size.3">XL</button>
+              <button class="step" type="button" role="radio" data-glass="4" data-i18n="set.size.4">XXL</button>
+              <button class="step" type="button" role="radio" data-glass="5" data-i18n="set.size.5">3XL</button>
             </div>
           </div>
         </div>
         <div class="srow">
-          <div class="slabel"><label id="bg-lbl" data-i18n="set.bg">Theme</label><span class="shint" data-i18n="set.bg.hint">the picture under the island's glass; this window's color field follows it</span></div>
+          <div class="slabel"><label id="task-size-lbl" data-i18n="set.taskSize">Task text size</label><span class="shint" data-i18n="set.taskSize.hint">task titles in the island and here</span></div>
+          <div class="sctl">
+            <div class="steps" id="task-size-steps" role="radiogroup" aria-labelledby="task-size-lbl">
+              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.size.0">S</button>
+              <button class="step" type="button" role="radio" data-glass="1" data-i18n="set.size.1">M</button>
+              <button class="step" type="button" role="radio" data-glass="2" data-i18n="set.size.2">L</button>
+              <button class="step" type="button" role="radio" data-glass="3" data-i18n="set.size.3">XL</button>
+              <button class="step" type="button" role="radio" data-glass="4" data-i18n="set.size.4">XXL</button>
+              <button class="step" type="button" role="radio" data-glass="5" data-i18n="set.size.5">3XL</button>
+            </div>
+          </div>
+        </div>
+        <button class="adv-toggle" id="look-adv-toggle" type="button" aria-expanded="false" aria-controls="look-advanced">
+          <span class="adv-title"><span class="adv-name"><span class="hash">##</span> <span data-i18n="set.look.adv">Customize theme</span></span>
+            <span class="shint" data-i18n="set.look.adv.hint">every knob of the look — changing one makes it Custom</span></span>
+          <span class="btn-soft sm adv-pill"><span id="look-adv-state" data-i18n="set.adv.show">Show</span><svg class="ic chev" data-icon="chevronDown" viewBox="0 0 24 24"></svg></span>
+        </button>
+        <div class="adv look-adv" id="look-advanced" hidden>
+        <div class="srow">
+          <div class="slabel"><label id="bg-lbl" data-i18n="set.bg2">Island theme</label><span class="shint" data-i18n="set.bg.hint">the picture under the island's glass; this window's color field follows it</span></div>
           <div class="sctl">
             <div class="bgsws" id="bg-sw" role="radiogroup" aria-labelledby="bg-lbl">
               <button class="bgsw" type="button" role="radio" data-bg="mist" data-i18n-title="set.bg.mist" data-i18n-aria="set.bg.mist"></button>
@@ -134,6 +164,16 @@
           </div>
         </div>
         <div class="srow">
+          <div class="slabel"><label id="mat-lbl" data-i18n="set.mat">Material</label><span class="shint" data-i18n="set.mat.hint">how the glass looks in every window</span></div>
+          <div class="sctl">
+            <div class="seg" id="mat-seg" role="radiogroup" aria-labelledby="mat-lbl">
+              <button class="seg-btn" data-mat="liquid" type="button" role="radio" data-i18n="set.mat.liquid">Liquid glass</button>
+              <button class="seg-btn" data-mat="frosted" type="button" role="radio" data-i18n="set.mat.frosted">Frosted</button>
+            </div>
+            <p class="note" id="mat-note" hidden data-i18n="set.mat.paperOnly">Notebook themes are Frosted only</p>
+          </div>
+        </div>
+        <div class="srow" id="glass-row">
           <div class="slabel"><label id="glass-lbl" data-i18n="set.glass">Glass</label><span class="shint" data-i18n="set.glass.hint">how much of your screen shows through the island</span></div>
           <div class="sctl">
             <div class="steps" id="glass-steps" role="radiogroup" aria-labelledby="glass-lbl">
@@ -157,27 +197,42 @@
             </div>
           </div>
         </div>
-        <div class="srow">
-          <div class="slabel"><label id="label-size-lbl" data-i18n="set.labelSize">Label size</label><span class="shint" data-i18n="set.labelSize.hint">buttons, headings and hints</span></div>
-          <div class="sctl">
-            <div class="steps" id="label-size-steps" role="radiogroup" aria-labelledby="label-size-lbl">
-              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.size.0">S</button>
-              <button class="step" type="button" role="radio" data-glass="1" data-i18n="set.size.1">M</button>
-              <button class="step" type="button" role="radio" data-glass="2" data-i18n="set.size.2">L</button>
-              <button class="step" type="button" role="radio" data-glass="3" data-i18n="set.size.3">XL</button>
-            </div>
+        <div id="paper-rows" hidden>
+          <h3 class="md-h sub"><span class="hash">##</span> <span data-i18n="set.paper">Notebook paper</span></h3>
+          <div class="srow" id="shade-light-row" hidden>
+            <div class="slabel"><label id="shade-l-lbl" data-i18n="set.shadeL">Light paper shade</label></div>
+            <div class="sctl"><div class="seg" id="shade-light-seg" role="radiogroup" aria-labelledby="shade-l-lbl"></div></div>
+          </div>
+          <div class="srow" id="shade-dark-row" hidden>
+            <div class="slabel"><label id="shade-d-lbl" data-i18n="set.shadeD">Dark paper shade</label></div>
+            <div class="sctl"><div class="seg" id="shade-dark-seg" role="radiogroup" aria-labelledby="shade-d-lbl"></div></div>
+          </div>
+          <div class="srow">
+            <div class="slabel"><label id="pattern-lbl" data-i18n="set.pattern">Pattern</label></div>
+            <div class="sctl"><div class="seg" id="pattern-seg" role="radiogroup" aria-labelledby="pattern-lbl">
+              <button class="seg-btn" data-v="fibers" type="button" role="radio" data-i18n="set.pattern.fibers">Kraft fibers</button>
+              <button class="seg-btn" data-v="dots" type="button" role="radio" data-i18n="set.pattern.dots">Dot grid</button>
+              <button class="seg-btn" data-v="lines" type="button" role="radio" data-i18n="set.pattern.lines">Ruled lines</button>
+              <button class="seg-btn" data-v="plain" type="button" role="radio" data-i18n="set.pattern.plain">Plain</button>
+            </div></div>
+          </div>
+          <div class="srow">
+            <div class="slabel"><label id="hand-lbl" data-i18n="set.hand">Hand font</label></div>
+            <div class="sctl"><div class="seg" id="hand-seg" role="radiogroup" aria-labelledby="hand-lbl">
+              <button class="seg-btn" data-v="architects" type="button" role="radio" style="font-family:'Architects Daughter'">Architects Daughter</button>
+              <button class="seg-btn" data-v="shantell" type="button" role="radio" style="font-family:'Shantell Sans'">Shantell Sans</button>
+              <button class="seg-btn" data-v="caveat" type="button" role="radio" style="font-family:'Caveat'">Caveat</button>
+              <button class="seg-btn" data-v="gochi" type="button" role="radio" style="font-family:'Gochi Hand'">Gochi Hand</button>
+            </div></div>
+          </div>
+          <div class="srow">
+            <div class="slabel"><label id="hand-ar-lbl" data-i18n="set.handAr">Arabic hand</label></div>
+            <div class="sctl"><div class="seg" id="hand-ar-seg" role="radiogroup" aria-labelledby="hand-ar-lbl">
+              <button class="seg-btn" data-v="marhey" type="button" role="radio" lang="ar" style="font-family:'Marhey'"><span>أبجد</span> Marhey</button>
+              <button class="seg-btn" data-v="ruqaa" type="button" role="radio" lang="ar" style="font-family:'Aref Ruqaa'"><span>أبجد</span> Aref Ruqaa</button>
+            </div></div>
           </div>
         </div>
-        <div class="srow">
-          <div class="slabel"><label id="task-size-lbl" data-i18n="set.taskSize">Task text size</label><span class="shint" data-i18n="set.taskSize.hint">task titles in the island and here</span></div>
-          <div class="sctl">
-            <div class="steps" id="task-size-steps" role="radiogroup" aria-labelledby="task-size-lbl">
-              <button class="step" type="button" role="radio" data-glass="0" data-i18n="set.size.0">S</button>
-              <button class="step" type="button" role="radio" data-glass="1" data-i18n="set.size.1">M</button>
-              <button class="step" type="button" role="radio" data-glass="2" data-i18n="set.size.2">L</button>
-              <button class="step" type="button" role="radio" data-glass="3" data-i18n="set.size.3">XL</button>
-            </div>
-          </div>
         </div>
         </section>
         <section class="sgroup">
@@ -343,7 +398,10 @@
         <p class="empty" id="ed-missing" hidden data-i18n="ed.missing">Task not found — it may have been completed or removed.</p>
         <div id="ed-form">
           <div class="field"><label for="ed-title"><span data-i18n="ed.task">Task</span> <span class="label-hint" data-i18n="ed.task.hint">— first line is the title, lines below become its description</span></label>
-            <textarea id="ed-title" rows="1" spellcheck="false"></textarea>
+            <div class="title-wrap"><!-- the task icon (owner 2026-10-15): picked here, kept in app state -->
+              <button class="ticon-btn" id="ed-icon" type="button" aria-haspopup="dialog" aria-expanded="false" data-i18n-title="ti.pick" data-i18n-aria="ti.pick"></button>
+              <textarea id="ed-title" rows="1" spellcheck="false"></textarea>
+            </div>
           </div>
           <div class="field-row"><!-- owner 2026-09-30: Priority and Now share one line -->
             <div class="field"><label data-i18n="win.lbl.priority">Priority</label>
@@ -360,7 +418,7 @@
             <div class="chips" id="ed-due" aria-label="Due date"></div>
           </div>
           <div class="field" id="ed-att-field"><!-- task attachments (owner 2026-10-09): pointers in app state, never the note -->
-            <label data-i18n="att.title">Attachments</label>
+            <button class="att-fold" id="ed-att-fold" type="button" aria-expanded="false" aria-controls="ed-att"><svg class="ic" data-icon="chevronDown" viewBox="0 0 24 24"></svg><span data-i18n="att.title">Attachments</span><span class="att-count" id="ed-att-count"></span></button>
             <ul class="att-list" id="ed-att"></ul>
           </div>
           <div class="field">
@@ -503,6 +561,8 @@
   <script src="locales/en.js"></script>
 <script src="locales/ar.js"></script>
 <script src="lib/i18n.js"></script>
+<script src="lib/task-icons.js"></script>
+<script src="lib/themes.js"></script>
 <script src="ui-shared.js"></script>
 <script src="lib/share.js"></script>
   <script src="panels.js"></script>

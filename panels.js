@@ -91,13 +91,15 @@
       $('ed-saved').textContent = '';
       updatePreview();
     }
+    paintIcon(t.icon);
     paintAtt(t.att || []);
     paintNoteMenu(t, s.settings && s.settings.mode);
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
+    subIcons = Object.fromEntries(t.subs.filter(x => x.i).map(x => [x.t, x.i]));
     const subs = [...t.subs.filter(x => !x.done), ...t.subs.filter(x => x.done)]; // open first (owner 2026-09-30); the note keeps its order
     $('ed-subs').innerHTML = subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}${mvPicked.has(x.t) ? ' picked' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
+      `<li class="${x.done ? 'done' : ''}${mvPicked.has(x.t) ? ' picked' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><button class="sic${x.i ? ' has' : ''}" type="button" data-subicon aria-haspopup="dialog" aria-expanded="false" title="${esc(T('ti.pick'))}" aria-label="${esc(T('ti.pickFor', { t: plain(x.t) }))}">${window.UI.taskIcon(x.i) || window.UI.icon('iconAdd')}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
     if (selecting) { for (const k of [...mvPicked]) if (!subs.some(x => x.t === k)) mvPicked.delete(k); } // a picked one that is gone
     paintSel();
@@ -172,6 +174,8 @@
     }
     if (!li || e.target.closest('.sub-edit')) return;
     if (e.target.closest('.st')) { startSubEdit(li); return; }
+    const sic = e.target.closest('[data-subicon]');
+    if (sic) { pickIcon(sic, li.dataset.sub, curSubIcon(li.dataset.sub)); return; }
     await saveNow();
     if (e.target.closest('.sub-del')) { window.SFX.play('delete'); await window.api.deleteSubtask(FILE, ID, li.dataset.sub, session); }
     else if (e.target.closest('[data-subprio]')) { // one click steps the importance: none → ! → !! → !!! → none (owner 2026-09-29)
@@ -215,22 +219,68 @@
   // state by main, never in the note. Added, edited and removed only here (and so while adding: Add opens this editor).
   // Attach → a type → for an AI session: the tool, Terminal or Desktop, then one of its recent sessions on this PC.
   // Files / folders also come by dropping them on the panel.
+  // task / subtask icons (owner 2026-10-15): picked here only, kept in app state by the hidden id (never the note).
+  // The title's icon sits inside the title field's start; each subtask has an icon slot before its text.
+  let iconNow = null, subIcons = {};
+  function paintIcon(name) {
+    iconNow = name || null;
+    const b = $('ed-icon');
+    b.innerHTML = window.UI.taskIcon(iconNow) || window.UI.icon('iconAdd');
+    b.classList.toggle('has', !!iconNow);
+  }
+  const curSubIcon = title => subIcons[title] || null;
+  function pickIcon(anchor, subTitle, current) {
+    window.SFX.play('tick');
+    window.UI.iconPicker(anchor, { current, onPick: async name => {
+      await saveNow(); // a pending title edit lands first: the task is found by its current id
+      const r = await window.api.iconSet(FILE, ID, subTitle, name);
+      if (r && r.ok) { window.SFX.play(name ? 'starOn' : 'tick'); await load(false); flashSaved(T('set.save.saved')); } else flashSaved(T('ti.fail'), true);
+    } });
+  }
+  $('ed-icon').addEventListener('click', () => pickIcon($('ed-icon'), null, iconNow));
   let att = [];
+  let attOpen = false; try { attOpen = localStorage.getItem('ed.attOpen') === '1'; } catch (e) {} // folded by default, remembered per viewer
+  function paintAttFold() {
+    $('ed-att-fold').setAttribute('aria-expanded', String(attOpen));
+    $('ed-att').hidden = !attOpen;
+  }
   function paintAtt(list) {
     att = list;
     $('ed-att-field').hidden = !list.length; // the block shows only when something is attached
-    $('ed-att').innerHTML = list.map((a, i) => `<li title="${esc(a.path || a.url || a.dir || '')}">${window.UI.icon(window.UI.attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(window.UI.attHint(a))}</span><button class="sub-del" type="button" data-attdel="${i}" aria-label="${esc(T('att.del', { t: a.name }))}">&times;</button></li>`).join('');
+    $('ed-att-count').textContent = list.length ? '· ' + list.length : '';
+    paintAttFold();
+    $('ed-att').innerHTML = list.map((a, i) => `<li data-i="${i}" tabindex="0" role="button" title="${esc(a.path || a.url || a.dir || '')}">${window.UI.icon(window.UI.attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(window.UI.attHint(a))}</span><button class="sub-del" type="button" data-attdel="${i}" aria-label="${esc(T('att.del', { t: a.name }))}">&times;</button></li>`).join('');
   }
   async function saveAtt(list) {
     await saveNow(); // a pending title edit lands first: attachments are filed under the task's title
     const r = await window.api.attSet(FILE, ID, list);
     if (r && r.ok) { paintAtt(r.att); flashSaved(T('set.save.saved')); } else flashSaved(T('att.fail'), true);
   }
+  async function openAtt(li, i) { // same feedback as the peek: copied says so, a failure turns the hint red
+    const r = await window.api.attOpen(FILE, ID, i);
+    const hint = li.querySelector('.ah');
+    if (r && r.copied) {
+      li.classList.add('ok'); hint.textContent = T('att.copied');
+      setTimeout(() => { li.classList.remove('ok'); if (att[i]) hint.textContent = window.UI.attHint(att[i]); }, 1400);
+    } else if (!r || !r.ok) { li.classList.add('bad'); setTimeout(() => li.classList.remove('bad'), 1400); }
+  }
   $('ed-att').addEventListener('click', e => {
     const d = e.target.closest('[data-attdel]');
-    if (!d) return;
-    window.SFX.play('delete');
-    saveAtt(att.filter((_, i) => i !== +d.dataset.attdel));
+    if (d) { window.SFX.play('delete'); saveAtt(att.filter((_, i) => i !== +d.dataset.attdel)); return; }
+    const li = e.target.closest('li[data-i]');
+    if (li) openAtt(li, +li.dataset.i);
+  });
+  $('ed-att').addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target.closest('button')) return; // the × keeps its own click
+    const li = e.target.closest('li[data-i]');
+    if (li) { e.preventDefault(); openAtt(li, +li.dataset.i); }
+  });
+  $('ed-att-fold').addEventListener('click', () => {
+    attOpen = !attOpen;
+    try { localStorage.setItem('ed.attOpen', attOpen ? '1' : '0'); } catch (e) {}
+    window.SFX.play('tick');
+    paintAttFold();
   });
   // the Attach steps take over the WHOLE editor view (owner 2026-10-09); the task's name stays on top. Back steps back,
   // and from the first step (or Esc, or once something is attached) the normal editor returns.

@@ -537,6 +537,46 @@ header .upd { margin-inline-start: var(--s-3); }
 .bgsw.sel { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
 .bgsw:focus-visible { outline: 2px solid var(--ink); outline-offset: 5px; }
 
+/* Settings → Look: theme preset tiles (owner 2026-10-18) — the quick pick; every knob lives in "Customize theme".
+   Minimal layout only: Claude's tile painting (.tt-pv colors, .tt-dot) lands on top of these. */
+.srow.tt-row .sctl { width: auto; flex: 1; min-width: 0; align-items: stretch; }
+.ttiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); gap: 6px; } /* 30% smaller (owner 2026-10-18: took too much room) */
+.ttile { border: 0; padding: 0; background: none; cursor: pointer; text-align: start; font: inherit; color: var(--ink); border-radius: 12px; }
+.ttile:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.tt-pv { display: block; height: 45px; border-radius: 8px; box-shadow: inset 0 0 0 1px var(--rule); }
+.ttile.sel .tt-pv { box-shadow: 0 0 0 2px var(--accent); }
+.tt-nm { display: flex; align-items: center; gap: 4px; margin-top: 3px; font-size: var(--fs-1); font-weight: 600; min-width: 0; }
+.tt-nm > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tt-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--accent); }
+.tcustom { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 8px; font-size: var(--fs-2); color: var(--muted); }
+.tcustom .tag { font-weight: 600; color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); padding: 3px 10px; border-radius: 999px; }
+/* theme tiles painted (Claude, 2026-10-18): each tile previews ITS theme whatever is on now — glass = the theme's mesh
+   (tokens flip light/dark by themselves), paper = its paper + pattern + hand; "Aa أب" in the theme's own type; the dot = its colour */
+.tt-pv { position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; gap: 5px; font-family: var(--font-sans); color: var(--ink); -webkit-text-stroke: 0; letter-spacing: 0; }
+.tt-aa { font-size: 15px; font-weight: 600; } .tt-ab { font-size: 13px; font-family: 'Segoe UI', sans-serif; }
+.tt-pv[data-pv="mist"] { background: radial-gradient(60% 80% at 18% 25%, var(--bg-mist-1), transparent 70%), radial-gradient(60% 80% at 82% 35%, var(--bg-mist-2), transparent 70%), radial-gradient(70% 90% at 50% 110%, var(--bg-mist-3), transparent 70%), var(--bg-mist-0); }
+.tt-pv[data-pv="dusk"] { background: radial-gradient(60% 80% at 18% 25%, var(--bg-dusk-1), transparent 70%), radial-gradient(60% 80% at 82% 35%, var(--bg-dusk-2), transparent 70%), radial-gradient(70% 90% at 50% 110%, var(--bg-dusk-3), transparent 70%), var(--bg-dusk-0); }
+.tt-pv[data-pv="lagoon"] { background: radial-gradient(60% 80% at 18% 25%, var(--bg-lagoon-1), transparent 70%), radial-gradient(60% 80% at 82% 35%, var(--bg-lagoon-2), transparent 70%), radial-gradient(70% 90% at 50% 110%, var(--bg-lagoon-3), transparent 70%), var(--bg-lagoon-0); }
+.tt-pv[data-pv="bloom"] { background: radial-gradient(60% 80% at 18% 25%, var(--bg-bloom-1), transparent 70%), radial-gradient(60% 80% at 82% 35%, var(--bg-bloom-2), transparent 70%), radial-gradient(70% 90% at 50% 110%, var(--bg-bloom-3), transparent 70%), var(--bg-bloom-0); }
+.tt-pv[data-pv="dune"] { background: radial-gradient(60% 80% at 18% 25%, var(--bg-dune-1), transparent 70%), radial-gradient(60% 80% at 82% 35%, var(--bg-dune-2), transparent 70%), radial-gradient(70% 90% at 50% 110%, var(--bg-dune-3), transparent 70%), var(--bg-dune-0); }
+.tt-pv[data-pv="kraft"] { background-color: var(--pp-kraft-paper); color: var(--pp-kraft-ink); }
+.tt-pv[data-pv="dot"] { background-color: var(--pp-dot-paper); color: var(--pp-dot-ink); }
+.tt-pv[data-pattern="fibers"] { background-image: radial-gradient(circle at 20% 30%, var(--pp-kraft-dot) 0 1px, transparent 1.5px), radial-gradient(circle at 70% 60%, var(--pp-kraft-dot) 0 1px, transparent 1.5px); background-size: 23px 19px, 31px 27px; }
+.tt-pv[data-pattern="dots"] { background-image: radial-gradient(circle, var(--pp-dot-dot) 1.15px, transparent 1.6px); background-size: 14px 14px; }
+.tt-pv[data-hand="architects"] .tt-aa { font-family: 'Architects Daughter', cursive; font-weight: 400; -webkit-text-stroke: 0.2px currentColor; }
+.tt-pv[data-hand="shantell"] .tt-aa { font-family: 'Shantell Sans', cursive; font-weight: 350; }
+.tt-pv:is([data-pv="kraft"], [data-pv="dot"]) .tt-ab { font-family: 'Marhey', sans-serif; font-weight: 300; }
+.tt-dot[data-acc="blue"] { background: #0859c6; } .tt-dot[data-acc="violet"] { background: #4b46d6; } .tt-dot[data-acc="teal"] { background: #006587; }
+.tt-dot[data-acc="pink"] { background: #b0279e; } .tt-dot[data-acc="graphite"] { background: #48484a; }
+@media (prefers-color-scheme: dark) { .tt-pv:not([data-pv="kraft"]):not([data-pv="dot"]) { color: #f2f2f4; }
+  .tt-dot[data-acc="blue"] { background: #5eaaff; } .tt-dot[data-acc="violet"] { background: #a3a0ff; } .tt-dot[data-acc="teal"] { background: #4fd0f0; }
+  .tt-dot[data-acc="pink"] { background: #f07fe0; } .tt-dot[data-acc="graphite"] { background: #c7c7cc; } }
+.ttile:hover .tt-pv { box-shadow: inset 0 0 0 1px var(--rule), 0 4px 12px -6px rgba(0, 0, 0, 0.3); }
+.ttile.sel .tt-pv { box-shadow: 0 0 0 2px var(--accent), 0 4px 12px -6px rgba(0, 0, 0, 0.3); }
+.look-adv { margin-top: var(--s-2); }
+.seg-btn .shade-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-inline-end: 6px; vertical-align: -2px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18); }
+.md-h.sub { font-size: var(--fs-3); margin: var(--s-3) 0 0; }
+
 /* Settings → Advanced (owner 2026-10-10: "show that it is a wrapper collapsing the next area, and its open button clear"):
    closed = a DASHED drawer outline (more inside) with a hint line and a clear Show ⌄ pill; open = a normal card whose rows
    sit behind an accent rail (they belong to the drawer); the pill says Hide ⌃. The whole row is the button. */
@@ -607,20 +647,40 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 .side-x .ic { width: 15px; height: 15px; }
 .side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: var(--s-4); }
-/* the editor's actions (⋯ · Complete) follow the content instead of sitting at the window bottom (owner 2026-10-10:
-   a short task left a big empty gap above them); a long task still scrolls and keeps them in view */
-#side-edit .side-scroll { flex: 0 1 auto; }
+/* the editor's actions (⋯ · Complete) stay pinned to the panel bottom (owner 2026-10-15; reverts 2026-10-10's
+   "follow the content", which left empty space under them on a short task) */
 .side-foot { flex: none; display: flex; flex-direction: column; gap: var(--s-2); padding: 12px var(--s-4) 14px; border-top: 1px solid var(--rule-soft); }
 .badge { font-family: var(--font-mono); font-size: var(--fs-1); color: var(--muted); background: var(--chip); border-radius: var(--r-1); padding: 2px 7px; }
 
 /* editor pieces */
 .label-hint { font-weight: 400; color: var(--faint); font-size: var(--fs-1); }
 #ed-title { width: 100%; min-height: 44px; max-height: 212px; overflow-y: auto; resize: none; line-height: 1.55; padding: 10px 13px; }
+/* the task icon button sits inside the title field's start (owner 2026-10-15); a faint smile-plus until one is picked */
+.title-wrap { position: relative; }
+.title-wrap #ed-title { padding-inline-start: 42px; }
+.ticon-btn { position: absolute; z-index: 1; top: 8px; inset-inline-start: 8px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0;
+  border: 0; border-radius: 7px; background: transparent; color: var(--faint); cursor: pointer; }
+.ticon-btn.has { color: var(--ink); }
+.ticon-btn:hover, .ticon-btn:focus-visible, .ticon-btn[aria-expanded="true"] { background: var(--hover); color: var(--ink); outline: none; }
+.ticon-btn .ic { width: 17px; height: 17px; margin: 0; vertical-align: 0; color: inherit; }
+/* each panel subtask: an icon slot before its text, always reserved (nothing shifts); empty = the smile-plus on hover */
+.subs-list .sic { flex: none; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--faint); cursor: pointer; }
+.subs-list .sic .ic { width: 15px; height: 15px; margin: 0; vertical-align: 0; color: inherit; }
+.subs-list .sic:not(.has) .ic { opacity: 0; transition: opacity 120ms ease; }
+.subs-list li:hover .sic:not(.has) .ic, .subs-list .sic:focus-visible .ic, .subs-list .sic[aria-expanded="true"] .ic { opacity: 0.85; }
+.subs-list .sic.has { color: var(--muted); }
+.subs-list .sic:hover, .subs-list .sic:focus-visible { background: var(--hover); color: var(--ink); outline: none; }
+.subs-list.selecting .sic { pointer-events: none; }
 #ed-active.sel { color: var(--accent); }
 /* owner 2026-09-30: the "will write" preview row is gone; Priority + Now share a line; the add-subtask field stays in view */
 .field-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--s-5, 24px); }
 .field-row > .field { min-width: 0; }
 #ed-form .addsub { position: sticky; bottom: calc(-1 * var(--s-4)); z-index: 2; padding-block: 8px var(--s-4); margin-bottom: calc(-1 * var(--s-4)); background: var(--card); box-shadow: 0 -1px 0 var(--rule-soft); }
+/* owner 2026-10-17: the add row sits at the bottom even with few subtasks */
+#side-edit .side-scroll { display: flex; flex-direction: column; }
+#ed-form { flex: 1 0 auto; display: flex; flex-direction: column; }
+#ed-form > .field:last-child { flex: 1 0 auto; display: flex; flex-direction: column; margin-bottom: 0; }
+#ed-form .addsub, #ed-form .move-bar { margin-top: auto; }
 .glass-on #ed-form .addsub { background: rgb(var(--sheet-rgb)); } /* opaque: rows scrolling under it must not ghost through */
 .ed-actions { display: flex; align-items: center; gap: var(--s-2); }
 .saved.bad { color: var(--danger); }
@@ -697,12 +757,21 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
    and a small step-by-step picker under it; dropping files on the panel lights the field */
 .att-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
 .att-list:empty { display: none; }
-.att-list li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 4px; border-radius: var(--r-1); }
+.att-list li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 4px; border-radius: var(--r-1); cursor: pointer; }
 .att-list li:hover { background: var(--hover); }
 .att-list .ic { width: 14px; height: 14px; flex: none; color: var(--muted); }
 .att-list .an { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .att-list .ah { flex: none; font-size: var(--fs-1); color: var(--faint); }
+.att-list li.ok .ah { color: var(--ok); }
+.att-list li.bad .ah { color: var(--danger); }
 .att-list .sub-del { margin-inline-start: 0; }
+/* the fold header: a quiet text button that reads like the field labels */
+.att-fold { display: flex; align-items: center; gap: 6px; border: 0; background: transparent; padding: 0; margin-bottom: 7px;
+  font: inherit; font-size: var(--fs-2); font-weight: 650; color: var(--muted); cursor: pointer; }
+.att-fold .ic { width: 13px; height: 13px; flex: none; transition: transform 160ms var(--ease-out); }
+.att-fold[aria-expanded="false"] .ic { transform: rotate(-90deg); }
+[dir="rtl"] .att-fold[aria-expanded="false"] .ic { transform: rotate(90deg); }
+.att-count { font-weight: 500; color: var(--faint); }
 .att-wiz { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; background: var(--pill-bg);
   box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 12px 28px -14px rgba(0, 0, 0, 0.4); animation: dayDrop 220ms var(--ease-spring) both; }
 @media (prefers-reduced-motion: reduce) { .att-wiz { animation: none; } }

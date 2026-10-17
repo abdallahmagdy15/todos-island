@@ -29,7 +29,7 @@ const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}
 let sdOpen = new Set(); // open folds, by "file:id|more" / "…|done" (see the fold handlers below)
 const OPEN_SHOW = 3; // owner 2026-10-06: 3 open subtasks show, the rest fold
 function subsHtml(subs, attrs = '', key = '') {
-  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
+  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
   const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
   // a fold remembers it is open across re-renders (sdOpen, keyed by task + fold), so ticking a subtask inside it never
@@ -58,7 +58,7 @@ function rowHtml(t) {
   const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs, '', t.file + ':' + t.id)}</div></div>` : '';
   const timed = snap && snap.timer && snap.timer.id === t.id;
   return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" ${t.shadow ? 'data-shadow draggable="false"' : 'draggable="true"'}>
-    <div class="row-main"><span class="rtitle"><span class="tt">${inline(t.title)}</span></span>${detail}</div>
+    <div class="row-main"><span class="rtitle"><span class="tt">${window.UI.taskIcon(t.icon)}${inline(t.title)}</span></span>${detail}</div>
     <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}${window.UI.attClipHtml(t)}${window.UI.linkMarkHtml(t)}</span>
   </div></div></div>`;
 }
@@ -286,7 +286,7 @@ function render() {
     return `<div class="fold"><div class="fold-in"><div class="active-card rim${snap.timer && snap.timer.id === a.id ? ' timed' : ''}" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
-          <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${inline(a.title)}</span></span>
+          <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${window.UI.taskIcon(a.icon)}${inline(a.title)}</span></span>
           <span class="meta">${snap.timer && snap.timer.id === a.id ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${bangHtml(a)}${dueHtml(a)}${window.UI.attClipHtml(a)}${window.UI.linkMarkHtml(a)}<button class="star" data-unstar="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.notNow'))}" aria-label="${esc(T('isl.btn.notNowAria', { t: a.title }))}">&#9733;</button></span>
         </div>
         ${subs}

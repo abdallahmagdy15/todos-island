@@ -41,6 +41,7 @@
   // data, 24×24, stroke = currentColor, so every window draws the same family. UI.icon(name) → an <svg class="ic">;
   // static markup writes <svg class="ic" data-icon="name" viewBox="0 0 24 24"></svg> and UI.hydrateIcons() fills it.
   const ICONS = {
+    iconAdd: '<path d="M22 11v1a10 10 0 1 1-9-10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/><path d="M16 5h6"/><path d="M19 2v6"/>', // smile-plus: pick a task icon
     plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
     check: '<path d="M20 6 9 17l-5-5"/>',
@@ -78,6 +79,12 @@
     markdown: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 15V9l3 3 3-3v6"/><path d="M17 9v6"/><path d="m14.5 12.5 2.5 2.5 2.5-2.5"/>',
     text: '<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>'
   };
+  // task icons (owner 2026-10-15; 76 icons + a searchable picker, 2026-10-17): the ONE set lives in lib/task-icons.js
+  // (Lucide v0.460.0, ISC; en/ar names, search words, svg), loaded by the windows right before this file. TASK_ICONS
+  // stays { n: svg } over every icon, so taskIcon(name) is unchanged.
+  const TASK_ICON_SET = window.TASK_ICON_SET || [];
+  const TASK_ICONS = Object.fromEntries(TASK_ICON_SET.flatMap(g => g.icons.map(i => [i.n, i.svg])));
+  const taskIcon = name => TASK_ICONS[name] ? `<svg class="ic tic" viewBox="0 0 24 24" aria-hidden="true">${TASK_ICONS[name]}</svg>` : '';
   const icon = (name, cls = '') => `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
   function hydrateIcons(root = document) {
     root.querySelectorAll('svg[data-icon]').forEach(el => { if (!el.childElementCount) { el.innerHTML = ICONS[el.dataset.icon] || ''; el.setAttribute('aria-hidden', 'true'); } });
@@ -164,6 +171,7 @@
     : u.kind === 'reorder' || u.kind === 'move-sub' ? T('u.moved')
     : u.kind === 'clear' ? T('u.cleared')
     : u.kind === 'settings' ? T('u.reset')
+    : u.kind === 'theme' ? T('u.theme')
     : u.kind === 'import' ? T('u.imported')
     : u.kind === 'link' ? T('u.linked')
     : u.kind === 'unlink' ? T('u.unlinked')
@@ -294,26 +302,36 @@
     const k = Math.max(0, Math.min(1, (timer.endsAt - Date.now()) / (timer.total || 1))), c = 2 * Math.PI * 5.5;
     return `<svg class="tring" viewBox="0 0 14 14" aria-hidden="true"><circle class="bg" cx="7" cy="7" r="5.5"/><circle class="fg" cx="7" cy="7" r="5.5" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - k)).toFixed(2)}"/></svg><span class="tleft">${timerLeft(timer)}</span>`;
   }
-  // The arc dial: a half circle you drag around (5-minute steps up to 4 h; on release it snaps to 15m · 30m · 45m ·
-  // 1h · 1h30 · 2h · 3h · 4h when within 5 minutes). It sweeps in from 0 to the current value. Mouse wheel / arrow keys
-  // step 5 minutes; Enter starts. host = the positioned container; anchor = the ⏱ tab it grows out of.
-  const DIAL_MAX = 240, DIAL_SNAP = [15, 30, 45, 60, 90, 120, 180, 240];
+  // The arc dial: a half circle you drag around, 1 minute to 5 hours. Evenly spaced steps (owner 2026-10-17): 1m · 20m · 1h · 2h · 5h each a quarter of the arc, log-linear inside a quarter.
+  // Drag rounds to whole minutes below 10, nearest 5 up to 60, nearest 15 above; on release it snaps to the nearest of
+  // 1m · 2m · 5m · 10m · 15m · 30m · 45m · 1h · 1h30 · 2h · 3h · 4h · 5h when that is within 6 % of the arc, else it
+  // keeps the rounded value. The sweep animates the FRACTION 0 → value, so it reads smooth on the log scale. Mouse
+  // wheel / arrow keys step through the snap points; Enter starts. host = the positioned container; anchor = the ⏱ tab it grows out of.
+  const DIAL_MIN = 1, DIAL_MAX = 300, DIAL_SNAP = [1, 2, 5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 300], DIAL_STOPS = [[0, 1], [0.25, 20], [0.5, 60], [0.75, 120], [1, 300]];
+  const toFrac = m => { m = Math.max(DIAL_MIN, Math.min(DIAL_MAX, m)); for (let i = 1; i < DIAL_STOPS.length; i++) { const [f0, m0] = DIAL_STOPS[i - 1], [f1, m1] = DIAL_STOPS[i]; if (m <= m1) return f0 + (f1 - f0) * Math.log(m / m0) / Math.log(m1 / m0); } return 1; };
+  const fromFrac = f => { f = Math.max(0, Math.min(1, f)); for (let i = 1; i < DIAL_STOPS.length; i++) { const [f0, m0] = DIAL_STOPS[i - 1], [f1, m1] = DIAL_STOPS[i]; if (f <= f1) return m0 * Math.pow(m1 / m0, (f - f0) / (f1 - f0)); } return DIAL_MAX; };
   let dialOpen = null;
   const dialIsOpen = () => !!(dialOpen && dialOpen.el.isConnected);
   function arcDial(host, anchor, { minutes = 120, running = false, onStart, onStop, onClose } = {}) {
     if (dialOpen) dialOpen.close();
     const W = 210, cx = 105, cy = 104, r = 82;
-    const pt = m => { const a = Math.PI + (m / DIAL_MAX) * Math.PI; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
-    const path = m => { const [x, y] = pt(Math.max(0.5, m)); return `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}`; };
-    const ticks = [0, 60, 120, 180, 240].map(m => { const a = Math.PI + (m / DIAL_MAX) * Math.PI; return `<text class="tk" x="${(cx + (r + 15) * Math.cos(a)).toFixed(1)}" y="${(cy + (r + 15) * Math.sin(a) + 3).toFixed(1)}" text-anchor="middle">${m / 60}h</text>`; }).join('');
+    const pt = m => { const a = Math.PI + toFrac(m) * Math.PI; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+    const path = m => { const [x, y] = pt(Math.max(DIAL_MIN, m)); return `M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${x.toFixed(1)} ${y.toFixed(1)}`; };
+    const ticks = DIAL_STOPS.map(([, m]) => [m, fmtMin(m)]).map(([m, l]) => { const a = Math.PI + toFrac(m) * Math.PI; return `<text class="tk" x="${(cx + (r + 15) * Math.cos(a)).toFixed(1)}" y="${(cy + (r + 15) * Math.sin(a) + 3).toFixed(1)}" text-anchor="middle">${l}</text>`; }).join('');
     const el = document.createElement('div');
     el.className = 'arcdial'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('timer.aria'));
-    el.innerHTML = `<svg viewBox="0 -16 ${W} 128" class="ad-svg" tabindex="0" role="slider" aria-valuemin="5" aria-valuemax="${DIAL_MAX}" aria-label="${esc(T('timer.aria'))}"><path class="ad-trk" d="${path(DIAL_MAX)}"/><path class="ad-val"/>${ticks}<circle class="ad-knob" r="9"/></svg>
+    el.innerHTML = `<svg viewBox="0 -16 ${W} 128" class="ad-svg" tabindex="0" role="slider" aria-valuemin="${DIAL_MIN}" aria-valuemax="${DIAL_MAX}" aria-label="${esc(T('timer.aria'))}"><path class="ad-trk" d="${path(DIAL_MAX)}"/><path class="ad-val"/>${ticks}<circle class="ad-knob" r="9"/></svg>
       <div class="ad-read" aria-live="polite"></div>
       <div class="ad-acts">${running ? `<button class="ad-btn ad-stop" type="button">${esc(T('timer.stop'))}</button>` : ''}<button class="ad-btn ad-go" type="button">${esc(T('timer.start'))}</button></div>`;
     host.appendChild(el);
     const svg = el.querySelector('.ad-svg'), val = el.querySelector('.ad-val'), knob = el.querySelector('.ad-knob'), read = el.querySelector('.ad-read');
-    let value = Math.max(5, Math.min(DIAL_MAX, minutes));
+    let value = Math.max(DIAL_MIN, Math.min(DIAL_MAX, minutes));
+    const stepRound = m => Math.max(DIAL_MIN, Math.min(DIAL_MAX, m < 10 ? Math.round(m) : m <= 60 ? Math.round(m / 5) * 5 : Math.round(m / 15) * 15));
+    const stepSnap = d => {
+      if (d > 0) { for (const p of DIAL_SNAP) if (p > value) return p; return DIAL_SNAP[DIAL_SNAP.length - 1]; }
+      for (let i = DIAL_SNAP.length - 1; i >= 0; i--) if (DIAL_SNAP[i] < value) return DIAL_SNAP[i];
+      return DIAL_SNAP[0];
+    };
     const set = m => {
       value = m; val.setAttribute('d', path(m)); const [x, y] = pt(m); knob.setAttribute('cx', x.toFixed(1)); knob.setAttribute('cy', y.toFixed(1));
       read.textContent = fmtMin(Math.round(m)); svg.setAttribute('aria-valuenow', Math.round(m)); svg.setAttribute('aria-valuetext', fmtMin(Math.round(m)));
@@ -322,16 +340,16 @@
     const hb = host.getBoundingClientRect(), ab = anchor.getBoundingClientRect(), rtl = getComputedStyle(host).direction === 'rtl';
     el.style.top = (ab.bottom - hb.top + host.scrollTop + 6) + 'px';
     if (rtl) el.style.left = Math.max(6, ab.left - hb.left) + 'px'; else el.style.right = Math.max(6, hb.right - ab.right) + 'px';
-    // the sweep: 0 → value, critically damped (no motion when reduced)
-    const target = value;
+    // the sweep: 0 → value, critically damped (no motion when reduced); the FRACTION animates, so it is smooth on the log scale
+    const target = value, tf = toFrac(target);
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) set(target);
-    else { let t0 = 0; requestAnimationFrame(function step(ts) { if (!el.isConnected) return; t0 = t0 || ts; const k = Math.min(1, (ts - t0) / 520), e = 1 - Math.pow(1 - k, 3); set(Math.max(1, target * e)); if (k < 1) requestAnimationFrame(step); else set(target); }); }
-    const snapTo = () => { const near = DIAL_SNAP.find(p => Math.abs(p - value) <= 5); set(near || Math.round(value / 5) * 5); };
+    else { let t0 = 0; requestAnimationFrame(function step(ts) { if (!el.isConnected) return; t0 = t0 || ts; const k = Math.min(1, (ts - t0) / 520), e = 1 - Math.pow(1 - k, 3); set(fromFrac(tf * e)); if (k < 1) requestAnimationFrame(step); else set(target); }); }
+    const snapTo = () => { const near = DIAL_SNAP.find(p => Math.abs(toFrac(p) - toFrac(value)) <= 0.06); set(near || stepRound(value)); };
     const fromEvt = e => {
       const b = svg.getBoundingClientRect(), x = (e.clientX - b.left) / b.width * W, y = (e.clientY - b.top) / b.height * 128 - 16;
       let a = Math.atan2(y - cy, x - cx); // -π..π; the dial is the upper half (a in -π..0)
       if (a > 0) a = x < cx ? -Math.PI : 0;
-      return Math.max(5, Math.min(DIAL_MAX, Math.round((a + Math.PI) / Math.PI * DIAL_MAX / 5) * 5));
+      return stepRound(fromFrac((a + Math.PI) / Math.PI));
     };
     let dragging = false;
     svg.addEventListener('pointerdown', e => {
@@ -340,10 +358,10 @@
       svg.addEventListener('pointermove', mv);
       svg.addEventListener('pointerup', ev => { svg.removeEventListener('pointermove', mv); snapTo(); dragging = false; if (!el.contains(document.elementFromPoint(ev.clientX, ev.clientY))) away({ relatedTarget: null }); }, { once: true });
     });
-    svg.addEventListener('wheel', e => { e.preventDefault(); set(Math.max(5, Math.min(DIAL_MAX, Math.round(value / 5) * 5 + (e.deltaY < 0 ? 5 : -5)))); }, { passive: false });
+    svg.addEventListener('wheel', e => { e.preventDefault(); set(stepSnap(e.deltaY < 0 ? 1 : -1)); }, { passive: false });
     el.addEventListener('keydown', e => {
-      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); set(Math.min(DIAL_MAX, Math.round(value / 5) * 5 + 5)); }
-      else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); set(Math.max(5, Math.round(value / 5) * 5 - 5)); }
+      if (e.key === 'ArrowUp' || e.key === 'ArrowRight') { e.preventDefault(); set(stepSnap(1)); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') { e.preventDefault(); set(stepSnap(-1)); }
       else if (e.key === 'Enter') { e.preventDefault(); el.querySelector('.ad-go').click(); }
       else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); api.close(); }
     });
@@ -818,15 +836,23 @@
     btn.title = tip; btn.setAttribute('aria-label', tip);
   }
   // theme color + text sizes from settings (every window calls this with each snapshot's settings)
-  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'dot', 'kraft'], PAPER = ['dot', 'kraft'], SIZE_K = [0.92, 1, 1.1, 1.2];
+  const ACCENTS = ['blue', 'violet', 'teal', 'pink', 'graphite'], BG_THEMES = ['mist', 'dusk', 'lagoon', 'bloom', 'dune', 'dot', 'kraft'], PAPER = ['dot', 'kraft'], SIZE_K = [0.78, 0.85, 0.94, 1.02, 1.15, 1.28]; // owner 2026-10-18: every step one notch smaller (×0.85; was 0.92…1.5)
   function applyTheme(s) {
     if (!s) return;
     const r = document.documentElement, a = ACCENTS.includes(s.accent) ? s.accent : 'blue';
     if (a === 'blue') delete r.dataset.accent; else r.dataset.accent = a;
     r.dataset.bg = BG_THEMES.includes(s.islandTheme) ? s.islandTheme : 'mist'; // island theme → the tasks window's color field too
+    // Paper knobs (owner 2026-10-18): THEMES.attrs → data-hand / data-hand-ar / data-pattern / data-shade-l / data-shade-d
+    // (tokens.css); null = a glass theme: none of them apply.
+    const ta = window.THEMES ? window.THEMES.attrs(s) : null;
+    if (ta) {
+      r.dataset.hand = ta.hand; r.dataset.handAr = ta.handAr; r.dataset.pattern = ta.pattern;
+      if (ta.shadeL === 'alt') r.dataset.shadeL = 'alt'; else delete r.dataset.shadeL;
+      if (ta.shadeD === 'alt') r.dataset.shadeD = 'alt'; else delete r.dataset.shadeD;
+    } else { delete r.dataset.hand; delete r.dataset.handAr; delete r.dataset.pattern; delete r.dataset.shadeL; delete r.dataset.shadeD; }
     // Material (owner 2026-10-10): frosted = Apple's classic vibrancy (tokens.css / window.css / island.css [data-material]).
-    // Notebook paper wears it too (owner 2026-10-10): no glass there, but the flat Apple controls apply.
-    if (s.material === 'frosted') r.dataset.material = 'frosted'; else delete r.dataset.material;
+    // Notebook paper wears it too (owner 2026-10-10): no glass there, but the flat Apple controls apply — and paper is never glossy.
+    if (s.material === 'frosted' || ta) r.dataset.material = 'frosted'; else delete r.dataset.material;
     r.style.setProperty('--ui-k', SIZE_K[s.labelSize] ?? 1);
     r.style.setProperty('--task-k', SIZE_K[s.taskSize] ?? 1);
     // Glass (0 = solid, 1–4): the scene + glass panels in every window that paints a scene (.ambient: tasks, editor, share).
@@ -850,5 +876,75 @@
     const name = n => T(n === 'work' ? 'win.tab.work' : 'win.tab.personal'), tip = T('link.mark', { n: name(also), h: name(home) });
     return `<span class="lmark" title="${esc(tip)}" aria-label="${esc(tip)}">${icon('link')}</span>`;
   }
-  window.UI = { linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, attClipHtml, attPeek, attIcon, attHint, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
+  // The task icon picker (owner 2026-10-15; 76 icons + search, 2026-10-17): a solid grid (the copy list’s material)
+  // under the anchor — groups from lib/task-icons.js, a live search field on top, "No icon" at the bottom. One click
+  // picks; the field’s Enter picks the first visible icon, arrows move over the VISIBLE icons (6 columns, ArrowUp
+  // from the first row returns to the field), Esc / a click outside closes. It lives inside the side panel (when the
+  // anchor is in it), so the panel never reads a pick as a click outside.
+  let pickOpen = null;
+  function iconPicker(anchor, { current = null, onPick } = {}) {
+    if (pickOpen) pickOpen.close();
+    const host = anchor.closest('#side') || document.body;
+    const el = document.createElement('div');
+    el.className = 'clist ipick'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('ti.pick'));
+    const label = i => esc(i[LANG === 'ar' ? 'ar' : 'en']);
+    el.innerHTML = `<input type="text" class="ip-q" spellcheck="false" autocomplete="off" placeholder="${esc(T('ti.search'))}" aria-label="${esc(T('ti.search'))}">`
+      + `<div class="ip-list">${TASK_ICON_SET.map(g => `<div class="ip-g"><div class="ip-h">${esc(g[LANG === 'ar' ? 'ar' : 'en'])}</div><div class="ip-grid">${g.icons.map(i =>
+        `<button type="button" class="ip-b${i.n === current ? ' sel' : ''}" data-pick="${i.n}" data-hay="${esc((i.n + ' ' + i.en + ' ' + i.ar + ' ' + i.k).toLowerCase())}" title="${label(i)}" aria-label="${label(i)}" aria-pressed="${i.n === current}">${taskIcon(i.n)}</button>`).join('')}</div></div>`).join('')}`
+        + `<div class="ip-empty" hidden>${esc(T('ti.noMatch'))}</div></div>`
+      + `<button type="button" class="ip-none" data-pick=""${current ? '' : ' disabled'}>${esc(T('ti.none'))}</button>`;
+    host.appendChild(el);
+    // under the anchor (above it when there is no room below), kept inside the host; RTL lines up with the anchor’s right edge
+    const hb = host === document.body ? { left: 0, top: 0, right: innerWidth, bottom: innerHeight } : host.getBoundingClientRect();
+    const ab = anchor.getBoundingClientRect(), w = el.offsetWidth, h = el.offsetHeight, rtl = getComputedStyle(host).direction === 'rtl';
+    let x = rtl ? ab.right - w : ab.left; x = Math.max(hb.left + 8, Math.min(hb.right - w - 8, x));
+    let y = ab.bottom + 6; if (y + h > hb.bottom - 8) y = Math.max(hb.top + 8, ab.top - h - 6);
+    el.style.left = (x - hb.left) + 'px'; el.style.top = (y - hb.top) + 'px';
+    if (host === document.body) el.style.position = 'fixed';
+    const q = el.querySelector('.ip-q'), empty = el.querySelector('.ip-empty');
+    const btns = [...el.querySelectorAll('.ip-b')], groups = [...el.querySelectorAll('.ip-g')];
+    // live search: every typed word (split on spaces, case-insensitive; Arabic compared as typed) hits n + en + ar + k
+    const filter = () => {
+      const words = q.value.toLowerCase().split(' ').filter(Boolean);
+      let any = false;
+      for (const b of btns) { const on = words.every(w => b.dataset.hay.includes(w)); b.hidden = !on; if (on) any = true; }
+      for (const g of groups) g.hidden = !g.querySelector('.ip-b:not([hidden])');
+      empty.hidden = any;
+    };
+    q.addEventListener('input', filter);
+    q.focus({ preventScroll: true });
+    anchor.setAttribute('aria-expanded', 'true');
+    const outside = e => { if (!el.contains(e.target) && !anchor.contains(e.target)) close(); };
+    function close() {
+      if (!el.isConnected) return;
+      document.removeEventListener('pointerdown', outside, true);
+      anchor.setAttribute('aria-expanded', 'false'); pickOpen = null;
+      el.classList.add('out'); setTimeout(() => el.remove(), 140);
+    }
+    document.addEventListener('pointerdown', outside, true);
+    el.addEventListener('click', e => {
+      const b = e.target.closest('[data-pick]');
+      if (!b || b.disabled) return;
+      e.stopPropagation(); close(); anchor.focus({ preventScroll: true });
+      if (onPick) onPick(b.dataset.pick || null);
+    });
+    el.addEventListener('keydown', e => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); anchor.focus({ preventScroll: true }); return; }
+      const vis = btns.filter(b => !b.hidden), i = vis.indexOf(document.activeElement);
+      if (document.activeElement === q) {
+        if (e.key === 'Enter') { e.preventDefault(); if (vis[0]) vis[0].click(); }
+        else if (e.key === 'ArrowDown') { e.preventDefault(); if (vis[0]) vis[0].focus(); }
+        return;
+      }
+      const step = { ArrowRight: rtl ? -1 : 1, ArrowLeft: rtl ? 1 : -1, ArrowDown: 6, ArrowUp: -6 }[e.key];
+      if (i >= 0 && step) {
+        e.preventDefault();
+        if (e.key === 'ArrowUp' && i < 6) q.focus();
+        else vis[Math.max(0, Math.min(vis.length - 1, i + step))].focus();
+      }
+    });
+    pickOpen = { el, close };
+    return pickOpen;
+  }
+  window.UI = { taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, attClipHtml, attPeek, attIcon, attHint, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
 })();

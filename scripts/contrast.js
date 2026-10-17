@@ -111,6 +111,13 @@ for (const p of ['dot', 'kraft']) for (const bg of ['paper', 'card']) {
   THEME_CHECKS.push([p === 'kraft' ? 'pp-kraft-accent' : 'accent', `pp-${p}-${bg}`, 4.5, true]);
   if (p === 'kraft') for (const a of ['violet', 'teal', 'pink', 'graphite']) THEME_CHECKS.push([`pp-kraft-acc-${a}`, `pp-kraft-${bg}`, 4.5, true]);
 }
+// the second paper shade (*-alt, owner picks 2026-10-17) and Gochi Hand's softer ink (*-ink-soft) on both shades
+for (const p of ['dot', 'kraft']) for (const bg of ['paper', 'card', 'paper-alt', 'card-alt']) {
+  if (bg.endsWith('alt')) { for (const fg of ['ink', 'muted', 'faint', 'p1', 'p2', 'p3', 'ok']) THEME_CHECKS.push([`pp-${p}-${fg}`, `pp-${p}-${bg}`, 4.5, true]);
+    THEME_CHECKS.push([p === 'kraft' ? 'pp-kraft-accent' : 'accent', `pp-${p}-${bg}`, 4.5, true]);
+    if (p === 'kraft') for (const a of ['violet', 'teal', 'pink', 'graphite']) THEME_CHECKS.push([`pp-kraft-acc-${a}`, `pp-kraft-${bg}`, 4.5, true]); }
+  THEME_CHECKS.push([`pp-${p}-ink-soft`, `pp-${p}-${bg}`, 4.5, true]);
+}
 for (const t of BG_THEMES) {
   for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'p2', 'p3']) THEME_CHECKS.push([fg, `frost-min over isl-${t}-${i}`, 4.5, true]);
   for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'glass-p2', 'glass-p3', 'glass-ok']) {

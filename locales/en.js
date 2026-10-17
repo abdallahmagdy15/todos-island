@@ -280,6 +280,7 @@ const STRINGS_EN = {
   'u.dismiss': 'Dismiss — keep the change',
   'u.secs': '{n}s',
   'u.reset': 'Settings reset',
+  'u.theme': 'Theme changed',
   'u.imported': 'Settings imported',
   'u.linked': 'Shared to both lists',
   'u.unlinked': 'Stopped sharing',
@@ -457,6 +458,15 @@ const STRINGS_EN = {
   'set.bg.bloom': "Bloom",
   'set.bg.dune': "Dune",
   'set.bg.dot': "Dot-grid journal", 'set.bg.kraft': "Kraft paper", // notebook themes (owner 2026-10-09)
+  'set.theme': 'Theme', 'set.theme.hint': 'the whole look in one pick', // theme presets (owner 2026-10-18)
+  'set.theme.custom': 'Custom', 'set.theme.from': 'started from {t}', 'set.theme.back': 'Back to {t}',
+  'set.look.adv': 'Customize theme', 'set.look.adv.hint': 'every knob of the look — changing one makes it Custom',
+  'set.bg2': 'Island theme',
+  'set.paper': 'Notebook paper', 'set.shadeL': 'Light paper shade', 'set.shadeD': 'Dark paper shade',
+  'set.shade.light': 'Light', 'set.shade.lighter': 'Lighter', 'set.shade.warm': 'Warm white', 'set.shade.today': 'Classic',
+  'set.shade.slate': 'Slate', 'set.pattern': 'Pattern', 'set.pattern.fibers': 'Kraft fibers', 'set.pattern.dots': 'Dot grid',
+  'set.pattern.lines': 'Ruled lines', 'set.pattern.plain': 'Plain', 'set.hand': 'Hand font', 'set.handAr': 'Arabic hand',
+  'set.mat.paperOnly': 'Notebook themes are Frosted only',
   'set.accent': "Theme color",
   'set.accent.hint': "buttons, Now and focus rings follow it",
   'set.accent.blue': "Blue",
@@ -472,6 +482,15 @@ const STRINGS_EN = {
   'set.size.1': "M",
   'set.size.2': "L",
   'set.size.3': "XL",
+  'set.size.4': "XXL",
+  // task icons (owner 2026-10-15)
+  'ti.pick': "Pick an icon",
+  'ti.pickFor': "Pick an icon for {t}",
+  'ti.none': "No icon",
+  'ti.fail': "Couldn't set the icon",
+  'ti.search': "Search icons",
+  'ti.noMatch': "No icon matches",
+  'set.size.5': "3XL",
 };
 if (typeof window !== 'undefined') (window.LOCALES = window.LOCALES || {}).en = STRINGS_EN;
 if (typeof module !== 'undefined') module.exports = STRINGS_EN;

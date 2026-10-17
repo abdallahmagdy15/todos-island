@@ -3,6 +3,7 @@ contextBridge.exposeInMainWorld('api', {
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   saveSettings: s => ipcRenderer.invoke('save-settings', s),
   resetSettings: () => ipcRenderer.invoke('reset-settings'),
+  applyTheme: id => ipcRenderer.invoke('apply-theme', id), // a theme tile = the whole look in one pick (owner 2026-10-18)
   exportSettings: () => ipcRenderer.invoke('export-settings'),
   importSettings: () => ipcRenderer.invoke('import-settings'),
   linkTask: (file, id, on) => ipcRenderer.invoke('link-task', file, id, on), // shadow in the other note (owner 2026-10-10)
@@ -31,6 +32,7 @@ contextBridge.exposeInMainWorld('api', {
   attSessions: tool => ipcRenderer.invoke('att-sessions', tool), // attachments (owner 2026-10-09)
   attPick: kind => ipcRenderer.invoke('att-pick', kind),
   attSet: (file, id, list) => ipcRenderer.invoke('att-set', file, id, list),
+  iconSet: (file, id, subTitle, name) => ipcRenderer.invoke('icon-set', file, id, subTitle, name), // the picked icon (owner 2026-10-15)
   attOpen: (file, id, index) => ipcRenderer.invoke('att-open', file, id, index),
   pathOf: f => webUtils.getPathForFile(f), // a file dropped on the editor → its path on disk
   foldGet: () => ipcRenderer.invoke('fold-get'), // rows opened since the app started (main keeps them; the window dies on close)

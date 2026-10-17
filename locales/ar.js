@@ -280,6 +280,7 @@ const STRINGS_AR = {
   'u.dismiss': 'إغلاق — مع إبقاء التغيير',
   'u.secs': '{n}ث',
   'u.reset': 'تمت إعادة ضبط الإعدادات',
+  'u.theme': 'تم تغيير السمة',
   'u.imported': 'تم استيراد الإعدادات',
   'u.linked': 'مشاركة في القائمتين',
   'u.unlinked': 'أُوقفت المشاركة',
@@ -457,6 +458,15 @@ const STRINGS_AR = {
   'set.bg.bloom': "زهر",
   'set.bg.dune': "كثبان",
   'set.bg.dot': "دفتر منقّط", 'set.bg.kraft': "ورق كرافت", // notebook themes (owner 2026-10-09)
+  'set.theme': "السمة", 'set.theme.hint': "المظهر كله باختيار واحد", // theme presets (owner 2026-10-18)
+  'set.theme.custom': "مخصّص", 'set.theme.from': "بدأ من {t}", 'set.theme.back': "العودة إلى {t}",
+  'set.look.adv': "تخصيص السمة", 'set.look.adv.hint': "كل إعدادات المظهر — تغيير أي منها يجعلها مخصّصة",
+  'set.bg2': "خلفية الجزيرة",
+  'set.paper': "ورق الدفتر", 'set.shadeL': "درجة الورق الفاتح", 'set.shadeD': "درجة الورق الداكن",
+  'set.shade.light': "فاتح", 'set.shade.lighter': "أفتح", 'set.shade.warm': "أبيض دافئ", 'set.shade.today': "كلاسيكي",
+  'set.shade.slate': "أردوازي", 'set.pattern': "النقشة", 'set.pattern.fibers': "ألياف الكرافت", 'set.pattern.dots': "شبكة نقاط",
+  'set.pattern.lines': "سطور", 'set.pattern.plain': "سادة", 'set.hand': "خط اليد", 'set.handAr': "خط اليد العربي",
+  'set.mat.paperOnly': "سمات الدفتر بالزجاج المصنفر فقط",
   'set.accent': "لون السمة",
   'set.accent.hint': "الأزرار و«الآن» وحلقات التركيز تتبعه",
   'set.accent.blue': "أزرق",
@@ -472,6 +482,15 @@ const STRINGS_AR = {
   'set.size.1': "عادي",
   'set.size.2': "كبير",
   'set.size.3': "أكبر",
+  'set.size.4': "ضخم",
+  // task icons (owner 2026-10-15)
+  'ti.pick': "اختر أيقونة",
+  'ti.pickFor': "اختر أيقونة لـ {t}",
+  'ti.none': "بلا أيقونة",
+  'ti.fail': "تعذّر حفظ الأيقونة",
+  'ti.search': "ابحث عن أيقونة",
+  'ti.noMatch': "لا توجد أيقونة مطابقة",
+  'set.size.5': "أضخم",
 };
 if (typeof window !== 'undefined') (window.LOCALES = window.LOCALES || {}).ar = STRINGS_AR;
 if (typeof module !== 'undefined') module.exports = STRINGS_AR;
