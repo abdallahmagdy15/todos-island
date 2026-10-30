@@ -29,9 +29,13 @@ const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}
 let sdOpen = new Set(); // open folds, by "file:id|more" / "…|done" (see the fold handlers below)
 const OPEN_SHOW = 3; // owner 2026-10-06: 3 open subtasks show, the rest fold
 function subsHtml(subs, attrs = '', key = '') {
-  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
+  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}${s.ph ? ' ph' : ''}${s.under && !s.done ? ' substep' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
-  const open = subs.filter(x => !x.done).sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0)), done = subs.filter(x => x.done);
+  // phases (owner 2026-10-29): an open step stays right under its phase; the units sort by their head, steps inside
+  const byRank = arr => [...arr].sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0));
+  // (a done phase that still has open steps stays up with them, faded); every other done one folds below
+  const open = window.UI.subUnits(subs, byRank).flatMap(u => { const st = u.steps.filter(x => !x.done); return !u.head.done || st.length ? [u.head, ...st] : []; });
+  const done = subs.filter(x => x.done && !open.includes(x));
   // a fold remembers it is open across re-renders (sdOpen, keyed by task + fold), so ticking a subtask inside it never
   // snaps it shut (owner 2026-10-08); `now` = painted open at once, no reveal again
   const foldOf = (arr, lk, kind) => {
@@ -114,7 +118,7 @@ function renderUndo() {
   if (bar.dataset.token === snap.undo.token && !bar.hidden) return; // same bubble — keep its countdown running
   bar.dataset.token = snap.undo.token;
   window.UI.mountUndo(bar, snap.undo, {
-    onExpire: token => window.api.undoExpire(token), // bubble gone → memory released
+    onExpire: token => window.api.undoExpire(token), // bubble gone (main keeps the entry for the other view's bubble)
     onUndo: token => { window.SFX.play('undo'); window.api.undoAction(token); }
   });
 }
@@ -585,7 +589,15 @@ document.addEventListener('click', e => {
     const row = sub.closest('.row');
     const file = row ? row.dataset.file : sub.dataset.file;
     const parent = row ? row.dataset.id : sub.dataset.parent;
-    window.api.toggleSubtask(file, parent, sub.dataset.sub, 'isl' + Date.now()); // a one-off session: every subtask tick gets its own Undo
+    // a one-off session: every subtask tick gets its own Undo. The row glides to its new place — a done one into the
+    // task's folded "N done" (R8, owner 2026-10-30); the snapshot the write pushes waits (animating) and lands in flush()
+    const host = () => document.querySelector(`.row[data-id="${CSS.escape(parent)}"], [data-card="${CSS.escape(parent)}"]`);
+    window.UI.glideTick(document.body, sub, async () => {
+      animating++;
+      try { await window.api.toggleSubtask(file, parent, sub.dataset.sub, 'isl' + Date.now()); await new Promise(r => setTimeout(r, 30)); }
+      finally { animating--; }
+      flush();
+    }, { sel: '.sub[data-sub]', gone: el => !el.offsetParent || !!el.closest('.subs-done:not(.open)'), fold: () => { const h = host(); const f = h && [...h.querySelectorAll('.subs-done')].pop(); return f && f.querySelector('.sd-sum'); } });
     return;
   }
   const edit = e.target.closest('[data-edit]');

@@ -7,6 +7,7 @@
   window.Motion = {
     EASE_OUT,
     EASE_IN: 'cubic-bezier(.4, 0, 1, 1)',
+    EASE_IN_OUT: 'cubic-bezier(.77, 0, .175, 1)', // on-screen movement: a row gliding to its new place (R8)
     get reduced() { return mq.matches; },
     play(el, frames, opts) {
       if (!el || mq.matches || !el.animate) return Promise.resolve();

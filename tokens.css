@@ -7,13 +7,23 @@
 @font-face { font-family: 'Gochi Hand'; src: url('fonts/GochiHand-Regular.ttf') format('truetype'); font-display: block; }
 @font-face { font-family: 'Marhey'; src: url('fonts/Marhey.ttf') format('truetype'); font-weight: 300 700; font-display: block; }
 @font-face { font-family: 'Aref Ruqaa'; src: url('fonts/ArefRuqaa-Regular.ttf') format('truetype'); font-display: block; }
+/* Arabic-only aliases (R6, owner 2026-10-30): Arabic typed into an ENGLISH UI fell back to the system face — the Arabic picks
+   below only switched on with an Arabic UI (:lang(ar)). unicode-range keeps these to Arabic letters, so they lead the paper
+   stacks (titles, fields, share preview alike) and Latin text falls through to the next face. */
+@font-face { font-family: 'TI Arabic Marhey'; src: url('fonts/Marhey.ttf') format('truetype'); font-weight: 300 700; font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF; }
+@font-face { font-family: 'TI Arabic Ruqaa'; src: url('fonts/ArefRuqaa-Regular.ttf') format('truetype'); font-display: block; unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF; }
+/* the glass themes' Arabic (R6, owner 2026-10-30: "still the system font"): IBM Plex Sans Arabic (OFL, fonts/OFL-IBMPlexSansArabic.txt),
+   Arabic letters only — it leads --font-sans, Latin falls through to Segoe UI; drawn 12 % larger so it sits level with it */
+@font-face { font-family: 'TI Arabic Sans'; src: url('fonts/IBMPlexSansArabic-Regular.ttf') format('truetype'); font-weight: 400; font-display: block; size-adjust: 112%; unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF; }
+@font-face { font-family: 'TI Arabic Sans'; src: url('fonts/IBMPlexSansArabic-SemiBold.ttf') format('truetype'); font-weight: 600; font-display: block; size-adjust: 112%; unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF; }
+@font-face { font-family: 'TI Arabic Sans'; src: url('fonts/IBMPlexSansArabic-Bold.ttf') format('truetype'); font-weight: 700; font-display: block; size-adjust: 112%; unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF; }
 /* tokens.css — THE design-token source for every window (linked before each window's own sheet).
    "Ink & Notation": paper + ink chrome; color only means something —
    blue = interactive / Now · vermilion → ochre → slate = !!! → !! → ! · vermilion = danger.
    Every text pair is gated by scripts/contrast.js (npm run contrast). */
 :root {
   color-scheme: light dark;
-  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
+  --font-sans: 'TI Arabic Sans', 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Cascadia Mono', Consolas, ui-monospace, monospace; /* machine notation: bangs, dates, counts, ## */
 
   /* text sizes (Settings → Label size / Task text size): --ui-k scales every label, --task-k only task titles */
@@ -41,7 +51,7 @@
   --hover: rgba(28, 27, 25, 0.045); --chip: rgba(28, 27, 25, 0.055);
   --accent: #0859c6; --accent-ink: #ffffff; --accent-soft: rgba(8, 89, 198, 0.10); --accent-border: rgba(8, 89, 198, 0.30);
   --p3: #c0392b; --p2: #8f5f00; --p1: #56607a;
-  --ok: #2b7a3a; --danger: var(--p3); --danger-deep: #a02d1d; /* danger-deep: danger text on glassed settings surfaces (4.5:1) */
+  --ok: #2b7a3a; --phase: #6a3fc0; --danger: var(--p3); /* phase: a #phase subtask's own hue (owner 2026-10-29: colour only) */ --danger-deep: #a02d1d; /* danger-deep: danger text on glassed settings surfaces (4.5:1) */
   --shadow: 0 10px 30px rgba(28, 27, 25, 0.16);
   --pill-bg: #fbfaf7; --pill-border: rgba(28, 27, 25, 0.12);
   --isl-shadow: rgba(22, 22, 30, 0.26); --isl-shadow-near: rgba(22, 22, 30, 0.12); /* the island's soft outer shadow (owner 2026-10-10) */
@@ -66,10 +76,10 @@
   --pp-dot-paper-alt: #efeeea; --pp-dot-card-alt: #f6f5f1; --pp-dot-dot-alt: #dcd9d2; --pp-dot-sheet-alt: 246, 245, 241;
   --pp-dot-ink-soft: #3d3b37; --pp-kraft-ink-soft: #46413b; /* Gochi Hand's lighter ink (owner: "even lighter"), still ≥ 4.5:1 */
   --pp-dot-ink: #232323; --pp-dot-muted: #57554f; --pp-dot-faint: #66635c;
-  --pp-dot-p3: #b8341c; --pp-dot-p2: #8a5a00; --pp-dot-p1: #56607a; --pp-dot-ok: #2b7a3a;
+  --pp-dot-p3: #b8341c; --pp-dot-p2: #8a5a00; --pp-dot-p1: #56607a; --pp-dot-ok: #2b7a3a; --pp-dot-phase: #6a3fc0;
   --pp-kraft-paper: #dcc39f; --pp-kraft-card: #e4cdad; --pp-kraft-dot: #c4a678; /* Light (owner 2026-10-17; was #c9a97f); alt = Lighter */
   --pp-kraft-paper-alt: #d3b68e; --pp-kraft-card-alt: #dcc29d; --pp-kraft-dot-alt: #bb9a6a; --pp-kraft-sheet-alt: 220, 194, 157; --pp-kraft-ink: #2e2b27; --pp-kraft-muted: #3b3833; --pp-kraft-faint: #45413c; /* soft charcoal, no brown (owner 2026-10-10: brown read light, near-black + the stroke read over-bold) */
-  --pp-kraft-p3: #761a0e; --pp-kraft-p2: #523700; --pp-kraft-p1: #33322d; --pp-kraft-ok: #1a4520; --pp-kraft-accent: #0b3a7a;
+  --pp-kraft-p3: #761a0e; --pp-kraft-p2: #523700; --pp-kraft-p1: #33322d; --pp-kraft-ok: #1a4520; --pp-kraft-phase: #47208c; --pp-kraft-accent: #0b3a7a;
   --pp-kraft-acc-violet: #2a2780; --pp-kraft-acc-teal: #003f55; --pp-kraft-acc-pink: #6a1460; --pp-kraft-acc-graphite: #2b2b2d;
   --pp-dot-sheet: 251, 250, 246; --pp-kraft-sheet: 228, 205, 173; /* the panels' and composer's paper (rgb triplets) */
   /* the text stroke moved to the hand font (--hand-stroke, html[data-hand], 2026-10-17) */
@@ -94,7 +104,7 @@
   --drop: rgba(28, 27, 25, 0.16); --gel-hi: rgba(255, 255, 255, 0.5);
   /* the hues on window glass: a step deeper (light) / brighter (dark) than on paper, so !!! / !! / "Saved" stay 4.5:1 over
      the vivid scene (window.css .glass-on swaps them in, like the island's stronger greys) */
-  --glass-p3: #a8301f; --glass-p2: #7c5200; --glass-ok: #236a31;
+  --glass-p3: #a8301f; --glass-p2: #7c5200; --glass-ok: #236a31; --glass-phase: #5c33ad;
   --scene-a: 0.56;    /* how strongly the island theme paints behind the tasks window at the CLEAREST Glass step (× --scene-k
                          per level, UI.applyTheme) — calm (owner 2026-09-28: "subtle"; v1.11 was 0.9) */
   --scene-sat: 0.9;   /* a touch of grey in the scene (filter: saturate); light is a touch livelier than dark (owner round 2) */
@@ -113,7 +123,7 @@
     --hover: rgba(236, 235, 230, 0.05); --chip: rgba(236, 235, 230, 0.07);
     --accent: #5eaaff; --accent-ink: #121211; --accent-soft: rgba(94, 170, 255, 0.14); --accent-border: rgba(94, 170, 255, 0.30);
     --p3: #ff7b6b; --p2: #f0b547; --p1: #a3abc0;
-    --ok: #7fd18b; --danger-deep: var(--p3);
+    --ok: #7fd18b; --phase: #c3a8ff; --danger-deep: var(--p3);
     --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
     --pill-bg: #171716; --pill-border: rgba(236, 235, 230, 0.10);
     --isl-shadow: rgba(0, 0, 0, 0.55); --isl-shadow-near: rgba(0, 0, 0, 0.3);
@@ -133,9 +143,9 @@
     --pp-kraft-paper-alt: #3a2c1d; --pp-kraft-card-alt: #453524; --pp-kraft-dot-alt: #4c3a27; --pp-kraft-sheet-alt: 69, 53, 36; /* kraft dark has one shade */
     --pp-dot-ink-soft: #d6d0c1; --pp-kraft-ink-soft: #dccfb4;
     --pp-dot-ink: #ece6d6; --pp-dot-muted: #bdb7a8; --pp-dot-faint: #a39e92;
-    --pp-dot-p3: #ff8f6b; --pp-dot-p2: #f0b55a; --pp-dot-p1: #aeb6c8; --pp-dot-ok: #7fcf8e;
+    --pp-dot-p3: #ff8f6b; --pp-dot-p2: #f0b55a; --pp-dot-p1: #aeb6c8; --pp-dot-ok: #7fcf8e; --pp-dot-phase: #c9b0ff;
     --pp-kraft-paper: #3a2c1d; --pp-kraft-card: #453524; --pp-kraft-dot: #4c3a27; --pp-kraft-ink: #f3e5cb; --pp-kraft-muted: #dcc7a2; --pp-kraft-faint: #c9b28b;
-    --pp-kraft-p3: #ffa48c; --pp-kraft-p2: #f1c36a; --pp-kraft-p1: #d0c9ba; --pp-kraft-ok: #9ad7a4; --pp-kraft-accent: #a8ccff;
+    --pp-kraft-p3: #ffa48c; --pp-kraft-p2: #f1c36a; --pp-kraft-p1: #d0c9ba; --pp-kraft-ok: #9ad7a4; --pp-kraft-phase: #d6c2ff; --pp-kraft-accent: #a8ccff;
     --pp-kraft-acc-violet: #c4c2ff; --pp-kraft-acc-teal: #8fdcf2; --pp-kraft-acc-pink: #f7b4ec; --pp-kraft-acc-graphite: #d4d4d8;
     --pp-dot-sheet: 50, 53, 60; --pp-kraft-sheet: 69, 53, 36;
 
@@ -151,7 +161,7 @@
     --field: rgba(255, 255, 255, 0.08);
     --drop: rgba(0, 0, 0, 0.45); --gel-hi: rgba(255, 255, 255, 0.28);
     --d-hi: rgba(255, 255, 255, 0.16); --d-lo: rgba(0, 0, 0, 0.8);
-    --glass-p3: #ff8f80; --glass-p2: var(--p2); --glass-ok: var(--ok);
+    --glass-p3: #ff8f80; --glass-p2: var(--p2); --glass-ok: var(--ok); --glass-phase: var(--phase);
     --scene-sat: 0.58; --glass-sat: 1.35;
   }
 }
@@ -524,10 +534,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 /* faux bold looks blotchy on a one-weight hand font; an even stroke in the text's own color thickens it instead (inherited) */
 /* the hand font picks its own weight + stroke (Settings → Customize theme; owner picks 2026-10-17) */
 :root[data-bg="dot"], :root[data-bg="kraft"] { -webkit-text-stroke-width: var(--hand-stroke); font-weight: var(--hand-wt); }
-:root { --font-hand: 'Architects Daughter', 'Ink Free', cursive; --hand-wt: 400; --hand-stroke: 0.2px; } /* default = Architects Daughter Regular */
-:root[data-hand="shantell"] { --font-hand: 'Shantell Sans', 'Ink Free', cursive; --hand-wt: 350; --hand-stroke: 0px; }
-:root[data-hand="caveat"] { --font-hand: 'Caveat', 'Ink Free', cursive; --hand-wt: 500; --hand-stroke: 0px; --hand-k: 1.3; } /* Caveat draws small */
-:root[data-hand="gochi"] { --font-hand: 'Gochi Hand', 'Ink Free', cursive; --hand-wt: 400; --hand-stroke: 0px; }
+:root { --font-hand-ar: 'TI Arabic Marhey'; --font-hand: var(--font-hand-ar), 'Architects Daughter', 'Ink Free', cursive; --hand-wt: 400; --hand-stroke: 0.2px; } /* default = Architects Daughter Regular */
+:root[data-hand="shantell"] { --font-hand: var(--font-hand-ar), 'Shantell Sans', 'Ink Free', cursive; --hand-wt: 350; --hand-stroke: 0px; }
+:root[data-hand="caveat"] { --font-hand: var(--font-hand-ar), 'Caveat', 'Ink Free', cursive; --hand-wt: 500; --hand-stroke: 0px; --hand-k: 1.3; } /* Caveat draws small */
+:root[data-hand="gochi"] { --font-hand: var(--font-hand-ar), 'Gochi Hand', 'Ink Free', cursive; --hand-wt: 400; --hand-stroke: 0px; }
 /* Architects Daughter (owner 2026-10-18): a touch more air between letters (they touched), and bold a bit lighter — the font
    has one weight, so bold is Chromium's synthetic bold; on bold text the extra 0.2 px ink stroke is dropped. The list = every
    rule that sets font-weight >= 600 (window.css, island.css, tokens.css), generated 2026-10-18 — add new bold selectors here. */
@@ -535,6 +545,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 :root[data-bg][data-hand="architects"]:not(:lang(ar)) :is(#head-title, .about-mark, .about-name, .about-ver, .aclip, .active-card .ac-head > .rchk, .active-card .ac-title, .ad-btn, .ad-read, .addsub button, .adv-toggle, .adv-toggle .hash, .att-fold, .att-step, .att-task, .bang, .btn-accent, .btn-soft, .btn-text, .chip, .cl-grp, .cl-seg button, .ctl-label, .dcal-head, .err-banner, .err-banner button, .err-strip, .etab, .field > label, .fmtbar b, .inc-b, .inc-mini button, .inc-part, .ip-h, .logo, .mark, .md-h, .md-h .hash, .mv-count, .pchip, .pill-top button.undo-btn, .recorder, .saved, .sec, .sec .hash, .seg-btn, .sh-chk, .sh-optsum .opt-g, .sh-sec, .sh-sec .hash, .sh-tools .seg-btn .cnt, .side-title, .slabel .lbl, .slabel label, .step, .sub .sb, .subs-list li .sb, .subs-list li .sbp, .subs-list.selecting li[data-sub], .tab, .tab .cnt.bad, .tcustom .tag, .time-up, .timer-chip, .tp-left, .tp-of, .tp-stop, .tt-aa, .tt-nm, .tu-stop, .tw-item, .tw-sep, .undo-btn, .undo-label b, .unit-field .unit, .upd, .wrow .chk, .wrow.is-now .wtitle, .wsubrow .sb) { -webkit-text-stroke-width: 0; }
 :root[data-bg]:lang(ar) { --font-hand: 'Marhey', 'Sakkal Majalla', 'Segoe UI', sans-serif; --hand-wt: 300; --hand-stroke: 0px; }
 :root[data-bg][data-hand-ar="ruqaa"]:lang(ar) { --font-hand: 'Aref Ruqaa', 'Sakkal Majalla', 'Segoe UI', sans-serif; --hand-wt: 400; }
+:root[data-hand-ar="ruqaa"] { --font-hand-ar: 'TI Arabic Ruqaa'; }
+/* an Arabic run inside an English UI (ui-shared.js inline() marks it lang="ar"): no letter air and no ink stroke — both
+   tear its joined script; the Arabic hand draws at its own weight */
+:root[data-bg="dot"] [lang="ar"], :root[data-bg="kraft"] [lang="ar"] { letter-spacing: 0; -webkit-text-stroke-width: 0; }
 /* a touch of air between the hand-drawn letters (owner 2026-10-10); inherited. Never in Arabic: spacing breaks its joined script */
 :root[data-bg="dot"], :root[data-bg="kraft"] { letter-spacing: 0.035em; }
 /* the priority bangs are pulled tight (-1px) for the wide monospace "!"; the hand fonts' "!" is a thin stroke, so there they
@@ -545,13 +559,13 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 :root[data-bg="dot"] {
   --paper: var(--pp-dot-paper); --card: var(--pp-dot-card); --input: var(--pp-dot-card); --head: var(--pp-dot-paper); --pill-bg: var(--pp-dot-paper);
   --ink: var(--pp-dot-ink); --muted: var(--pp-dot-muted); --faint: var(--pp-dot-faint); --island-muted: var(--pp-dot-muted); --island-faint: var(--pp-dot-faint);
-  --p3: var(--pp-dot-p3); --p2: var(--pp-dot-p2); --p1: var(--pp-dot-p1); --ok: var(--pp-dot-ok); --danger: var(--pp-dot-p3); --sheet-rgb: var(--pp-dot-sheet);
+  --p3: var(--pp-dot-p3); --p2: var(--pp-dot-p2); --p1: var(--pp-dot-p1); --ok: var(--pp-dot-ok); --phase: var(--pp-dot-phase); --danger: var(--pp-dot-p3); --sheet-rgb: var(--pp-dot-sheet);
   --pattern: radial-gradient(circle, var(--pp-dot-dot) 1.15px, transparent 1.6px); --pattern-size: 18px 18px;
 }
 :root[data-bg="kraft"] {
   --paper: var(--pp-kraft-paper); --card: var(--pp-kraft-card); --input: var(--pp-kraft-card); --head: var(--pp-kraft-paper); --pill-bg: var(--pp-kraft-paper);
   --ink: var(--pp-kraft-ink); --muted: var(--pp-kraft-muted); --faint: var(--pp-kraft-faint); --island-muted: var(--pp-kraft-muted); --island-faint: var(--pp-kraft-faint);
-  --p3: var(--pp-kraft-p3); --p2: var(--pp-kraft-p2); --p1: var(--pp-kraft-p1); --ok: var(--pp-kraft-ok); --danger: var(--pp-kraft-p3); --sheet-rgb: var(--pp-kraft-sheet);
+  --p3: var(--pp-kraft-p3); --p2: var(--pp-kraft-p2); --p1: var(--pp-kraft-p1); --ok: var(--pp-kraft-ok); --phase: var(--pp-kraft-phase); --danger: var(--pp-kraft-p3); --sheet-rgb: var(--pp-kraft-sheet);
   --accent: var(--pp-kraft-accent); --accent-ink: var(--pp-kraft-paper);
   --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent); --accent-border: color-mix(in srgb, var(--accent) 40%, transparent);
   --rule: color-mix(in srgb, var(--pp-kraft-ink) 22%, transparent); --rule-soft: color-mix(in srgb, var(--pp-kraft-ink) 12%, transparent);

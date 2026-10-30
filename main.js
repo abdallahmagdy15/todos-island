@@ -15,7 +15,7 @@ const ATT = require('./lib/attach.js');
 const BACKUP = require('./lib/backup.js');
 const LINKS = require('./lib/links.js');
 const ICONS = require('./lib/icons.js');
-const { recentSessions } = require('./lib/sessions.js');
+const { recentSessions, claudeTitle } = require('./lib/sessions.js');
 const THEMES = require('./lib/themes.js'); // theme presets (owner 2026-10-18): defaults, validation, one-tile patches
 
 // test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
@@ -100,13 +100,14 @@ const theme = () => THEME[nativeTheme.shouldUseDarkColors ? 'dark' : 'light'];
 // every window paints its own chrome (glass header over the theme scene, or paper), so the native controls always sit on a
 // clear overlay. Height 50 = the header's (window.css): a floating glass header is 6 + 38 + 6, so the buttons center on it.
 const overlay = () => ({ color: '#00000000', symbolColor: theme().symbol, height: 50 });
-// in-memory undo log — one entry per interaction, tokened, countdown-driven cleanup.
-// entries live ONLY for the undo window: each popup fires undo-expire(token) when its countdown ends,
-// undo-action(token) consumes its entry; pushUndo lazily drops anything expired. Nothing on disk.
+// in-memory undo log — one entry per interaction, tokened. Nothing on disk.
+// entries leave on consume (undo-action) or by the lazy sweep in pushUndo (expires + UNDO_HOLD_MAX);
+// undo-expire deletes nothing: two bubbles share one token, and one bubble ending must not kill the other's entry.
 const undoLog = new Map();
+const UNDO_HOLD_MAX = 10 * 60e3; // a hovered (paused) bubble keeps its entry up to 10 min past `expires`
 function pushUndo(entry) {
   const now = Date.now();
-  for (const [k, v] of undoLog) if (v.expires <= now) undoLog.delete(k); // lazy expiry — the only sweeper
+  for (const [k, v] of undoLog) if (v.expires + UNDO_HOLD_MAX <= now) undoLog.delete(k); // lazy expiry — the only sweeper
   const token = now.toString(36) + Math.random().toString(36).slice(2, 7);
   undoLog.set(token, entry);
   return token;
@@ -149,13 +150,16 @@ const nextFireAt = () => scheduleNext(schedSettings(), state.lastShown, Date.now
 
 const RANK = { '!!!': 3, '!!': 2, '!': 1 };
 function snapshot() {
+  // subtasks, open + done alike: ph = a first-level phase; under = the uid of the first-level subtask it sits under
+  // (null = first-level itself). subInfo carries the note's nesting (owner 2026-10-29).
+  const subSnap = (f, t) => f.subInfo(t).map(({ sub: s, under }) => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, ph: !!s.phase, under: under ? (under.uid || null) : null, c: s.created || null, u: s.updated || null, i: (s.uid && (state.icons || {})[s.uid]) || null })); // t = the note's title = the address; i = its picked icon
   const collect = (f, group) => f.topTasks().filter(t => !t.checked).map(t => ({
     id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, active: !!t.active,
     dueText: dueTextOf(t), dueTime: t.time != null ? fmtTime(t.time) : null,
       dueTs: t.due || t.time != null ? resolveDue(t.due, t.time) : null,
       notes: f.notesOf(t),
-      subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null, i: (s.uid && (state.icons || {})[s.uid]) || null })), // t = the note's title = the address; i = its picked icon
+      subs: subSnap(f, t),
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
       lines: f.blockLines(t), // Share → Markdown: the block as the note has it, stamp stripped
       att: (state.attachments || {})[ATT.key(t.uid)] || [], // pointers (owner 2026-10-09): app state keyed by the hidden id, never the note
@@ -166,7 +170,7 @@ function snapshot() {
     id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, dueText: dueTextOf(t),
     notes: f.notesOf(t),
-    subs: f.subtasksOf(t).map(s => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, c: s.created || null, u: s.updated || null, i: (s.uid && (state.icons || {})[s.uid]) || null })), // t = the note's title = the address; i = its picked icon
+    subs: subSnap(f, t),
     lines: f.blockLines(t),
     created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
     icon: (t.uid && (state.icons || {})[t.uid]) || null // the picked icon (owner 2026-10-15, lib/icons.js): state, never the note
@@ -429,6 +433,8 @@ function applyCaptureHide() {
   try { island.setContentProtection(on); } catch (e) { LOG('CAPTURE-HIDE-FAIL ' + e.message); }
 }
 
+let spellLangsSet = false; // the default session is shared — its spell languages are set once, not on every window open
+
 function openWindow(tab) {
   if (typeof tab !== 'string') tab = null; // tray/menu callers pass event objects
   if (!state.onboarded) { openOnboarding(); return; }
@@ -449,6 +455,26 @@ function openWindow(tab) {
   });
   applyOverlay();
   lockZoom(mainWin.webContents);
+  if (!spellLangsSet) {
+    spellLangsSet = true;
+    const avail = mainWin.webContents.session.availableSpellCheckerLanguages;
+    const langs = ['en-US', 'ar'].filter(l => avail.includes(l)); // only what this build ships, so it never throws
+    if (langs.length) mainWin.webContents.session.setSpellCheckerLanguages(langs);
+    LOG('SPELL-LANGS ' + (langs.join(',') || 'none') + ' of [en-US,ar]; ar in list: ' + avail.includes('ar'));
+  }
+  mainWin.webContents.on('context-menu', (_e, params) => {
+    if (!params.isEditable) return;
+    const wc = mainWin.webContents, L = uiLang(), items = [];
+    if (params.misspelledWord) {
+      const sugg = params.dictionarySuggestions.slice(0, 5);
+      if (!sugg.length) items.push({ label: tt(L, 'ctx.noSugg'), enabled: false });
+      sugg.forEach(s => items.push({ label: s, click: () => wc.replaceMisspelling(s) }));
+      items.push({ label: tt(L, 'ctx.addDict'), click: () => wc.session.addWordToSpellCheckerDictionary(params.misspelledWord) });
+      items.push({ type: 'separator' });
+    }
+    items.push({ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' });
+    Menu.buildFromTemplate(items).popup({ window: mainWin });
+  });
   mainWin.webContents.on('console-message', (_e, _lvl, msg) => LOG('WIN-CONSOLE: ' + msg));
   mainWin.loadFile('window.html', tab ? { query: { tab } } : undefined);
   mainWin.once('ready-to-show', () => mainWin.show());
@@ -749,6 +775,12 @@ ipcMain.handle('toggle-active', (_e, id, file) => {
 ipcMain.handle('toggle-subtask', (_e, file, parentId, subTitle, session) => subtaskWrite(file, parentId, session, f => f.toggleSubtask(parentId, subTitle)));
 ipcMain.handle('subtask-priority', (_e, file, parentId, subTitle, p, session) => subtaskWrite(file, parentId, session, f => f.setSubtaskPriority(parentId, subTitle, p)));
 ipcMain.handle('rename-subtask', (_e, file, parentId, subTitle, newTitle, session) => subtaskWrite(file, parentId, session, f => f.renameSubtask(parentId, subTitle, newTitle)));
+// phases (owner 2026-10-29): mark/unmark a phase, Tab/Shift+Tab nest/unnest, drag onto a phase — all subtaskWrite, so
+// the editor's session undo covers them like every other subtask change
+ipcMain.handle('subtask-phase', (_e, file, parentId, subTitle, on, session) => subtaskWrite(file, parentId, session, f => f.setPhase(parentId, subTitle, on)));
+ipcMain.handle('subtask-nest', (_e, file, parentId, subTitle, dir, session) => subtaskWrite(file, parentId, session, f => (dir === 1 ? f.nestSubtask(parentId, subTitle) : f.unnestSubtask(parentId, subTitle))));
+  ipcMain.handle('subtask-under', (_e, file, parentId, subTitle, phaseTitle, session) => subtaskWrite(file, parentId, session, f => f.moveUnderPhase(parentId, subTitle, phaseTitle)));
+  ipcMain.handle('subtask-reorder', (_e, file, parentId, subTitle, beforeTitle, underTitle, session) => subtaskWrite(file, parentId, session, f => f.reorderSubtask(parentId, subTitle, beforeTitle || null, underTitle || null)));
 function pushUndoToWindow(token) {
   const e = token && undoLog.get(token);
   if (mainWin && e) {
@@ -776,7 +808,9 @@ ipcMain.handle('complete', (_e, id, file) => {
 // one-shot undo: each popup knows its token; rollback is exact (captured lines back at the captured index)
 ipcMain.handle('undo-action', (_e, token) => {
   const e = undoLog.get(token);
-  if (!e || Date.now() > e.expires) { undoLog.delete(token); return { ok: false }; }
+  // the bubble's countdown is the clock (R3, 2026-10-30): hovering it pauses the ring, so a press after `expires` is still
+  // in time — the bubble fires undo-expire when it really ends. HOLD_MAX only guards an entry whose bubble never reported.
+  if (!e || Date.now() > e.expires + UNDO_HOLD_MAX) { undoLog.delete(token); return { ok: false }; }
   undoLog.delete(token); // one-time — consumed
   if (e.kind === 'link' || e.kind === 'unlink') { // state only: the link goes back to what it was
     state.links = state.links || {};
@@ -795,6 +829,12 @@ ipcMain.handle('undo-action', (_e, token) => {
       if (now !== c.after) { changed.push(path.basename(c.path)); continue; }
       writeNoteText(c.path, c.before);
       lastWrite = { file: path.basename(c.path), at: Date.now() };
+    }
+    if (!changed.length && e.prevState) { // task-into (owner 2026-10-29): the moved attachments / timer / dropped link go back with the note
+      state.attachments = e.prevState.attachments;
+      state.links = e.prevState.links;
+      state.timer = e.prevState.timer;
+      saveState();
     }
     sendSnap();
     if (mainWin) mainWin.webContents.send('tasks-changed');
@@ -823,7 +863,7 @@ ipcMain.handle('undo-action', (_e, token) => {
   if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: true };
 });
-ipcMain.handle('undo-expire', (_e, token) => { undoLog.delete(token); }); // fired by the popup's own countdown — memory released with the bubble
+ipcMain.handle('undo-expire', () => {}); // no-op, channel kept for renderers: two bubbles share one token — one ending must not kill the other's entry; the lazy sweep in pushUndo removes it at expires + UNDO_HOLD_MAX
 ipcMain.handle('get-snapshot', () => snapshot());
 ipcMain.handle('open-editor', (_e, file, id) => openEditor(file, id));
 ipcMain.handle('save-settings', (e, s) => {
@@ -1038,9 +1078,9 @@ ipcMain.handle('add-task', (_e, file, data) => {
   f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: !!t, id: t ? f.id(t) : null };
 });
-ipcMain.handle('add-subtask', (_e, file, parentId, title, session) => {
-  if (session) return subtaskWrite(file, parentId, session, f => f.addSubtask(parentId, title));
-  const f = fileFor(file); f.addSubtask(parentId, title); f.save(); sendSnap();
+ipcMain.handle('add-subtask', (_e, file, parentId, title, session, under) => { // under = a phase title → a step of it
+  if (session) return subtaskWrite(file, parentId, session, f => f.addSubtask(parentId, title, under));
+  const f = fileFor(file); f.addSubtask(parentId, title, under); f.save(); sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
 ipcMain.handle('delete-task', (_e, id, file) => {
@@ -1053,19 +1093,22 @@ ipcMain.handle('delete-task', (_e, id, file) => {
 });
 // move a subtask to another task (owner 2026-10-09: drag in the tasks window, "Move to…" in the Edit panel), also from
 // one note to the other. One Undo puts both notes back exactly, only if neither changed since (the Clear-done rollback)
-ipcMain.handle('move-subtasks', (_e, fromFile, fromId, subTitles, toFile, toId) => {
+ipcMain.handle('move-subtasks', (_e, fromFile, fromId, subTitles, toFile, toId, toPhase) => {
   if (![fromFile, toFile].every(f => f === 'work' || f === 'personal')) return { ok: false };
-  if (fromFile === toFile && fromId === toId) return { ok: true, changed: false };
+  if (fromFile === toFile && fromId === toId && !toPhase) return { ok: true, changed: false };
   const src = fileFor(fromFile), dst = fromFile === toFile ? src : fileFor(toFile);
   const target = dst.findById(toId);
   if (!target) return { ok: false };
   const files = src === dst ? [src] : [src, dst];
   const before = files.map(f => fs.readFileSync(f.path, 'utf8'));
   const want = new Set([].concat(subTitles || []).map(String)), parent = src.findById(fromId);
-  const titles = parent ? src.subtasksOf(parent).map(x => x.title).filter(x => want.has(x)) : []; // the note's own order
+  const subs = parent ? src.subtasksOf(parent) : [];
+  const phaseTitles = new Set(subs.filter(s => s.phase).map(s => s.title));
+  // the note's own order; into a phase (toPhase), a phase never goes — skip it BEFORE taking
+  const titles = subs.map(x => x.title).filter(x => want.has(x) && !(toPhase && phaseTitles.has(x)));
   const taken = titles.map(x => src.takeSubtask(fromId, x)).filter(Boolean);
   if (!taken.length) return { ok: false };
-  for (const t of taken) dst.putSubtask(toId, t);
+  for (const t of taken) dst.putSubtask(toId, t, toPhase);
   files.forEach(f => f.save());
   const caps = files.map((f, i) => ({ path: f.path, before: before[i], after: fs.readFileSync(f.path, 'utf8') }));
   const token = pushUndo({ kind: 'move-sub', caps, label: `${taken.length === 1 ? titles[0] : taken.length + ' subtasks'} → ${target.title}`.replace(/\*\*/g, ''), expires: Date.now() + state.settings.undoSec * 1000 });
@@ -1322,6 +1365,36 @@ ipcMain.handle('move-task-note', (_e, file, id) => {
   const moved = dst.topTasks().find(x => uid ? x.uid === uid : x.title === title);
   return { ok: true, file: to, id: moved ? dst.id(moved) : null };
 });
+// Drag a task INTO another task of the same note (owner 2026-10-29): the dragged task becomes a first-level subtask of
+// the target (lib/parse.js taskToSubtask — its subtasks follow flattened, due / time / Now drop). App state moves with
+// it: attachments onto the target's uid (30 cap), a running timer onto the target, its link to the other note is
+// dropped; the icon stays (the uid did not change). ONE Undo (kind move-sub): the whole-file rollback + prevState puts
+// the app state back, but only if the note was not touched since.
+ipcMain.handle('task-into', (_e, file, id, targetId) => {
+  if (file !== 'work' && file !== 'personal') return { ok: false };
+  const f = fileFor(file);
+  const t = f.findById(id), target = f.findById(targetId);
+  if (!t || !target) return { ok: false };
+  const before = fs.readFileSync(f.path, 'utf8');
+  const uid = t.uid;
+  const prevState = { attachments: JSON.parse(JSON.stringify(state.attachments || {})), links: { ...(state.links || {}) }, timer: state.timer ? { ...state.timer } : null };
+  if (!f.taskToSubtask(id, targetId)) return { ok: false };
+  f.save();
+  const nt = f.findById(targetId); // the target after the change — its id is read fresh
+  if (uid && nt && nt.uid && state.attachments && state.attachments[ATT.key(uid)]) {
+    const A = state.attachments, from = A[ATT.key(uid)];
+    A[ATT.key(nt.uid)] = [...(A[ATT.key(nt.uid)] || []), ...from].slice(0, 30); // append, the 30 cap used everywhere
+    delete A[ATT.key(uid)];
+  }
+  if (state.timer && state.timer.file === file && state.timer.id === id && nt) { state.timer.id = f.id(nt); state.timer.title = nt.title; }
+  if (uid && state.links && state.links[uid]) delete state.links[uid];
+  saveState();
+  const caps = [{ path: f.path, before, after: fs.readFileSync(f.path, 'utf8') }];
+  const token = pushUndo({ kind: 'move-sub', caps, prevState, label: `${t.title.replace(/\*\*/g, '')} → ${target.title.replace(/\*\*/g, '')}`, expires: Date.now() + state.settings.undoSec * 1000 });
+  pushUndoToWindow(token); sendSnap();
+  if (mainWin) mainWin.webContents.send('tasks-changed');
+  return nt ? { ok: true, id: f.id(nt) } : { ok: true };
+});
 // the ids in use in the OTHER note (a note's own ids must not count as duplicates when it is ensureIds'd alone)
 const otherUids = mine => { const s = new Set(); for (const tag of ['work', 'personal']) { if (tag === mine) continue; try { if (noteOn(tag)) for (const e of fileFor(tag).doc) if (e.type === 'task' && e.task.uid) s.add(e.task.uid); } catch (e) {} } return s; };
 // ---- task attachments (owner 2026-10-09): pointers kept in state.attachments[<task hidden id>], never in the note.
@@ -1375,6 +1448,15 @@ ipcMain.handle('att-open', async (_e, file, id, index) => {
   const a = t && ((state.attachments || {})[ATT.key(t.uid)] || [])[index];
   const p = a && ATT.plan(ATT.clean(a) || {});
   if (!p) return { ok: false };
+  // a Claude Desktop attachment copies the session's CURRENT name (owner 2026-10-29): renames since attaching win, and
+  // the stored name follows. Before the sandbox return, so the E2E log shows the fresh name too.
+  if (a.type === 'session' && a.tool === 'claude' && a.mode === 'desktop') {
+    const nm = claudeTitle(require('os').homedir(), a.id);
+    if (nm) {
+      if (nm !== a.name) { a.name = nm; saveState(); }
+      p.copy = nm;
+    }
+  }
   if (SANDBOX) { LOG('ATT-OPEN-SANDBOX ' + JSON.stringify(p)); return { ok: true, copied: p.copy || null }; } // E2E never opens anything
   try {
     if (p.open) { const err = await shell.openPath(p.open); if (err) return { ok: false, reason: 'missing' }; }
@@ -1482,7 +1564,7 @@ else {
           await iStep('island-undo-height', `(async()=>{ const h0=document.getElementById('wrap').offsetHeight; const r=document.querySelector('#body .row'); if(!r) return 'no-row'; r.focus(); r.dispatchEvent(new KeyboardEvent('keydown',{key:'x',bubbles:true})); await new Promise(z=>setTimeout(z,1300)); const bar=document.getElementById('undo-bar'); const shown=!bar.hidden; const h1=document.getElementById('wrap').offsetHeight; const b=bar.querySelector('[data-undo]'); if(b) b.click(); await new Promise(z=>setTimeout(z,900)); return 'bar='+shown+' pos='+getComputedStyle(bar).position+' height '+h0+'→'+h1+' (the completed row folds away; the bar adds nothing)'; })()`);
           showIsland({ focus: false }); await new Promise(z => setTimeout(z, 600));
           await iStep('island-reshow-few', `(async()=>{ return 'rows='+document.querySelectorAll('#body .row').length; })()`);
-          await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; rows[0].dispatchEvent(new DragEvent('dragstart',{bubbles:true})); rows[1].dispatchEvent(new DragEvent('drop',{bubbles:true})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
+          await step('reorder+undo', `(async()=>{ const rows=document.querySelectorAll('.wrow'); if(rows.length<2) return 'need-2-rows'; const a=rows[0].getBoundingClientRect(), b=rows[1].getBoundingClientRect(), o={bubbles:true,pointerId:1,button:0,pointerType:'mouse',clientX:a.left+60}; rows[0].dispatchEvent(new PointerEvent('pointerdown',{...o,clientY:a.top+a.height/2})); window.dispatchEvent(new PointerEvent('pointermove',{...o,clientY:b.top+3})); window.dispatchEvent(new PointerEvent('pointerup',{...o,clientY:b.top+3})); await new Promise(r=>setTimeout(r,800)); ${undoClick} await new Promise(r=>setTimeout(r,800)); return 'ok'; })()`);
           await step('glass-window', `(async()=>{ const h=getComputedStyle(document.querySelector('header')); const t=getComputedStyle(document.getElementById('undo-toast')); return 'glassOn='+document.documentElement.classList.contains('glass-on')+' headerBackdrop='+h.backdropFilter+' toastBackdrop='+t.backdropFilter+' ambient='+getComputedStyle(document.querySelector('.ambient')).display; })()`);
           LOG('UTEST glass-level(main): ' + state.settings.glassLevel);
           await iStep('island-glass', `(async()=>{ const p=document.getElementById('pill'); const cs=getComputedStyle(p); const outer=cs.boxShadow.split(/,(?![^(]*[)])/).filter(x=>x.trim()!=='none'&&!x.includes('inset')).length; return 'mode='+document.body.dataset.glass+' outerShadows='+outer+' liveFrame='+document.body.classList.contains('gl-ready')+' alpha='+p.style.getPropertyValue('--g-alpha'); })()`);

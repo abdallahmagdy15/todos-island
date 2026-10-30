@@ -15,6 +15,7 @@ const CHECKS = {
     ['accent-ink', 'accent', 4.5],
     ['p1', 'paper', 4.5], ['p2', 'paper', 4.5], ['p3', 'paper', 4.5],
     ['p3', 'card over paper', 4.5], ['p2', 'card over paper', 4.5], ['ok', 'card over paper', 4.5],
+    ['phase', 'paper', 4.5], ['phase', 'card over paper', 4.5], ['phase', 'pill-bg', 4.5], // a #phase subtask (owner 2026-10-29)
     ['ink', 'accent-soft over paper', 4.5],
     ['ink', 'pill-bg', 4.5], ['muted', 'pill-bg', 4.5], ['faint', 'pill-bg', 4.5],
     ['accent', 'pill-bg', 4.5], ['p1', 'pill-bg', 4.5], ['p2', 'pill-bg', 4.5], ['p3', 'pill-bg', 4.5],
@@ -107,20 +108,20 @@ function themeVars(vars) {
 }
 const THEME_CHECKS = [];
 for (const p of ['dot', 'kraft']) for (const bg of ['paper', 'card']) {
-  for (const fg of ['ink', 'muted', 'faint', 'p1', 'p2', 'p3', 'ok']) THEME_CHECKS.push([`pp-${p}-${fg}`, `pp-${p}-${bg}`, 4.5, true]);
+  for (const fg of ['ink', 'muted', 'faint', 'p1', 'p2', 'p3', 'ok', 'phase']) THEME_CHECKS.push([`pp-${p}-${fg}`, `pp-${p}-${bg}`, 4.5, true]);
   THEME_CHECKS.push([p === 'kraft' ? 'pp-kraft-accent' : 'accent', `pp-${p}-${bg}`, 4.5, true]);
   if (p === 'kraft') for (const a of ['violet', 'teal', 'pink', 'graphite']) THEME_CHECKS.push([`pp-kraft-acc-${a}`, `pp-kraft-${bg}`, 4.5, true]);
 }
 // the second paper shade (*-alt, owner picks 2026-10-17) and Gochi Hand's softer ink (*-ink-soft) on both shades
 for (const p of ['dot', 'kraft']) for (const bg of ['paper', 'card', 'paper-alt', 'card-alt']) {
-  if (bg.endsWith('alt')) { for (const fg of ['ink', 'muted', 'faint', 'p1', 'p2', 'p3', 'ok']) THEME_CHECKS.push([`pp-${p}-${fg}`, `pp-${p}-${bg}`, 4.5, true]);
+  if (bg.endsWith('alt')) { for (const fg of ['ink', 'muted', 'faint', 'p1', 'p2', 'p3', 'ok', 'phase']) THEME_CHECKS.push([`pp-${p}-${fg}`, `pp-${p}-${bg}`, 4.5, true]);
     THEME_CHECKS.push([p === 'kraft' ? 'pp-kraft-accent' : 'accent', `pp-${p}-${bg}`, 4.5, true]);
     if (p === 'kraft') for (const a of ['violet', 'teal', 'pink', 'graphite']) THEME_CHECKS.push([`pp-kraft-acc-${a}`, `pp-kraft-${bg}`, 4.5, true]); }
   THEME_CHECKS.push([`pp-${p}-ink-soft`, `pp-${p}-${bg}`, 4.5, true]);
 }
 for (const t of BG_THEMES) {
-  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'p2', 'p3']) THEME_CHECKS.push([fg, `frost-min over isl-${t}-${i}`, 4.5, true]);
-  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'glass-p2', 'glass-p3', 'glass-ok']) {
+  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'p2', 'p3', 'phase']) THEME_CHECKS.push([fg, `frost-min over isl-${t}-${i}`, 4.5, true]);
+  for (let i = 0; i <= 4; i++) for (const fg of ['ink', 'island-muted', 'island-faint', 'accent', 'p1', 'glass-p2', 'glass-p3', 'glass-ok', 'glass-phase']) {
     for (const sfc of ['sheet', 'chrome-min']) THEME_CHECKS.push([fg, `${sfc} over scene-${t}-${i}`, 4.5, true]);
     THEME_CHECKS.push([fg, `bare-${t}-${i}`, 4.5, true]); // no containers: list text, headings and the status line sit on the scene itself
   }

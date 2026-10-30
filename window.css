@@ -67,6 +67,9 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .fold-in { min-height: 0; overflow: hidden; }
 /* rows (v1.11, owner pick A — the island's row language): [ ] completes on the left · the title · on the right a
    .wmeta the height of the title's FIRST line holding priority · date · ★ and the hover actions (edit · expand · delete) */
+/* rows are drag handles (R1, 2026-10-30): the pointer drag (window.js) starts anywhere on a row, so row text is not
+   selectable — a press-and-move must never select text; copy lives on the copy buttons */
+.wrow, .wsubrow { user-select: none; }
 .wrow {
   position: relative;
   display: flex; align-items: flex-start; gap: 10px; overflow: hidden;
@@ -78,8 +81,33 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .wrow:hover { background: var(--hover); } /* flat: rows are content, not controls (owner 2026-09-28: no containers) */
 .wrow:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; } /* inside: the fold clips outside */
 .wrow.dragging, .wsubrow.dragging { opacity: 0.45; }
+/* the pointer drag's lifted copy (R1, 2026-10-30): a card that follows the pointer, never hit-tested */
+.drag-ghost { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; background: var(--card); border-radius: var(--r-2);
+  box-shadow: var(--shadow), 0 0 0 1px var(--rule); overflow: hidden; max-height: 120px; padding-inline: 6px; }
+.drag-ghost > .wrow, .drag-ghost > .wsubrow { margin: 0; background: transparent; box-shadow: none; border: 0; }
+.drag-ghost.sub { padding-block: 4px; }
+.drag-ghost > .subs-list { margin: 0; padding: 0; list-style: none; }
+.drag-ghost > .subs-list > li { border-bottom: 0; padding-inline-start: 0; } /* the editor's row, lifted */
+body.pdrag, body.pdrag * { cursor: grabbing !important; user-select: none; }
+/* subtask reorder (R5, 2026-10-30): an accent line where the dragged subtask lands — its inset follows the row's level */
+.wsubrow.sub-above, .wsubrow.sub-below, .subs-list li.sub-above, .subs-list li.sub-below { position: relative; }
+.sub-above::before, .sub-below::after { content: ''; position: absolute; inset-inline: 0; height: 2px; border-radius: 1px; background: var(--accent); pointer-events: none; }
+.sub-above::before { top: -2px; } .sub-below::after { bottom: -2px; }
+.subs-list li.substep.sub-above::before, .subs-list li.substep.sub-below::after { inset-inline-start: 22px; }
 /* a subtask dragged over a task (owner 2026-10-09): the whole row lights up as the place it lands */
 .wrow.drop-into, .wrow.is-now.drop-into { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+/* a TASK held over the lower part of another (owner 2026-10-29): it will go INTO it — the row says so */
+.wrow.drop-into[data-into-label]::after { content: attr(data-into-label); position: absolute; top: 8px; inset-inline-end: 10px; z-index: 1; padding: 1px 8px;
+  border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: var(--fs-1); font-weight: 700; pointer-events: none; }
+/* the quick confirm under the target row: the time wheel / move bar's solid card */
+.into-ask { position: fixed; z-index: 60; width: min(320px, calc(100vw - 16px)); padding: 12px 12px 10px; border-radius: var(--r-3); background: var(--pill-bg); color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 14px 30px -12px rgba(0, 0, 0, 0.45);
+  transform-origin: top center; animation: popIn 160ms var(--ease-out); }
+.into-ask .iq { font-size: var(--fs-2); line-height: 1.45; } .into-ask .iq b { font-weight: 650; }
+.into-ask .iw { margin-top: 6px; font-size: var(--fs-1); color: var(--muted); }
+.into-ask .il { margin-top: 4px; font-size: var(--fs-1); color: var(--p2); }
+.into-ask .ib { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 10px; }
+.into-ask .ik { margin-inline-end: auto; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
 .wrow.drop-above::before {
   content: ''; position: absolute; top: 0; left: 10px; right: 10px; height: 2px;
   background: var(--accent); border-radius: 1px;
@@ -127,7 +155,7 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .wsub { font-size: var(--fs-2); color: var(--muted); }
 
 /* M1 ink strike: an inline background, so it sweeps line by line across wrapped titles */
-.tt.striking {
+.tt.striking, .st.striking { /* .st = a ticked subtask (R8) */
   background-image: linear-gradient(currentColor, currentColor);
   background-repeat: no-repeat; background-position: 0 58%; background-size: 100% 1.5px;
 }
@@ -158,7 +186,16 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 /* subtask: only the [ ] ticks (it lights on its own hover); the text opens the editor (owner 2026-09-28) */
 .wsubrow .sb { cursor: pointer; border-radius: var(--r-1); }
 .wsubrow .sb:hover { color: var(--accent); background: var(--accent-soft); }
-.wsubrow.done .st { color: var(--faint); text-decoration: line-through; }
+/* a done subtask (owner 2026-10-29, pick C): the WHOLE row fades ([x], priority, icon, text) so open and done part at a
+   glance on every theme; the text keeps the ink under the fade, thin strike. The Done tab (.view) stays as it was. */
+.wsubrow.done:not(.view) { opacity: 0.42; }
+.wsubrow.done:not(.view) .st { text-decoration: line-through; text-decoration-thickness: 1px; }
+/* phases (owner 2026-10-29: colour only): a #phase subtask in its own hue, its steps one step in under it; a subtask
+   dragged onto a phase lights it in the same hue */
+.wsubrow.ph .st, .wsubrow.ph .sb, .subs-list li.ph .st, .subs-list li.ph .sb { color: var(--phase); font-weight: 650; }
+.wsubrow.substep { margin-inline-start: 18px; }
+.subs-list li.substep { padding-inline-start: 22px; }
+.wsubrow.drop-into, .subs-list li.drop-into { background: color-mix(in srgb, var(--phase) 12%, transparent); box-shadow: inset 0 0 0 2px var(--phase); }
 
 /* M5 fresh ink: a just-added / just-restored row settles in with a fading highlight (opacity only) */
 .wrow.fresh::after {
@@ -447,7 +484,8 @@ kbd {
 .subs-list li { padding: 5px 0; color: var(--muted); font-size: calc(var(--fs-task) * 0.94); border-bottom: 1px solid var(--rule-soft); }
 .subs-list li .sb { flex: none; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--faint); letter-spacing: -0.5px; }
 .subs-list li .st { flex: 1; min-width: 0; }
-.subs-list li.done .st { color: var(--faint); text-decoration: line-through; }
+.subs-list li.done { opacity: 0.42; } /* the editor: the same fade as the list (owner 2026-10-29, pick C) */
+.subs-list li.done .st { text-decoration: line-through; text-decoration-thickness: 1px; }
 .addsub { display: flex; gap: var(--s-2); }
 .addsub input { flex: 1; height: 32px; padding: 0 12px; }
 .addsub button { height: 32px; padding: 0 14px; border-radius: var(--r-2); font-size: var(--fs-3); font-weight: 650; }
@@ -479,7 +517,7 @@ kbd {
 .glass-on .ambient { display: block; }
 .glass-on body { background: var(--paper); /* canvas under the scene */
   --muted: var(--island-muted); --faint: var(--island-faint); /* text on the scene: the island's stronger greys + glass hues */
-  --p3: var(--glass-p3); --p2: var(--glass-p2); --ok: var(--glass-ok); --danger: var(--glass-p3); --danger-deep: var(--glass-p3); }
+  --p3: var(--glass-p3); --p2: var(--glass-p2); --ok: var(--glass-ok); --phase: var(--glass-phase); --danger: var(--glass-p3); --danger-deep: var(--glass-p3); }
 .glass-on header, .glass-on .statusline, .glass-on #view-tasks .list-pane { background: transparent; }
 .glass-on .new-task { background: rgba(var(--sheet-rgb), var(--g-sheet, 0.5));
   -webkit-backdrop-filter: blur(24px) saturate(var(--glass-sat)); backdrop-filter: blur(24px) saturate(var(--glass-sat)); }
@@ -721,6 +759,19 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
   transition: background var(--d-1) ease, color var(--d-1) ease;
 }
 .sub-del:hover { background: var(--hover); color: var(--p3); }
+/* phases (owner 2026-10-29): "Phase" marks a first-level subtask, + on a phase opens the step field; both show on the
+   row's hover / focus like the icon slot, and a phase keeps its "Phase" lit in its own hue */
+.sub-ph, .sub-step { flex: none; height: 22px; border: 0; border-radius: var(--r-1); background: transparent; color: var(--faint); font: inherit;
+  font-size: var(--fs-1); font-weight: 650; cursor: pointer; opacity: 0; transition: opacity 120ms ease, background var(--d-1) ease, color var(--d-1) ease; }
+.sub-ph { padding: 0 6px; margin-inline-start: auto; } .sub-ph + .sub-del { margin-inline-start: 0; }
+.sub-step { width: 22px; display: grid; place-items: center; padding: 0; margin-inline-start: auto; } .sub-step + .sub-ph { margin-inline-start: 0; }
+.sub-step .ic { width: 14px; height: 14px; margin: 0; }
+.subs-list li:hover :is(.sub-ph, .sub-step), .subs-list li:focus-within :is(.sub-ph, .sub-step), .sub-ph.on { opacity: 1; }
+.sub-ph.on, .sub-step { color: var(--phase); }
+.sub-ph:hover, .sub-step:hover, .sub-ph:focus-visible, .sub-step:focus-visible { background: var(--hover); color: var(--phase); outline: none; }
+.subs-list.selecting :is(.sub-ph, .sub-step), .subs-list li.done .sub-step { display: none; }
+.subs-list li.step-add { border-bottom: 0; padding-block: 3px; }
+.step-in { height: 26px; font-size: calc(var(--fs-task) * 0.9); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--phase) 55%, transparent); } /* a notch under the rows (R2) */
 /* Move subtasks (owner 2026-10-09, like WhatsApp's forward): Move… beside the Subtasks label, then a click picks a
    subtask (a round check at its start), a bar says how many with Cancel · Move to; Move to = the other tasks, full view */
 .sub-head { display: flex; align-items: center; gap: 8px; }
@@ -867,19 +918,31 @@ button.sh-sec:hover { color: var(--ink); }
 .sh-chip .v { color: var(--ink); font-variant-numeric: tabular-nums; }
 .sh-chip .ic, .sh-optbtn .ic { width: 13px; height: 13px; stroke-width: 2.2; color: var(--faint); transition: transform var(--d-2) var(--ease-out); }
 .sh-chip[aria-expanded="true"] .ic { transform: rotate(180deg); }
+/* a day filter ON (owner 2026-10-29): the chip wears the accent and offers a × back to All; --accent on --accent-soft
+   is the contrast-gated pair (contrast.js "accent / accent-soft over paper") */
+.sh-chip.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sh-chip.on .k, .sh-chip.on .v, .sh-chip.on .ic { color: var(--accent); }
+.sh-day-x { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; font-size: 13px; line-height: 1; cursor: pointer; }
+.sh-day-x:hover { background: var(--accent); color: var(--accent-ink); }
+.sh-day-x[hidden] { display: none; }
 .sh-optbtn[aria-expanded="false"] .ic { transform: rotate(180deg); } /* it opens UP: the chevron points up while closed */
 /* the options button names the message setup: "Plain text · [ ] · !! · 28 Sep" */
 .sh-optbtn { display: inline-flex; align-items: center; gap: 6px; max-width: 230px; }
 .sh-optsum { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-optsum .opt-g { font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 700; color: var(--faint); }
-.sh-optsum .opt-g.p { color: var(--p2); }
+.sh-optsum .opt-g.p { color: var(--p2); } .sh-optsum .opt-g.ph { color: var(--phase); }
 .sh-optsum .opt-g.d { color: var(--accent); }
 #sh-opt-pop { width: 248px; }
 #sh-opt-pop #fmt-seg { display: flex; } #sh-opt-pop #fmt-seg .seg-btn { flex: 1; justify-content: center; }
 /* inside the pop the include capsule is a column: one line per part */
 .inc-col { flex-direction: column; }
 .inc-col > * { justify-content: flex-start; height: 32px; }
-.inc-col > .inc-part .inc-mini { margin-inline-start: auto; }
+/* Subtasks takes two lines (R4, 2026-10-30: four choices squeezed "[ ]" onto two lines): its name, then All · Open ·
+   Phases · Off across the pop's full width, like the format switch above — room for the Arabic labels too */
+.inc-col > .inc-part { flex-wrap: wrap; height: auto; row-gap: 6px; padding-block: 7px; padding-inline-end: 10px; }
+.inc-col > .inc-part .opt-g { white-space: nowrap; }
+.inc-col > .inc-part .inc-mini { flex-basis: 100%; display: flex; }
+.inc-col > .inc-part .inc-mini button { flex: 1; }
 .inc-col > * + *, .inc-col > .inc-part + .inc-b { border-inline-start: 0; border-top: 1px solid var(--rule); }
 .sh-row.off { opacity: .45; }
 /* the calendar opens INSIDE the day menu, under the segments */
@@ -942,6 +1005,7 @@ button.sh-sec:hover { color: var(--ink); }
 :root[data-material="frosted"] .ambient { inset: -90px; filter: blur(var(--f-blur)) saturate(var(--f-sat)); }
 :root[data-material="frosted"] :is(.btn-soft, .chip, .recorder, .addsub button) {
   -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: 0 0 0 0.5px var(--f-hair), 0 1px 1.5px var(--drop); }
+:root[data-material="frosted"] .sh-chip.on { background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); }
 :root[data-material="frosted"] .btn-accent { background: var(--accent);
   box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--accent) 75%, #000), 0 1px 1.5px var(--drop); }
 :root[data-material="frosted"] .btn-accent:disabled { color: var(--ink); background: var(--ctl); box-shadow: 0 0 0 0.5px var(--f-hair); }

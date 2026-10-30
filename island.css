@@ -208,7 +208,7 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 @keyframes sk-pulse { to { opacity: 0.55; } }
 
 /* M1 ink strike: an inline background, so it sweeps line by line across wrapped titles */
-.tt.striking {
+.tt.striking, .st.striking { /* .st = a ticked subtask (R8) */
   background-image: linear-gradient(currentColor, currentColor);
   background-repeat: no-repeat; background-position: 0 58%; background-size: 100% 1.5px;
 }
@@ -261,7 +261,13 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .sub:hover { color: var(--ink); background: var(--hover); }
 .sub .sb { flex: none; font-family: var(--font-mono); font-size: var(--fs-2); font-weight: 700; color: var(--faint); letter-spacing: -0.5px; }
 .sub:hover .sb { color: var(--accent); }
-.sub.done .st { color: var(--faint); text-decoration: line-through; }
+/* a done subtask (owner 2026-10-29, pick C): the WHOLE row fades — [x], priority, icon and text — so open and done part at
+   a glance on every theme (Kraft's faint ink was nearly the open ink); the text keeps the ink under the fade, thin strike */
+.sub.done { opacity: 0.42; }
+/* phases (owner 2026-10-29: colour only): a #phase subtask in its own hue; its open steps sit one step in under it */
+.sub.ph .st, .sub.ph .sb { color: var(--phase); font-weight: 650; }
+.sub.substep { margin-inline-start: 14px; }
+.sub.done .st { text-decoration: line-through; text-decoration-thickness: 1px; }
 .ac-subs, .rd-inner { display: flex; flex-direction: column; gap: 2px; }
 /* folds: open subtasks past the first 3 ("[ ] N more") and done ones ("[x] N done") sit behind one quiet line.
    Owner 2026-10-06 (F2) + 2026-10-08: a 0.5 s rest fills the line with the Copy tab's accent sweep (.cw-fill), then

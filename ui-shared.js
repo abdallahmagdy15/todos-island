@@ -276,13 +276,18 @@
   const EDGE = '(^|[\\s(\\[{"\'])', END = '(?=$|[\\s).,!?:;\\]}"\'])';
   const RX_EM_U = new RegExp(EDGE + '_(?!\\s)(.+?)(?<!\\s)_' + END, 'g'); // _x_ only as a whole word — snake_case stays
   const RX_EM_S = new RegExp(EDGE + '\\*(?![\\s*])(.+?)(?<![\\s*])\\*' + END, 'g');
+  // an Arabic run (R6, owner 2026-10-30) — letters, with the spaces / digits / marks between them — wears lang="ar", so the
+  // paper themes drop their letter air + ink stroke on it (tokens.css: both tear the joined script in an English UI)
+  const AR = '\\u0600-\\u06FF\\u0750-\\u077F\\u08A0-\\u08FF\\uFB50-\\uFDFF\\uFE70-\\uFEFF';
+  const RX_AR = new RegExp(`[${AR}]+(?:[\\s\\d.,:!?()\\-]+[${AR}]+)*`, 'g');
+  const arRuns = html => html.split(/(<[^>]+>)/).map(p => (p[0] === '<' ? p : p.replace(RX_AR, '<span lang="ar">$&</span>'))).join('');
   function inline(text) {
-    return esc(text)
+    return arRuns(esc(text)
       .replace(/\*\*(?!\s)(.+?)(?<!\s)\*\*/g, '<strong>$1</strong>')
       .replace(/~~(?!\s)(.+?)(?<!\s)~~/g, '<s>$1</s>')
       .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, '<u>$1</u>')
       .replace(RX_EM_U, '$1<em>$2</em>')
-      .replace(RX_EM_S, '$1<em>$2</em>');
+      .replace(RX_EM_S, '$1<em>$2</em>'));
   }
   const plain = text => String(text || '')
     .replace(/\*\*(?!\s)(.+?)(?<!\s)\*\*/g, '$1').replace(/~~(?!\s)(.+?)(?<!\s)~~/g, '$1').replace(/<u>(.+?)<\/u>/g, '$1')
@@ -946,5 +951,166 @@
     pickOpen = { el, close };
     return pickOpen;
   }
-  window.UI = { taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, attClipHtml, attPeek, attIcon, attHint, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
+
+  // phases (owner 2026-10-29): a #phase subtask (s.ph) keeps its steps (s.under = its uid) right under it. Snapshot subs
+  // (note order) → units [{ head, steps }]; a step whose phase is gone stands as its own unit. `order` sorts the heads
+  // and the steps of each unit (stable), so every window keeps its own rule (island: importance, editor: open first).
+  function subUnits(subs, order = a => a) {
+    const units = [], byUid = new Map();
+    for (const s of subs || []) {
+      const u = s.under && byUid.get(s.under);
+      if (u) u.steps.push(s);
+      else { const unit = { head: s, steps: [] }; units.push(unit); if (s.uid) byUid.set(s.uid, unit); }
+    }
+    for (const u of units) u.steps = order(u.steps);
+    const heads = order(units.map(u => u.head));
+    return heads.map(h => units.find(u => u.head === h));
+  }
+  // the classes a subtask row wears: ph = a phase (its own hue), substep = sits under one (indented)
+  const subCls = s => (s.ph ? ' ph' : '') + (s.under ? ' substep' : '');
+
+  // ---- subtask reorder (R5, owner 2026-10-30: "the position decides") ----
+  // rows = ONE task's subtask rows in screen order (each has data-sub and the subCls classes); target = the row under
+  // the pointer; drag = { title, ph }. Returns where it lands — { before, under, mark } for reorderSubtask (before = the
+  // title it lands in front of, null = end of its group; under = the phase it joins, null = first level) — or null.
+  // A gap between a phase's steps = a step there; between first-level rows = first level. A phase's lower part (below
+  // 35 %) = the end of that phase; a dragged phase only ever lands between first-level units (it carries its steps).
+  function subDropPlan(rows, target, y, drag) {
+    const i = rows.indexOf(target);
+    if (i < 0 || !drag) return null;
+    const isPh = el => el.classList.contains('ph'), isStep = el => el.classList.contains('substep');
+    const r = target.getBoundingClientRect(), f = (y - r.top) / (r.height || 1);
+    if (isPh(target) && !drag.ph && f >= 0.35) return target.dataset.sub === drag.title ? null : { before: null, under: target.dataset.sub, mark: { row: target, side: 'into' } };
+    let k = f < (isPh(target) && !drag.ph ? 0.35 : 0.5) ? i : i + 1; // the gap: it lands in front of rows[k]
+    if (drag.ph) while (k < rows.length && isStep(rows[k])) k++;
+    const next = rows[k] || null;
+    let under = null;
+    if (!drag.ph && next && isStep(next)) { for (let j = k; j >= 0; j--) if (isPh(rows[j])) { under = rows[j].dataset.sub; break; } }
+    return { before: next ? next.dataset.sub : null, under, mark: next ? { row: next, side: 'above' } : { row: rows[rows.length - 1], side: 'below' } };
+  }
+  function paintSubMark(prev, mark) { // the reorder line (above / below a row) or the phase light; returns what to clear next time
+    if (prev) prev.row.classList.remove('sub-above', 'sub-below', 'drop-into');
+    if (mark) mark.row.classList.add(mark.side === 'into' ? 'drop-into' : 'sub-' + mark.side);
+    return mark;
+  }
+
+  // ---- done glide (R8, owner 2026-10-30, pick B "Glide to its place", demo design-demos/done-motion.html) ----
+  // A ticked subtask: its [x] lands and a pen line crosses it (200 ms), `work()` writes + re-renders, then every subtask
+  // row in `scope` slides from where it was to where the new order put it (280 ms) — a done step glides to the end of
+  // its phase, a done row to the end of the list. Rows are matched by key (task + title + nth), never by element:
+  // renderers morph or replace rows. A row that went out of sight (the island's folded "N done") leaves as a ghost that
+  // slides onto `fold()` (the element it went into) and fades. `scope` must outlive the re-render. Reduced motion: no pen sweep, no glide — the re-render alone.
+  const subKey = el => { const host = el.closest('[data-id], [data-card]'); return (el.dataset.parent || (host && (host.dataset.id || host.dataset.card)) || '') + '\u0001' + el.dataset.sub; };
+  function keyedRows(scope, sel) {
+    const seen = new Map(), out = new Map();
+    for (const el of scope.querySelectorAll(sel)) { const k = subKey(el), n = seen.get(k) || 0; seen.set(k, n + 1); out.set(k + '\u0001' + n, el); }
+    return out;
+  }
+  async function glideTick(scope, row, work, { sel = '[data-sub]', fold = null, gone = el => !el.offsetParent } = {}) {
+    const M = window.Motion, still = M.reduced;
+    const before = keyedRows(scope, sel), first = new Map();
+    let mine = null;
+    for (const [k, el] of before) { if (!gone(el)) first.set(k, el.getBoundingClientRect()); if (el === row) mine = k; }
+    const ticking = !row.classList.contains('done');
+    let ghost = null;
+    if (ticking && !still) {
+      const sb = row.querySelector('.sb'); if (sb) sb.textContent = '[x]';
+      const st = row.querySelector('.st');
+      if (st) { st.classList.add('striking'); await M.play(st, [{ backgroundSize: '0% 1.5px' }, { backgroundSize: '100% 1.5px' }], { duration: 200 }); }
+      if (fold) { ghost = row.cloneNode(true); ghost.removeAttribute('data-sub'); } // in case it folds out of sight
+    }
+    await work();
+    if (still) return;
+    const after = keyedRows(scope, sel);
+    for (const [k, el] of after) {
+      const f = first.get(k);
+      if (gone(el)) continue;
+      if (!f) { M.play(el, [{ opacity: 0 }, { opacity: getComputedStyle(el).opacity }], { duration: 200, fill: 'none' }); continue; }
+      const dy = f.top - el.getBoundingClientRect().top;
+      if (Math.abs(dy) > 0.5) M.play(el, [{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 280, easing: M.EASE_IN_OUT, fill: 'none' });
+    }
+    const land = mine && after.get(mine), onto = fold && fold();
+    if (ghost && onto && first.get(mine) && (!land || gone(land))) { // gone into the fold: a ghost slides onto it
+      const f = first.get(mine), to = onto.getBoundingClientRect();
+      ghost.style.cssText = `position:fixed;left:${f.left}px;top:${f.top}px;width:${f.width}px;margin:0;pointer-events:none;z-index:40;opacity:.42`;
+      document.body.appendChild(ghost);
+      await M.play(ghost, [{ transform: 'none', opacity: 0.42 }, { transform: `translateY(${to.top - f.top}px)`, opacity: 0 }], { duration: 280, easing: M.EASE_IN_OUT });
+      ghost.remove();
+    }
+  }
+
+  // ---- pointer drag (R1, 2026-10-30) ----
+  // Native HTML5 drag was cancelled by the Windows drag loop on the owner's PC unless it started on a button; pointer
+  // events never enter that loop. Press, move 5 px, and a lifted copy of the row (.drag-ghost) follows the pointer.
+  // opts: start(el) → the row element to carry (or null: no drag), over(el, x, y), drop(el, x, y) → promise,
+  // clean() (always last), scroller (edge-scrolls while held near its top/bottom; default el), wrap (a class for an
+  // element around the copy, so container-scoped styles like `.subs-list li` still dress it), skip (no drag from here).
+  function pointerDrag(el, opts) {
+    const START_PX = 5, EDGE = 44, scroller = opts.scroller || el;
+    let press = null, ghost = null, src = null, off = null, last = null, raf = 0, eatClick = false;
+    const blank = n => { n.removeAttribute('id'); for (const a of ['data-id', 'data-sub', 'data-chk', 'data-key', 'tabindex', 'draggable']) n.removeAttribute(a); };
+    function lift() {
+      src = opts.start(press.el);
+      if (!src) return false;
+      const r = src.getBoundingClientRect();
+      // the copy hangs just BELOW the pointer (same x grip), so the landing line under the pointer stays in view
+      off = { x: press.x - r.left, y: -12 };
+      const sel = window.getSelection && window.getSelection(); if (sel) sel.removeAllRanges(); // the press may have begun a text selection
+      const copy = src.cloneNode(true);
+      blank(copy); copy.querySelectorAll('*').forEach(blank); copy.classList.remove('dwelt', 'open', 'dragging');
+      ghost = document.createElement('div');
+      ghost.className = 'drag-ghost' + (opts.ghostCls ? ' ' + opts.ghostCls(src) : '');
+      ghost.style.width = r.width + 'px';
+      if (opts.wrap) { const w = document.createElement(opts.wrap.tag || 'div'); w.className = opts.wrap.cls; w.appendChild(copy); ghost.appendChild(w); } else ghost.appendChild(copy);
+      document.body.appendChild(ghost);
+      src.classList.add('dragging');
+      document.body.classList.add('pdrag');
+      return true;
+    }
+    const place = (x, y) => { ghost.style.transform = `translate(${Math.round(x - off.x)}px, ${Math.round(y - off.y)}px)`; };
+    function tick() { // edge scroll while held near the top / bottom, then re-test what is under the pointer
+      raf = 0;
+      if (!ghost || !last) return;
+      const lr = scroller.getBoundingClientRect();
+      const d = last.y < lr.top + EDGE ? -1 : last.y > lr.bottom - EDGE ? 1 : 0;
+      if (d) { scroller.scrollTop += d * 12; opts.over(document.elementFromPoint(last.x, last.y), last.x, last.y); raf = requestAnimationFrame(tick); }
+    }
+    function end(drop) {
+      const at = last, carried = src;
+      if (ghost) { ghost.remove(); ghost = null; }
+      document.body.classList.remove('pdrag');
+      cancelAnimationFrame(raf); raf = 0;
+      press = null; last = null; src = null;
+      eatClick = true; // the click that follows the release is not a fold / tick / rename
+      const target = drop && at ? document.elementFromPoint(at.x, at.y) : null;
+      Promise.resolve(drop && at ? opts.drop(target, at.x, at.y) : null).finally(() => { if (carried) carried.classList.remove('dragging'); opts.clean(); });
+    }
+    el.addEventListener('dragstart', e => e.preventDefault()); // links / images inside a row: no native drag either
+    el.addEventListener('pointerdown', e => {
+      if (e.button !== 0 || e.pointerType === 'touch' || press || ghost) return;
+      if (e.target.closest('input, textarea, select, [contenteditable]' + (opts.skip ? ', ' + opts.skip : ''))) return;
+      press = { x: e.clientX, y: e.clientY, el: e.target, id: e.pointerId };
+    });
+    window.addEventListener('pointermove', e => {
+      if (!press || e.pointerId !== press.id) return;
+      if (!(e.buttons & 1)) { if (ghost) end(false); else press = null; return; } // let go outside the window
+      last = { x: e.clientX, y: e.clientY };
+      if (!ghost) {
+        if (Math.hypot(e.clientX - press.x, e.clientY - press.y) < START_PX) return;
+        if (!lift()) { press = null; return; }
+      }
+      e.preventDefault();
+      place(e.clientX, e.clientY);
+      opts.over(document.elementFromPoint(e.clientX, e.clientY), e.clientX, e.clientY);
+      if (!raf) raf = requestAnimationFrame(tick);
+    });
+    window.addEventListener('pointerup', e => { if (press && e.pointerId === press.id) { if (ghost) end(true); else press = null; } });
+    window.addEventListener('pointercancel', () => { if (ghost) end(false); else press = null; });
+    // no cancel on window blur: an island pop takes focus mid-drag
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && ghost) { e.preventDefault(); e.stopPropagation(); end(false); } }, true);
+    document.addEventListener('click', e => { if (eatClick) { eatClick = false; e.stopPropagation(); e.preventDefault(); } }, true);
+    document.addEventListener('pointerdown', () => { eatClick = false; }, true); // a release that made no click must not eat the next real one
+    return { active: () => !!ghost };
+  }
+  window.UI = { subUnits, subCls, subDropPlan, paintSubMark, pointerDrag, glideTick, taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, attClipHtml, attPeek, attIcon, attHint, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
 })();

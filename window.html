@@ -49,7 +49,7 @@
         <div id="task-list" role="list" aria-label="Tasks"></div>
         </div>
         <div class="new-task" id="composer">
-          <textarea id="new-title" rows="1" spellcheck="false" data-i18n-aria="win.composer.aria"
+          <textarea id="new-title" rows="1" data-i18n-aria="win.composer.aria"
             data-i18n-ph="win.composer.ph"></textarea>
           <div class="new-task-controls">
             <span class="ctl-group"><span class="ctl-label" data-i18n="win.lbl.priority">Priority</span>
@@ -400,7 +400,7 @@
           <div class="field"><label for="ed-title"><span data-i18n="ed.task">Task</span> <span class="label-hint" data-i18n="ed.task.hint">— first line is the title, lines below become its description</span></label>
             <div class="title-wrap"><!-- the task icon (owner 2026-10-15): picked here, kept in app state -->
               <button class="ticon-btn" id="ed-icon" type="button" aria-haspopup="dialog" aria-expanded="false" data-i18n-title="ti.pick" data-i18n-aria="ti.pick"></button>
-              <textarea id="ed-title" rows="1" spellcheck="false"></textarea>
+              <textarea id="ed-title" rows="1"></textarea>
             </div>
           </div>
           <div class="field-row"><!-- owner 2026-09-30: Priority and Now share one line -->
@@ -426,7 +426,7 @@
               <!-- Move subtasks (owner 2026-10-09, like WhatsApp's forward): select them, then pick the task they go to -->
               <button class="btn-text sub-mv" id="ed-sub-move" type="button" data-i18n-title="ed.mv.btnTitle"><svg class="ic" data-icon="moveTo" viewBox="0 0 24 24"></svg><span data-i18n="ed.mv.btn">Move…</span></button></div>
             <ul class="subs-list" id="ed-subs"></ul>
-            <div class="addsub" id="ed-addsub-row"><input type="text" id="ed-sub" data-i18n-ph="ed.sub.ph"><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button></div>
+            <div class="addsub" id="ed-addsub-row"><input type="text" id="ed-sub" spellcheck="true" data-i18n-ph="ed.sub.ph"><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button></div>
             <div class="move-bar" id="ed-move-bar" hidden>
               <span class="mv-count" id="mv-count"></span>
               <button class="btn-text" id="mv-cancel" type="button" data-i18n="ed.mv.cancel">Cancel</button>
@@ -495,12 +495,12 @@
              filter bar; its menu holds the segments, and Pick… opens the small calendar inside the same menu -->
         <div class="sh-popwrap">
           <button id="sh-day-btn" class="chip sh-chip" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="day-menu">
-            <span class="k" data-i18n="sh.day">Day</span><span class="v" id="sh-day-val"></span><svg class="ic" data-icon="chevronDown" viewBox="0 0 24 24"></svg>
+            <span class="k" data-i18n="sh.day">Day</span><span class="v" id="sh-day-val"></span><span class="sh-day-x" id="sh-day-x" role="button" tabindex="-1" data-i18n-aria="sh.day.reset" data-i18n-title="sh.day.reset" hidden>&times;</span><svg class="ic" data-icon="chevronDown" viewBox="0 0 24 24"></svg>
           </button>
           <div class="sh-pop down" id="day-menu" role="dialog" data-i18n-aria="sh.day" hidden>
             <div class="seg" id="sh-day" role="radiogroup">
-              <button class="seg-btn" data-day="all" type="button" role="radio" data-i18n="sh.day.all">All</button>
-              <button class="seg-btn sel" data-day="today" type="button" role="radio" data-i18n="sh.day.today">Today</button>
+              <button class="seg-btn sel" data-day="all" type="button" role="radio" data-i18n="sh.day.all">All</button>
+              <button class="seg-btn" data-day="today" type="button" role="radio" data-i18n="sh.day.today">Today</button>
               <button class="seg-btn" data-day="yday" type="button" role="radio" data-i18n="sh.day.yday">Yesterday</button>
               <button class="seg-btn" data-day="pick" type="button" role="radio"><span class="pick-l" data-i18n="sh.day.pick">Pick…</span></button>
             </div>
@@ -539,6 +539,7 @@
                   <span class="inc-mini" role="radiogroup" data-i18n-aria="sh.opt.subs">
                     <button type="button" role="radio" data-subs="all" data-i18n="sh.subs.all" data-i18n-title="sh.subs.allTitle">All</button>
                     <button type="button" role="radio" data-subs="open" data-i18n="sh.subs.open" data-i18n-title="sh.subs.openTitle">Open</button>
+                    <button type="button" role="radio" data-subs="phases" data-i18n="sh.subs.phases" data-i18n-title="sh.subs.phasesTitle">Phases</button>
                     <button type="button" role="radio" data-subs="off" data-i18n="sh.subs.off" data-i18n-title="sh.subs.offTitle">Off</button>
                   </span>
                 </span>

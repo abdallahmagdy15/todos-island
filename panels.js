@@ -41,7 +41,8 @@
   // and the floating layers above it (undo toast, notices) don't count as outside — they switch or act on the panel.
   document.addEventListener('pointerdown', e => {
     if (!kind || e.button !== 0) return;
-    if (e.target.closest('#side, .etab, #btn-share, #undo-toast, #notice, #keys-pop')) return;
+    // .fmtbar (B/I/S/U) and .twheel (the due time wheel) live on <body>, outside #side, but act on its fields
+    if (e.target.closest('#side, .etab, #btn-share, #undo-toast, #notice, #keys-pop, .fmtbar, .twheel')) return;
     if (e.target.closest('.wsubrow .st') || (e.target.closest('.wrow:not(.has-detail):not(.done)') && !e.target.closest('.chk'))) return;
     close();
   }, true);
@@ -97,10 +98,24 @@
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
     subIcons = Object.fromEntries(t.subs.filter(x => x.i).map(x => [x.t, x.i]));
-    const subs = [...t.subs.filter(x => !x.done), ...t.subs.filter(x => x.done)]; // open first (owner 2026-09-30); the note keeps its order
+    // open first (owner 2026-09-30); the note keeps its order. Phases (owner 2026-10-29): a phase's steps stay right under it
+    const openFirst = arr => [...arr.filter(x => !x.done), ...arr.filter(x => x.done)];
+    const units = window.UI.subUnits(t.subs, openFirst), subs = units.flatMap(u => [u.head, ...u.steps]);
+    const stepField = ph => `<li class="substep step-add"><input type="text" class="sub-edit step-in" data-under="${esc(ph)}" spellcheck="true" placeholder="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}" aria-label="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}"></li>`;
+    // the ONE field goes after the open phase's last row — found by the phase's unit, never by a row title (two rows may
+    // share a title: R2, 2026-10-30, the field showed twice)
+    const atUnit = stepAt ? units.find(u => u.head.ph && u.head.t === stepAt) : null;
+    if (!atUnit) stepAt = null; // that phase is gone
+    const fieldAfter = atUnit ? atUnit.steps[atUnit.steps.length - 1] || atUnit.head : null;
+    const keep = document.querySelector('#ed-subs .step-in'), keepVal = keep ? keep.value : '', keepFocus = !!keep && document.activeElement === keep;
+    stepRender = true;
     $('ed-subs').innerHTML = subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}${mvPicked.has(x.t) ? ' picked' : ''}" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><button class="sic${x.i ? ' has' : ''}" type="button" data-subicon aria-haspopup="dialog" aria-expanded="false" title="${esc(T('ti.pick'))}" aria-label="${esc(T('ti.pickFor', { t: plain(x.t) }))}">${window.UI.taskIcon(x.i) || window.UI.icon('iconAdd')}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span><button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>`).join('')
+      `<li class="${x.done ? 'done' : ''}${window.UI.subCls(x)}${mvPicked.has(x.t) ? ' picked' : ''}" draggable="false" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><button class="sic${x.i ? ' has' : ''}" type="button" data-subicon aria-haspopup="dialog" aria-expanded="false" title="${esc(T('ti.pick'))}" aria-label="${esc(T('ti.pickFor', { t: plain(x.t) }))}">${window.UI.taskIcon(x.i) || window.UI.icon('iconAdd')}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span>${x.ph ? `<button class="sub-step" type="button" title="${esc(T('ed.sub.step'))}" aria-label="${esc(T('ed.sub.stepFor', { t: plain(x.t) }))}">${window.UI.icon('plus')}</button>` : ''}${x.under ? '' : `<button class="sub-ph${x.ph ? ' on' : ''}" type="button" aria-pressed="${!!x.ph}" title="${esc(T(x.ph ? 'ed.sub.phaseOff' : 'ed.sub.phaseOn'))}">${esc(T('ed.sub.phase'))}</button>`}<button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>${x === fieldAfter ? stepField(stepAt) : ''}`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
+    stepRender = false;
+    const sf = document.querySelector('#ed-subs .step-in');
+    if (sf) { sf.value = keepVal; if (keepFocus || stepFocus) sf.focus({ preventScroll: true }); }
+    stepFocus = false;
     if (selecting) { for (const k of [...mvPicked]) if (!subs.some(x => x.t === k)) mvPicked.delete(k); } // a picked one that is gone
     paintSel();
   }
@@ -165,6 +180,18 @@
   });
   // subtasks: every change joins the panel's session, so the one Undo covers them too
   let subEditing = null;
+  // phases (owner 2026-10-29): + on a phase opens ONE field for a new step under it; Enter adds and keeps it open for the
+  // next; Esc, a click elsewhere or leaving it closes it (typed text is added, like the editor's autosave)
+  let stepAt = null, stepFocus = false, stepRender = false;
+  function openStep(ph) { stepAt = ph; stepFocus = true; load(false); }
+  async function addStep(input, keepOpen) {
+    const v = input.value.replace(/\s+/g, ' ').trim(), ph = input.dataset.under;
+    input.value = '';
+    if (!keepOpen) stepAt = null;
+    if (v) { await saveNow(); window.SFX.play('tick'); await window.api.addSubtask(FILE, ID, v, session, ph); }
+    if (keepOpen) stepFocus = true;
+    load(false);
+  }
   $('ed-subs').addEventListener('click', async e => {
     const li = e.target.closest('li[data-sub]');
     if (li && selecting) { // selection mode: a click picks / unpicks, nothing else
@@ -176,22 +203,81 @@
     if (e.target.closest('.st')) { startSubEdit(li); return; }
     const sic = e.target.closest('[data-subicon]');
     if (sic) { pickIcon(sic, li.dataset.sub, curSubIcon(li.dataset.sub)); return; }
+    if (e.target.closest('.sub-step')) { window.SFX.play('tick'); openStep(li.dataset.sub); return; }
     await saveNow();
+    if (e.target.closest('.sub-ph')) { window.SFX.play('tick'); await window.api.subtaskPhase(FILE, ID, li.dataset.sub, !li.classList.contains('ph'), session); load(false); return; }
     if (e.target.closest('.sub-del')) { window.SFX.play('delete'); await window.api.deleteSubtask(FILE, ID, li.dataset.sub, session); }
     else if (e.target.closest('[data-subprio]')) { // one click steps the importance: none → ! → !! → !!! → none (owner 2026-09-29)
       const next = { '': '!', '!': '!!', '!!': '!!!', '!!!': null }[li.dataset.p || ''];
       window.SFX.play('tick'); await window.api.subtaskPriority(FILE, ID, li.dataset.sub, next, session);
     }
-    else if (e.target.closest('[data-subtick]')) { window.SFX.play('tick'); await window.api.toggleSubtask(FILE, ID, li.dataset.sub, session); }
+    else if (e.target.closest('[data-subtick]')) { // the row glides to its new place (R8, owner 2026-10-30)
+      window.SFX.play('tick');
+      await window.UI.glideTick($('ed-subs'), li, async () => { await window.api.toggleSubtask(FILE, ID, li.dataset.sub, session); await load(false); }, { sel: 'li[data-sub]' });
+      return;
+    }
     else return;
     load(false);
   });
-  $('ed-subs').addEventListener('keydown', e => { const st = e.target.closest('.st'); if (st && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); startSubEdit(st.closest('li')); } });
+  $('ed-subs').addEventListener('keydown', async e => {
+    if (e.target.classList.contains('step-in')) {
+      if (e.key === 'Enter') { e.preventDefault(); addStep(e.target, true); }
+      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.target.value = ''; stepAt = null; load(false); } // Esc closes the field, not the panel
+      return;
+    }
+    const st = e.target.closest('.st');
+    if (st && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); startSubEdit(st.closest('li')); return; }
+    // Tab = under the nearest phase above, Shift+Tab = back out (owner 2026-10-29); anywhere else Tab moves focus as usual
+    const li = st && st.closest('li[data-sub]');
+    if (!li || e.key !== 'Tab' || selecting) return;
+    const items = [...$('ed-subs').querySelectorAll('li[data-sub]')];
+    const phaseAbove = items.slice(0, items.indexOf(li)).some(x => x.classList.contains('ph'));
+    const dir = e.shiftKey ? (li.classList.contains('substep') ? -1 : 0) : (!li.classList.contains('substep') && !li.classList.contains('ph') && phaseAbove ? 1 : 0);
+    if (!dir) return;
+    e.preventDefault();
+    await saveNow(); window.SFX.play('tick');
+    const title = li.dataset.sub;
+    await window.api.subtaskNest(FILE, ID, title, dir, session);
+    await load(false);
+    const back = [...$('ed-subs').querySelectorAll('li[data-sub]')].find(x => x.dataset.sub === title);
+    if (back) back.querySelector('.st').focus({ preventScroll: true });
+  });
+  $('ed-subs').addEventListener('focusout', e => {
+    if (!e.target.classList.contains('step-in') || stepRender) return;
+    const input = e.target;
+    setTimeout(() => { if (input.isConnected && document.activeElement !== input && stepAt) addStep(input, false); }, 0); // leaving it closes it
+  });
+  // drag a subtask to reorder it (R5, owner 2026-10-30): the place it is let go decides its level (UI.subDropPlan) — a
+  // phase's lower part = under that phase (owner 2026-10-29), between steps = a step, between first-level rows = first
+  // level; a phase carries its steps. Pointer drag (UI.pointerDrag), never the browser's: see R1 in window.js.
+  let edDrag = null, edMark = null;
+  const edPlan = (el, y) => { const li = el && el.closest('#ed-subs li[data-sub]'); return li && edDrag ? window.UI.subDropPlan([...$('ed-subs').querySelectorAll('li[data-sub]')], li, y, edDrag) : null; };
+  window.UI.pointerDrag($('ed-subs'), {
+    skip: '.step-in, .sub-edit',
+    scroller: $('side-edit'),
+    wrap: { tag: 'ul', cls: 'subs-list' }, // `.subs-list li` dresses the lifted copy like the row it came from
+    start(el) {
+      const li = el.closest('li[data-sub]');
+      if (!li || selecting || subEditing) return null;
+      edDrag = { title: li.dataset.sub, ph: li.classList.contains('ph') };
+      return li;
+    },
+    over: (el, x, y) => { const p = edPlan(el, y); edMark = window.UI.paintSubMark(edMark, p && p.mark); },
+    async drop(el, x, y) {
+      const p = edPlan(el, y), title = edDrag && edDrag.title;
+      if (!p || !title) return;
+      await saveNow();
+      const ok = await window.api.subtaskReorder(FILE, ID, title, p.before, p.under, session);
+      if (ok && ok.changed) window.SFX.play('tick');
+      load(false);
+    },
+    clean: () => { edDrag = null; edMark = window.UI.paintSubMark(edMark, null); }
+  });
   function startSubEdit(li) {
     if (subEditing) return;
     const old = li.dataset.sub, st = li.querySelector('.st');
     const input = document.createElement('input');
-    input.type = 'text'; input.className = 'sub-edit'; input.value = old; input.spellcheck = false;
+    input.type = 'text'; input.className = 'sub-edit'; input.value = old; input.spellcheck = true;
     input.setAttribute('aria-label', T('ed.sub.rename'));
     st.replaceWith(input);
     window.UI.fmtBar(input);
@@ -520,8 +606,9 @@
   const sel = new Set(); // keys: 'o:<id>' open, 'd:<id>' done — picks survive page switches while the app runs
   const folded = { now: false, open: false };
   // day filter (#12, owner 2026-10-05): All · Today · Yesterday · Pick… (a day or a range). Every opening starts on
-  // Today ("this day" is the default); lib/share.js trimTask keeps only what changed in the range (hidden stamps).
-  let dayMode = 'today', pickA = null, pickB = null, calMonth = null;
+  // All (owner 2026-10-29); a filter ON shows on the Day chip (accent + a × back to All). lib/share.js trimTask keeps
+  // only what changed in the range (hidden stamps).
+  let dayMode = 'all', pickA = null, pickB = null, calMonth = null;
   const DAY = 864e5;
   const midnight = (d = new Date()) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
   function dayFilter() {
@@ -544,7 +631,7 @@
   // with all on (the note as written), plain text with subtasks only
   // subs is a MODE: 'all' | 'open' (done subtasks left out) | 'off' — the mini switch in the Subtasks part (owner 2026-09-30)
   const opts = { md: { subs: 'all', prio: true, dates: true }, text: { subs: 'all', prio: false, dates: false } };
-  const asMode = v => (v === false || v === 'off' ? 'off' : v === 'open' ? 'open' : 'all'); // earlier builds stored true / false
+  const asMode = v => (v === false || v === 'off' ? 'off' : v === 'open' ? 'open' : v === 'phases' ? 'phases' : 'all'); // earlier builds stored true / false; phases = owner 2026-10-29
   try { // per-viewer conveniences only
     const saved = JSON.parse(localStorage.getItem('share.opts') || '{}');
     if (saved.md || saved.text) { for (const f of ['md', 'text']) Object.assign(opts[f], saved[f] || {}); }
@@ -563,7 +650,7 @@
     shSnap = await window.api.getSnapshot();
     if (shSnap && shSnap.lang && shSnap.lang !== LANG) setLang(shSnap.lang);
     fmt = fmtFrom(shSnap);
-    dayMode = 'today'; pickA = pickB = null; closePops();
+    dayMode = 'all'; pickA = pickB = null; closePops();
     limit = STEP; $('share-list').scrollTop = 0;
     paintControls(); renderShare();
   }
@@ -624,6 +711,8 @@
     $('sh-day').querySelectorAll('.seg-btn').forEach(b => { const s = b.dataset.day === dayMode; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
     $('sh-day').querySelector('.pick-l').textContent = dayMode === 'pick' && pickA ? dayLabel() : T('sh.day.pick');
     $('sh-day-val').textContent = dayMode === 'pick' && pickA ? dayLabel() : T({ all: 'sh.day.all', today: 'sh.day.today', yday: 'sh.day.yday' }[dayMode] || 'sh.day.today');
+    $('sh-day-btn').classList.toggle('on', dayMode !== 'all'); // a filter ON: the chip wears the accent + a × (owner 2026-10-29)
+    $('sh-day-x').hidden = dayMode === 'all';
     for (const [id, k] of INC) { const v = !!opts[fmt][k]; $(id).classList.toggle('on', v); $(id).setAttribute('aria-pressed', v); }
     const m = opts[fmt].subs;
     $('sh-subs').classList.toggle('on', m !== 'off');
@@ -631,7 +720,7 @@
     // the options button names the setup in marks: "Plain text · [ ] · !! · 28 Sep" (glyphs over words)
     const g = (cls, x) => `<span class="opt-g ${cls}">${esc(x)}</span>`;
     $('sh-opt-sum').innerHTML = [esc(fmt === 'md' ? 'Markdown' : T('sh.fmt.text')),
-      m === 'all' ? g('', '[ ]') : m === 'open' ? g('', '[ ]') + ' ' + esc(T('sh.subs.open')) : '',
+      m === 'all' ? g('', '[ ]') : m === 'open' ? g('', '[ ]') + ' ' + esc(T('sh.subs.open')) : m === 'phases' ? g('ph', '[ ]') + ' ' + esc(T('sh.subs.phases')) : '',
       opts[fmt].prio ? g('p', '!!') : '', opts[fmt].dates ? g('d', '28 Sep') : ''].filter(Boolean).join(' · ');
   }
   function syncShare() { // counts on every page / list + the total; zero selection: the buttons say so
@@ -651,8 +740,7 @@
       const L = lists(tag), p = arr => arr.filter(t => sel.has(keyOf(t)));
       return { name: T(tag === 'work' ? 'win.tab.work' : 'win.tab.personal'), done: p(L.done), now: p(L.now), open: p(L.open) };
     });
-    return window.ShareText.buildShare({ groups, fmt: k, withPrio: opts[k].prio, withDates: opts[k].dates, withSubs: opts[k].subs, date: dayFilter() ? dayLabel() : today, day: dayFilter(),
-      labels: { done: T('sh.wa.done'), now: T('sh.wa.now'), next: T('sh.wa.next') } });
+    return window.ShareText.buildShare({ groups, fmt: k, withPrio: opts[k].prio, withDates: opts[k].dates, withSubs: opts[k].subs, date: dayFilter() ? dayLabel() : today, day: dayFilter() });
   }
   const picked = () => notesOn().some(tag => { const L = lists(tag); return pickedIn(L.now) + pickedIn(L.open) + pickedIn(L.done); });
   $('share-list').addEventListener('click', e => {
@@ -716,6 +804,14 @@
     if (!open && btnId === 'sh-day-btn') $('day-pop').hidden = true; // the calendar lives inside the day menu
   }
   function closePops() { for (const [b] of POPS) setPop(b, false); }
+  // the × inside the Day chip clears the filter (owner 2026-10-29); registered BEFORE the menu toggle below, and
+  // stopImmediatePropagation keeps that toggle from opening the menu
+  $('sh-day-btn').addEventListener('click', e => {
+    if (!e.target.closest('#sh-day-x')) return;
+    e.stopImmediatePropagation();
+    setPop('sh-day-btn', false);
+    dayMode = 'all'; pickA = pickB = null; window.SFX.play('tick'); applyDay();
+  });
   for (const [b, p] of POPS) $(b).addEventListener('click', () => { const open = $(p).hidden; closePops(); setPop(b, open); });
   document.addEventListener('pointerdown', e => {
     for (const [b, p] of POPS) if (!$(p).hidden && !e.target.closest(`#${b}, #${p}`)) setPop(b, false);

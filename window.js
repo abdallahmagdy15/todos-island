@@ -115,7 +115,7 @@ function doneRowHtml(d) {
   const hasDetail = !!(notes.length || subs.length), open = hasDetail && (openRows.has(ck(d.id)));
   const body = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${notes.map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}${window.UI.subCls(s)}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done${open ? ' open' : ''}${hasDetail ? ' has-detail' : ''}" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(plain(d.title))}"${hasDetail ? ` aria-expanded="${open}"` : ''}>
@@ -128,16 +128,19 @@ function doneRowHtml(d) {
     <span class="wmeta">${d.priority ? `<span class="bang ${bangCls(d.priority)}">${esc(d.priority)}</span>` : ''}${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task">${window.UI.icon('trash')}</button></span></span>
   </div></div></div>`;
 }
+// subtasks open first (owner 2026-10-30, R8 — was note order): a done step sits at the end of its phase, a done
+// first-level row (a phase with its steps) at the end of the list — the editor's order (panels.js)
+const subsOpenFirst = subs => window.UI.subUnits(subs, a => [...a.filter(x => !x.done), ...a.filter(x => x.done)]).flatMap(u => [u.head, ...u.steps]);
 function rowHtml(t) {
   const timed = !!(snap && snap.timer && snap.timer.id === t.id); // focus timer (#10) running on this task
   if (currentTab === 'done') return doneRowHtml(t);
   const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (openRows.has(t.id));
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${t.subs.map(s => `<div class="wsubrow ${s.done ? 'done' : ''}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="true"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${subsOpenFirst(t.subs).map(s => `<div class="wsubrow ${s.done ? 'done' : ''}${window.UI.subCls(s)}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="false"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
-  <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} ${t.shadow ? 'data-shadow draggable="false"' : 'draggable="true"'}>
+  <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} ${t.shadow ? 'data-shadow ' : ''}draggable="false">
     <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(plain(t.title))}"></button>
     <div class="wrow-main">
       <span class="wtitle"><span class="tt">${window.UI.taskIcon(t.icon)}${inline(t.title)}</span></span>
@@ -571,7 +574,10 @@ async function onListAction(e) {
   if (sub) {
     const sc = e.target.closest('[data-subcopy]'); // the subtask Copy button (pick D2): copy, don't open the editor
     if (sc) { window.UI.subCopyClick(sc, async t => { await window.api.copyText(t); window.SFX.play('tick'); }); return; }
-    if (e.target.closest('[data-subtick]')) { window.SFX.play('tick'); await window.api.toggleSubtask(sub.dataset.file, sub.dataset.parent, sub.dataset.sub, 'win' + Date.now()); await refresh(); } // a one-off session = its own Undo
+    if (e.target.closest('[data-subtick]')) { // a one-off session = its own Undo; the row glides to its new place (R8)
+      window.SFX.play('tick');
+      await window.UI.glideTick($('task-list'), sub, async () => { await window.api.toggleSubtask(sub.dataset.file, sub.dataset.parent, sub.dataset.sub, 'win' + Date.now()); await refresh(); }, { sel: '.wsubrow[data-sub]' });
+    }
     else window.Panels.edit(sub.dataset.file, sub.dataset.parent);
     return;
   }
@@ -624,37 +630,67 @@ $('btn-clear-done').addEventListener('click', async () => { // undoable — no n
 
 // drag & drop reorder — hold a row, drop it on another (inserts before the target).
 // A dragged SUBTASK (owner 2026-10-09) drops INTO another task instead (folded or open): it moves there, one Undo.
-let dragId = null, dragSub = null, lastOver = null;
-$('task-list').addEventListener('dragstart', e => {
-  const sub = e.target.closest('.wsubrow[data-sub]');
-  if (sub) {
-    dragSub = { file: sub.dataset.file, parent: sub.dataset.parent, title: sub.dataset.sub };
-    sub.classList.add('dragging');
-    if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragSub.title); }
-    return;
-  }
-  const row = e.target.closest('.wrow');
-  if (!row || row.classList.contains('done')) { e.preventDefault(); return; }
-  dragId = row.dataset.id;
-  row.classList.add('dragging');
-  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); }
-});
+// Among its OWN task's subtask rows it reorders (R5, owner 2026-10-30): the place it is let go decides its level
+// (UI.subDropPlan) — between a phase's steps = a step there, between first-level rows = first level.
+// POINTER drag, not the browser's (R1, 2026-10-30): on the owner's PC a native HTML5 drag that started anywhere but the
+// [ ] was cancelled by the Windows drag loop ~20 ms in (never in a sandbox on the same PC). UI.pointerDrag never enters
+// that loop: press, move 5 px, and a lifted copy of the row (.drag-ghost) follows the pointer. Rows are draggable="false".
+let dragId = null, dragSub = null, lastOver = null, subMark = null;
 const subTarget = over => (over && !over.classList.contains('done') && over.dataset.id !== dragSub.parent ? over : null);
-$('task-list').addEventListener('dragover', e => {
-  if (!dragId && !dragSub) return;
-  const over = e.target.closest('.wrow');
-  const target = dragSub ? subTarget(over) : over && over.dataset.id !== dragId ? over : null;
-  if (!dragSub || target) { e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = 'move'; } // a subtask drops only into a task
-  if (target === lastOver) return; // dragover fires constantly — touch the DOM only when the target changes
-  if (lastOver) lastOver.classList.remove('drop-above', 'drop-into');
-  if (target) target.classList.add(dragSub ? 'drop-into' : 'drop-above');
+// a subtask dropped on a PHASE row of ANOTHER task (owner 2026-10-29) goes under that phase; its own task's phases are
+// part of the reorder plan
+const phaseTarget = el => {
+  const ph = el && el.closest('.wsubrow.ph[data-sub]');
+  if (!ph || !dragSub || dragSub.ph) return null;
+  return ph.dataset.parent === dragSub.parent && ph.dataset.file === dragSub.file ? null : ph;
+};
+// the dragged subtask over a row of its OWN task: where it would land
+const ownPlan = el => {
+  const sr = dragSub && el && el.closest('#task-list .wsubrow[data-sub]');
+  if (!sr || sr.dataset.parent !== dragSub.parent || sr.dataset.file !== dragSub.file) return null;
+  const rows = [...document.querySelectorAll('#task-list .wsubrow[data-sub]')].filter(r => r.dataset.parent === dragSub.parent && r.dataset.file === dragSub.file);
+  return { sr, rows };
+};
+// a TASK dragged over another task (owner 2026-10-29, Item 2 pick A): the top ~35 % of the row = reorder above it (the
+// line, as before); the rest = INTO it — it becomes a subtask there, after a quick confirm. Not into a linked row (shadow).
+const taskZone = (row, y) => {
+  if (!row) return null;
+  const r = row.getBoundingClientRect();
+  return row.hasAttribute('data-shadow') || y - r.top < r.height * 0.35 ? 'drop-above' : 'drop-into';
+};
+// a task let go in the small gap between rows lands above the next row down, not at the list's end
+const rowNear = (el, y) => (el && el.closest('#task-list .wrow')) || (el && el.closest('#task-list') ? [...document.querySelectorAll('#task-list .wrow[data-id]')].find(r => r.getBoundingClientRect().bottom > y) || null : null);
+function dragOver(el, y) { // el = what is under the pointer (the ghost never is: pointer-events none)
+  const own = ownPlan(el), plan = own && window.UI.subDropPlan(own.rows, own.sr, y, dragSub);
+  subMark = window.UI.paintSubMark(subMark, plan && plan.mark);
+  const over = dragSub ? (own ? null : el && el.closest('#task-list .wrow')) : rowNear(el, y);
+  const target = dragSub ? (own ? null : phaseTarget(el) || subTarget(over)) : over && over.dataset.id !== dragId ? over : null;
+  const zone = dragSub ? 'drop-into' : taskZone(target, y);
+  if (target === lastOver && (!target || target.classList.contains(zone))) return; // moves fire constantly — touch the DOM only on a change
+  if (lastOver) { lastOver.classList.remove('drop-above', 'drop-into'); delete lastOver.dataset.intoLabel; }
+  if (target) { target.classList.add(zone); if (!dragSub && zone === 'drop-into') target.dataset.intoLabel = T('dr.label'); }
   lastOver = target;
-});
-$('task-list').addEventListener('drop', async e => {
-  e.preventDefault();
+}
+async function dragDrop(el, y) {
   if (dragSub) {
-    const s = dragSub, to = subTarget(e.target.closest('.wrow'));
+    const s = dragSub, own = ownPlan(el);
+    if (own) {
+      const plan = window.UI.subDropPlan(own.rows, own.sr, y, s);
+      dragSub = null;
+      if (!plan) return;
+      const ok = await window.api.subtaskReorder(s.file, s.parent, s.title, plan.before, plan.under, 'win' + Date.now());
+      if (ok && ok.changed) window.SFX.play('tick');
+      await refresh();
+      return;
+    }
+    const ph = phaseTarget(el), to = subTarget(el && el.closest('#task-list .wrow'));
     dragSub = null;
+    if (ph) {
+      window.SFX.play('tick');
+      await window.api.moveSubtask(s.file, s.parent, s.title, ph.dataset.file, ph.dataset.parent, ph.dataset.sub);
+      await refresh();
+      return;
+    }
     if (!to) return;
     window.SFX.play('tick');
     const r = await window.api.moveSubtask(s.file, s.parent, s.title, to.dataset.file, to.dataset.id);
@@ -662,21 +698,82 @@ $('task-list').addEventListener('drop', async e => {
     await refresh();
     return;
   }
-  const over = e.target.closest('.wrow');
+  const over = rowNear(el, y), inList = el && el.closest('#task-list');
+  if (!dragId || !inList) { dragId = null; return; } // dropped outside the list: nothing moves
   if (over && over.hasAttribute('data-shadow')) { dragId = null; return; } // a linked task from the other note: not a place in this one
-  const beforeId = over && over.dataset.id !== dragId ? over.dataset.id : null; // no target = move to end
-  if (dragId) {
-    window.SFX.play('tick');
-    await window.api.reorderTask(currentTab, dragId, beforeId);
-    await refresh();
-  }
-  dragId = null;
-});
-$('task-list').addEventListener('dragend', () => {
+  if (over && over.dataset.id !== dragId && taskZone(over, y) === 'drop-into') { const id = dragId; dragId = null; confirmInto(id, over); return; }
+  if (over && over.dataset.id === dragId) { dragId = null; return; } // back on itself
+  const beforeId = over ? over.dataset.id : null; // the list's empty end = move to end
+  window.SFX.play('tick');
+  const ids = order[currentTab]; // the open list's order is frozen (ORDER STAYS PUT) — move the row in it too, or it snaps back (R1)
+  if (ids) { const k = ids.indexOf(dragId); if (k !== -1) { ids.splice(k, 1); const b = beforeId ? ids.indexOf(beforeId) : -1; ids.splice(b === -1 ? ids.length : b, 0, dragId); } }
+  const id = dragId; dragId = null;
+  await window.api.reorderTask(currentTab, id, beforeId);
+  await refresh();
+}
+function dragClean() {
   dragId = null; dragSub = null;
-  document.querySelectorAll('.wrow.dragging, .wrow.drop-above, .wrow.drop-into, .wsubrow.dragging').forEach(r => r.classList.remove('dragging', 'drop-above', 'drop-into'));
+  subMark = window.UI.paintSubMark(subMark, null);
+  document.querySelectorAll('#task-list .wrow.drop-above, #task-list .wrow.drop-into, #task-list .wsubrow.drop-into').forEach(r => { if (intoAsk && r === intoAsk.row) return; r.classList.remove('drop-above', 'drop-into'); delete r.dataset.intoLabel; }); // the row asked about keeps its light
   lastOver = null;
+}
+window.UI.pointerDrag($('task-list'), {
+  skip: '.wexp a',
+  start(el) { // same start rules as the old dragstart
+    const sub = el.closest('.wsubrow[data-sub]'), row = el.closest('.wrow');
+    if (sub) dragSub = { file: sub.dataset.file, parent: sub.dataset.parent, title: sub.dataset.sub, ph: sub.classList.contains('ph') };
+    else if (row && !row.classList.contains('done') && !row.hasAttribute('data-shadow')) dragId = row.dataset.id;
+    else return null;
+    restClear(); // the Edit/Delete tabs step aside while a row is carried
+    return sub || row;
+  },
+  ghostCls: src => (src.classList.contains('wsubrow') ? 'sub' : ''),
+  over: (el, x, y) => dragOver(el, y),
+  drop: (el, x, y) => dragDrop(el, y),
+  clean: dragClean
 });
+
+// the quick confirm (owner 2026-10-29, demo design-demos/drag-confirm.html): a small card under the target row — never a
+// window. Two lines say what moves; an amber line says what a subtask can't keep. Enter = Make subtask (it has the
+// focus), Esc or a click anywhere else = Cancel. Then the usual Undo bubble.
+let intoAsk = null;
+function confirmInto(id, row) {
+  closeInto(false);
+  const all = (snap && snap.sections || []).flatMap(s => s.items), t = all.find(x => x.id === id), to = all.find(x => x.id === row.dataset.id);
+  if (!t || !to) return;
+  const n = (t.subs || []).length;
+  const lost = [t.dueText ? T('dr.due', { d: t.dueText }) : null, t.active ? T('dr.now') : null, t.linked ? T('dr.link') : null].filter(Boolean);
+  const card = document.createElement('div');
+  card.className = 'into-ask'; card.setAttribute('role', 'alertdialog'); card.setAttribute('aria-labelledby', 'into-q');
+  card.innerHTML = `<div class="iq" id="into-q">${T('dr.q', { a: '<b>' + inline(t.title) + '</b>', b: '<b>' + inline(to.title) + '</b>' })}</div>
+    <div class="iw">${esc(n ? T('dr.whatN', { n }) : T('dr.what'))}</div>${lost.length ? `<div class="il">${esc(T('dr.drops', { x: lost.join(' · ') }))}</div>` : ''}
+    <div class="ib"><span class="ik">Enter · Esc</span><button class="btn-soft sm" type="button" data-into="no">${esc(T('dr.no'))}</button><button class="btn-accent sm" type="button" data-into="yes">${esc(T('dr.yes'))}</button></div>`;
+  document.body.appendChild(card);
+  row.classList.add('drop-into');
+  const rr = row.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+  const below = rr.bottom + 6 + h <= innerHeight - 8;
+  card.style.top = (below ? rr.bottom + 6 : Math.max(8, rr.top - 6 - h)) + 'px';
+  card.style.left = Math.max(8, Math.min(innerWidth - w - 8, rr.left + rr.width / 2 - w / 2)) + 'px';
+  intoAsk = { id, to: row.dataset.id, row, card };
+  card.addEventListener('click', e => { const b = e.target.closest('[data-into]'); if (b) closeInto(b.dataset.into === 'yes'); });
+  card.querySelector('[data-into="yes"]').focus({ preventScroll: true });
+}
+async function closeInto(ok) {
+  if (!intoAsk) return;
+  const a = intoAsk; intoAsk = null;
+  a.card.remove(); a.row.classList.remove('drop-into');
+  if (!ok) return;
+  window.SFX.play('tick');
+  const r = await window.api.taskInto(currentTab, a.id, a.to);
+  if (r && r.ok && r.id) setOpen(r.id, true); // open where it landed, so you see it there
+  await refresh();
+}
+document.addEventListener('keydown', e => {
+  if (!intoAsk) return;
+  if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeInto(false); }
+  else if (e.key === 'Enter') { e.preventDefault(); closeInto(true); }
+}, true);
+document.addEventListener('pointerdown', e => { if (intoAsk && !intoAsk.card.contains(e.target)) closeInto(false); }, true);
 
 // ---- composer: type the task like you'd write it in the note; chips are the click route; preview shows the exact line ----
 const composer = { prio: undefined, due: undefined, result: null, seq: 0 }; // undefined = no chip chosen (typed tokens win)

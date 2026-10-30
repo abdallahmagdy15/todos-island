@@ -8,19 +8,24 @@ contextBridge.exposeInMainWorld('api', {
   importSettings: () => ipcRenderer.invoke('import-settings'),
   linkTask: (file, id, on) => ipcRenderer.invoke('link-task', file, id, on), // shadow in the other note (owner 2026-10-10)
   moveTaskNote: (file, id) => ipcRenderer.invoke('move-task-note', file, id), // the whole task to the other note
+  taskInto: (file, id, targetId) => ipcRenderer.invoke('task-into', file, id, targetId), // drag a task INTO another → its subtask (owner 2026-10-29)
   openOnboard: () => ipcRenderer.invoke('open-onboarding'),
   updateTask: (file, id, patch) => ipcRenderer.invoke('update-task', file, id, patch),
   toggleActive: (id, file) => ipcRenderer.invoke('toggle-active', id, file),
   addTask: (file, data) => ipcRenderer.invoke('add-task', file, data),
-  addSubtask: (file, parentId, title, session) => ipcRenderer.invoke('add-subtask', file, parentId, title, session),
+  addSubtask: (file, parentId, title, session, under) => ipcRenderer.invoke('add-subtask', file, parentId, title, session, under), // under = a phase title → a step
   toggleSubtask: (file, parentId, title, session) => ipcRenderer.invoke('toggle-subtask', file, parentId, title, session),
   subtaskPriority: (file, parentId, title, p, session) => ipcRenderer.invoke('subtask-priority', file, parentId, title, p, session),
   renameSubtask: (file, parentId, title, newTitle, session) => ipcRenderer.invoke('rename-subtask', file, parentId, title, newTitle, session),
+  subtaskPhase: (file, parentId, title, on, session) => ipcRenderer.invoke('subtask-phase', file, parentId, title, on, session), // phases (owner 2026-10-29)
+  subtaskNest: (file, parentId, title, dir, session) => ipcRenderer.invoke('subtask-nest', file, parentId, title, dir, session), // dir 1 = Tab, -1 = Shift+Tab
+  subtaskUnder: (file, parentId, title, phaseTitle, session) => ipcRenderer.invoke('subtask-under', file, parentId, title, phaseTitle, session),
+  subtaskReorder: (file, parentId, title, beforeTitle, underTitle, session) => ipcRenderer.invoke('subtask-reorder', file, parentId, title, beforeTitle, underTitle, session),
   complete: (id, file) => ipcRenderer.invoke('complete', id, file),
   deleteTask: (id, file) => ipcRenderer.invoke('delete-task', id, file),
   undoAction: token => ipcRenderer.invoke('undo-action', token),
   undoExpire: token => ipcRenderer.invoke('undo-expire', token),
-  moveSubtask: (fromFile, fromId, title, toFile, toId) => ipcRenderer.invoke('move-subtasks', fromFile, fromId, [title], toFile, toId), // drag: one
+  moveSubtask: (fromFile, fromId, title, toFile, toId, toPhase) => ipcRenderer.invoke('move-subtasks', fromFile, fromId, [title], toFile, toId, toPhase), // drag: one; toPhase = drop onto a phase
   moveSubtasks: (fromFile, fromId, titles, toFile, toId) => ipcRenderer.invoke('move-subtasks', fromFile, fromId, titles, toFile, toId), // editor: the picked ones
   deleteSubtask: (file, parentId, title, session) => ipcRenderer.invoke('delete-subtask', file, parentId, title, session),
   uncomplete: (id, file) => ipcRenderer.invoke('uncomplete-task', id, file),
