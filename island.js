@@ -29,7 +29,7 @@ const subBang = s => s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}
 let sdOpen = new Set(); // open folds, by "file:id|more" / "…|done" (see the fold handlers below)
 const OPEN_SHOW = 3; // owner 2026-10-06: 3 open subtasks show, the rest fold
 function subsHtml(subs, attrs = '', key = '') {
-  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}${s.ph ? ' ph' : ''}${s.under && !s.done ? ' substep' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`;
+  const one = (s, i) => `<div class="sub${s.done ? ' done' : ''}${s.ph ? ' ph' : ''}${s.under && !s.done ? ' substep' : ''}" style="--i:${Math.min(i, 6)}" data-sub="${esc(s.t)}"${attrs}><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${subBang(s)}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}${window.UI.subNotesHtml(s)}</span>${window.UI.subCopyHtml()}</div>`;
   // open subtasks lead with the most important (owner 2026-09-29): !!! → !! → ! → none; ties keep note order (stable)
   // phases (owner 2026-10-29): an open step stays right under its phase; the units sort by their head, steps inside
   const byRank = arr => [...arr].sort((a, b) => (RANK_SUB[b.p] || 0) - (RANK_SUB[a.p] || 0));
@@ -562,7 +562,7 @@ document.addEventListener('click', e => {
     const t = snap && snap.sections.flatMap(x => x.items).find(x => x.id === clip.dataset.attclip && x.file === clip.dataset.file);
     if (!t || !t.att || !t.att.length) return;
     window.SFX.play('tick');
-    const pop = window.UI.attPeek($('wrap'), clip, t, { open: i => window.api.attOpen(t.file, t.id, i), onClose: () => { if (attPop === pop) attPop = null; } });
+    const pop = window.UI.attPeek($('wrap'), clip, t, { open: i => window.api.attOpen(t.file, t.id, i), copy: async s => { await window.api.copyText(s); window.SFX.play('tick'); }, onClose: () => { if (attPop === pop) attPop = null; } });
     pop.clip = clip; attPop = pop;
     return;
   }

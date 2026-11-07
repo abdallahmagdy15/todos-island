@@ -87,7 +87,7 @@ let animating = 0, refreshPending = false; // a refresh mid-animation waits — 
 const fileErr = tag => (snap && snap.errors || []).find(e => e.file === tag);
 function matches(t, q) {
   return !q || t.title.toLowerCase().includes(q)
-    || t.subs.some(s => s.t.toLowerCase().includes(q))
+    || t.subs.some(s => s.t.toLowerCase().includes(q) || (s.n || []).some(n => n.toLowerCase().includes(q)))
     || (t.notes || []).some(n => n.toLowerCase().includes(q));
 }
 // Done tab (owner 2026-10-06 D2 → 2026-10-08): a done task is NOT gone, it's just done, so it reads like an open row:
@@ -115,7 +115,7 @@ function doneRowHtml(d) {
   const hasDetail = !!(notes.length || subs.length), open = hasDetail && (openRows.has(ck(d.id)));
   const body = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${notes.map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}${window.UI.subCls(s)}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}${window.UI.subCls(s)}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}${window.UI.subNotesHtml(s)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done${open ? ' open' : ''}${hasDetail ? ' has-detail' : ''}" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(plain(d.title))}"${hasDetail ? ` aria-expanded="${open}"` : ''}>
@@ -137,7 +137,7 @@ function rowHtml(t) {
   const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (openRows.has(t.id));
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${subsOpenFirst(t.subs).map(s => `<div class="wsubrow ${s.done ? 'done' : ''}${window.UI.subCls(s)}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="false"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${subsOpenFirst(t.subs).map(s => `<div class="wsubrow ${s.done ? 'done' : ''}${window.UI.subCls(s)}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="false"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}${window.UI.subNotesHtml(s)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} ${t.shadow ? 'data-shadow ' : ''}draggable="false">
@@ -559,7 +559,7 @@ async function onListAction(e) {
     const t = taskRows().find(x => x.id === clip.dataset.attclip && x.file === clip.dataset.file);
     if (!t || !t.att || !t.att.length) return;
     window.SFX.play('tick');
-    const pop = window.UI.attPeek(document.querySelector('.list-sheet'), clip, t, { open: i => window.api.attOpen(t.file, t.id, i), onClose: () => { if (attPop === pop) attPop = null; } });
+    const pop = window.UI.attPeek(document.querySelector('.list-sheet'), clip, t, { open: i => window.api.attOpen(t.file, t.id, i), copy: async s => { await window.api.copyText(s); window.SFX.play('tick'); }, onClose: () => { if (attPop === pop) attPop = null; } });
     pop.clip = clip; attPop = pop;
     return;
   }

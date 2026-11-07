@@ -98,10 +98,11 @@
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
     subIcons = Object.fromEntries(t.subs.filter(x => x.i).map(x => [x.t, x.i]));
+    subNotesMap = Object.fromEntries(t.subs.filter(x => x.n && x.n.length).map(x => [x.t, x.n])); // N2: .sub-edit opens with them
     // open first (owner 2026-09-30); the note keeps its order. Phases (owner 2026-10-29): a phase's steps stay right under it
     const openFirst = arr => [...arr.filter(x => !x.done), ...arr.filter(x => x.done)];
     const units = window.UI.subUnits(t.subs, openFirst), subs = units.flatMap(u => [u.head, ...u.steps]);
-    const stepField = ph => `<li class="substep step-add"><input type="text" class="sub-edit step-in" data-under="${esc(ph)}" spellcheck="true" placeholder="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}" aria-label="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}"></li>`;
+    const stepField = ph => `<li class="substep step-add"><textarea rows="1" class="sub-edit step-in" data-under="${esc(ph)}" spellcheck="true" placeholder="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}" aria-label="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}"></textarea></li>`;
     // the ONE field goes after the open phase's last row — found by the phase's unit, never by a row title (two rows may
     // share a title: R2, 2026-10-30, the field showed twice)
     const atUnit = stepAt ? units.find(u => u.head.ph && u.head.t === stepAt) : null;
@@ -110,11 +111,11 @@
     const keep = document.querySelector('#ed-subs .step-in'), keepVal = keep ? keep.value : '', keepFocus = !!keep && document.activeElement === keep;
     stepRender = true;
     $('ed-subs').innerHTML = subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}${window.UI.subCls(x)}${mvPicked.has(x.t) ? ' picked' : ''}" draggable="false" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><button class="sic${x.i ? ' has' : ''}" type="button" data-subicon aria-haspopup="dialog" aria-expanded="false" title="${esc(T('ti.pick'))}" aria-label="${esc(T('ti.pickFor', { t: plain(x.t) }))}">${window.UI.taskIcon(x.i) || window.UI.icon('iconAdd')}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}</span>${x.ph ? `<button class="sub-step" type="button" title="${esc(T('ed.sub.step'))}" aria-label="${esc(T('ed.sub.stepFor', { t: plain(x.t) }))}">${window.UI.icon('plus')}</button>` : ''}${x.under ? '' : `<button class="sub-ph${x.ph ? ' on' : ''}" type="button" aria-pressed="${!!x.ph}" title="${esc(T(x.ph ? 'ed.sub.phaseOff' : 'ed.sub.phaseOn'))}">${esc(T('ed.sub.phase'))}</button>`}<button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>${x === fieldAfter ? stepField(stepAt) : ''}`).join('')
+      `<li class="${x.done ? 'done' : ''}${window.UI.subCls(x)}${mvPicked.has(x.t) ? ' picked' : ''}" draggable="false" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><button class="sic${x.i ? ' has' : ''}" type="button" data-subicon aria-haspopup="dialog" aria-expanded="false" title="${esc(T('ti.pick'))}" aria-label="${esc(T('ti.pickFor', { t: plain(x.t) }))}">${window.UI.taskIcon(x.i) || window.UI.icon('iconAdd')}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}${window.UI.subNotesHtml(x)}</span>${x.ph ? `<button class="sub-step" type="button" title="${esc(T('ed.sub.step'))}" aria-label="${esc(T('ed.sub.stepFor', { t: plain(x.t) }))}">${window.UI.icon('plus')}</button>` : ''}${x.under ? '' : `<button class="sub-ph${x.ph ? ' on' : ''}" type="button" aria-pressed="${!!x.ph}" title="${esc(T(x.ph ? 'ed.sub.phaseOff' : 'ed.sub.phaseOn'))}">${esc(T('ed.sub.phase'))}</button>`}<button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>${x === fieldAfter ? stepField(stepAt) : ''}`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
     stepRender = false;
     const sf = document.querySelector('#ed-subs .step-in');
-    if (sf) { sf.value = keepVal; if (keepFocus || stepFocus) sf.focus({ preventScroll: true }); }
+    if (sf) { sf.value = keepVal; window.UI.multiField(sf, { onEnter: () => addStep(sf, true) }); if (keepFocus || stepFocus) sf.focus({ preventScroll: true }); }
     stepFocus = false;
     if (selecting) { for (const k of [...mvPicked]) if (!subs.some(x => x.t === k)) mvPicked.delete(k); } // a picked one that is gone
     paintSel();
@@ -183,12 +184,13 @@
   // phases (owner 2026-10-29): + on a phase opens ONE field for a new step under it; Enter adds and keeps it open for the
   // next; Esc, a click elsewhere or leaving it closes it (typed text is added, like the editor's autosave)
   let stepAt = null, stepFocus = false, stepRender = false;
+  let subNotesMap = {}; // title → description lines (N2), refreshed on load for .sub-edit
   function openStep(ph) { stepAt = ph; stepFocus = true; load(false); }
   async function addStep(input, keepOpen) {
-    const v = input.value.replace(/\s+/g, ' ').trim(), ph = input.dataset.under;
+    const { title, notes } = window.UI.splitSub(input.value), ph = input.dataset.under;
     input.value = '';
     if (!keepOpen) stepAt = null;
-    if (v) { await saveNow(); window.SFX.play('tick'); await window.api.addSubtask(FILE, ID, v, session, ph); }
+    if (title) { await saveNow(); window.SFX.play('tick'); await window.api.addSubtask(FILE, ID, title, session, ph, notes); }
     if (keepOpen) stepFocus = true;
     load(false);
   }
@@ -221,9 +223,8 @@
   });
   $('ed-subs').addEventListener('keydown', async e => {
     if (e.target.classList.contains('step-in')) {
-      if (e.key === 'Enter') { e.preventDefault(); addStep(e.target, true); }
-      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.target.value = ''; stepAt = null; load(false); } // Esc closes the field, not the panel
-      return;
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.target.value = ''; stepAt = null; load(false); } // Esc closes the field, not the panel
+      return; // Enter = the field's own multiField (Shift+Enter breaks the line, N2)
     }
     const st = e.target.closest('.st');
     if (st && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); startSubEdit(st.closest('li')); return; }
@@ -275,9 +276,9 @@
   });
   function startSubEdit(li) {
     if (subEditing) return;
-    const old = li.dataset.sub, st = li.querySelector('.st');
-    const input = document.createElement('input');
-    input.type = 'text'; input.className = 'sub-edit'; input.value = old; input.spellcheck = true;
+    const old = li.dataset.sub, st = li.querySelector('.st'), oldNotes = subNotesMap[old] || [];
+    const input = document.createElement('textarea');
+    input.rows = 1; input.className = 'sub-edit'; input.value = [old, ...oldNotes].join('\n'); input.spellcheck = true; // N2: title + description
     input.setAttribute('aria-label', T('ed.sub.rename'));
     st.replaceWith(input);
     window.UI.fmtBar(input);
@@ -286,18 +287,18 @@
     let done = false;
     const finish = async commit => {
       if (done) return; done = true;
-      const v = input.value.replace(/\s+/g, ' ').trim();
+      const { title, notes } = window.UI.splitSub(input.value);
       subEditing = null;
-      if (commit && v && v !== old) {
+      if (commit && title && (title !== old || notes.join('\n') !== oldNotes.join('\n'))) {
         await saveNow();
-        const res = await window.api.renameSubtask(FILE, ID, old, v, session);
+        const res = await window.api.renameSubtask(FILE, ID, old, title, session, notes);
         if (res && res.changed) { window.SFX.play('tick'); flashSaved(T('set.save.saved')); }
       }
       load(false);
     };
+    window.UI.multiField(input, { onEnter: () => finish(true) });
     input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-      else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } // Esc cancels the rename, not the panel
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); } // Esc cancels the rename, not the panel
     });
     input.addEventListener('blur', () => finish(true));
   }
@@ -335,7 +336,7 @@
     $('ed-att-field').hidden = !list.length; // the block shows only when something is attached
     $('ed-att-count').textContent = list.length ? '· ' + list.length : '';
     paintAttFold();
-    $('ed-att').innerHTML = list.map((a, i) => `<li data-i="${i}" tabindex="0" role="button" title="${esc(a.path || a.url || a.dir || '')}">${window.UI.icon(window.UI.attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(window.UI.attHint(a))}</span><button class="sub-del" type="button" data-attdel="${i}" aria-label="${esc(T('att.del', { t: a.name }))}">&times;</button></li>`).join('');
+    $('ed-att').innerHTML = list.map((a, i) => `<li data-i="${i}" tabindex="0" role="button" title="${esc(a.path || a.url || a.dir || '')}">${window.UI.icon(window.UI.attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(window.UI.attHint(a))}</span>${window.UI.attCopyHtml(a, i)}<button class="sub-del" type="button" data-attdel="${i}" aria-label="${esc(T('att.del', { t: a.name }))}">&times;</button></li>`).join('');
   }
   async function saveAtt(list) {
     await saveNow(); // a pending title edit lands first: attachments are filed under the task's title
@@ -353,6 +354,8 @@
   $('ed-att').addEventListener('click', e => {
     const d = e.target.closest('[data-attdel]');
     if (d) { window.SFX.play('delete'); saveAtt(att.filter((_, i) => i !== +d.dataset.attdel)); return; }
+    const c = e.target.closest('[data-attcopy]'); // N1: copy its path / link / command / name, open nothing
+    if (c) { const a = att[+c.dataset.attcopy]; if (a) window.api.copyText(window.UI.attCopyText(a)).then(() => { window.SFX.play('tick'); window.UI.copyFlash(c); }); return; }
     const li = e.target.closest('li[data-i]');
     if (li) openAtt(li, +li.dataset.i);
   });
@@ -536,16 +539,17 @@
     flashSaved(r && r.ok ? T('ed.mv.done') : T('att.fail'), !(r && r.ok));
     load(false);
   });
+  const edSubField = window.UI.multiField($('ed-sub'), { onEnter: () => $('ed-addsub').click() }); // N2: Enter adds, Shift+Enter a description line
   $('ed-addsub').addEventListener('click', async () => {
-    const v = $('ed-sub').value.trim();
-    if (!v) { window.Motion.nudge($('ed-sub')); $('ed-sub').focus(); return; }
+    const { title, notes } = window.UI.splitSub($('ed-sub').value);
+    if (!title) { window.Motion.nudge($('ed-sub')); $('ed-sub').focus(); return; }
     await saveNow();
     window.SFX.play('tick');
-    await window.api.addSubtask(FILE, ID, v, session);
+    await window.api.addSubtask(FILE, ID, title, session, undefined, notes);
     $('ed-sub').value = '';
+    edSubField.grow();
     load(false);
   });
-  $('ed-sub').addEventListener('keydown', e => { if (e.key === 'Enter') $('ed-addsub').click(); });
   // ⋯ menu — the rare, structural actions live here, out of the way
   function toggleMenu(open) {
     const m = $('ed-menu');

@@ -508,14 +508,29 @@
   const attIcon = a => a.type === 'session' ? (a.mode === 'terminal' ? 'terminal' : 'monitor') : { file: 'file', folder: 'folder', link: 'link' }[a.type] || 'file';
   const attHint = a => a.type === 'session' ? `${ATT_TOOL[a.tool] || a.tool} · ${T(a.mode === 'terminal' ? 'att.cmd' : 'att.app')}` : T('att.t.' + a.type);
   const attClipHtml = t => (t.att && t.att.length ? `<button class="aclip" type="button" data-attclip="${esc(t.id)}" data-file="${t.file}" title="${esc(T('att.title'))}" aria-label="${esc(T('att.aria', { n: t.att.length }))}" aria-expanded="false">${icon('paperclip')}<span>${t.att.length}</span></button>` : '');
-  function attPeek(host, clip, t, { open, onClose }) {
+  // Copy on an attachment (owner 2026-11-08, N1): the subtask Copy's icon and 1 s rest (.scopy), at the end of the row.
+  // It copies a file / folder path, a link's URL, a terminal session's resume command, a desktop session's name.
+  // Only text goes to the clipboard here; opening still goes through main by index (lib/attach.js).
+  const ATT_RESUME = { claude: id => `claude --resume ${id}`, codex: id => `codex resume ${id}`, opencode: id => `opencode . -s ${id}` };
+  const attCopyText = a => a.type === 'link' ? a.url
+    : a.type === 'session' ? (a.mode === 'terminal' && ATT_RESUME[a.tool] ? ATT_RESUME[a.tool](a.id) : a.name)
+    : a.path;
+  const attCopyKey = a => 'att.copy.' + (a.type === 'session' ? (a.mode === 'terminal' ? 'cmd' : 'app') : a.type === 'link' ? 'link' : 'path');
+  const attCopyHtml = (a, i) => `<button class="scopy" type="button" data-attcopy="${i}" title="${esc(T(attCopyKey(a)))}" aria-label="${esc(T(attCopyKey(a)))}">${icon('copy')}</button>`;
+  function copyFlash(btn) { // a Copy icon turns into a check for 1.1 s (subtask + attachment Copy)
+    btn.innerHTML = icon('check'); btn.classList.add('done');
+    setTimeout(() => { btn.innerHTML = icon('copy'); btn.classList.remove('done'); }, 1100);
+  }
+  function attPeek(host, clip, t, { open, copy, onClose }) {
     const el = document.createElement('div');
     el.className = 'clist apop'; el.setAttribute('role', 'menu'); el.setAttribute('aria-label', T('att.title'));
-    el.innerHTML = t.att.map((a, i) => `<button type="button" role="menuitem" data-i="${i}" title="${esc(a.name)}">${icon(attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(attHint(a))}</span></button>`).join('');
+    el.innerHTML = t.att.map((a, i) => `<div class="arow" role="none"><button type="button" role="menuitem" data-i="${i}" title="${esc(a.name)}">${icon(attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(attHint(a))}</span></button>${attCopyHtml(a, i)}</div>`).join('');
     clip.setAttribute('aria-expanded', 'true');
     const api = underTab(host, clip, el, 'att', fromLeave => { clip.setAttribute('aria-expanded', 'false'); if (onClose) onClose(fromLeave); });
     el.addEventListener('click', async e => {
       e.stopPropagation();
+      const c = e.target.closest('[data-attcopy]');
+      if (c) { const a = t.att[+c.dataset.attcopy]; if (a && copy) { await copy(attCopyText(a)); copyFlash(c); } return; }
       const b = e.target.closest('button[data-i]');
       if (!b) return;
       const r = await open(+b.dataset.i);
@@ -524,19 +539,40 @@
       else if (r && r.ok) api.close();
       else { b.classList.add('bad'); hint.textContent = T('att.fail'); }
     });
-    setTimeout(() => { const f = el.querySelector('button'); if (f && clip.matches(':focus-visible')) f.focus(); }, 0);
+    setTimeout(() => { const f = el.querySelector('button[data-i]'); if (f && clip.matches(':focus-visible')) f.focus(); }, 0);
     return api;
   }
 
   // the subtask Copy button (owner 2026-10-05, pick D2; replaced copy-on-rest): an icon at the end of each subtask row
   const subCopyHtml = () => `<button class="scopy" type="button" data-subcopy title="${esc(T('sub.copy'))}" aria-label="${esc(T('sub.copy'))}">${icon('copy')}</button>`;
-  // a click on it: copy that subtask as plain words (no bangs, no ** _ ~~ marks), the icon turns into a check
+  // a subtask's description (owner 2026-11-08, N2): small muted italic lines right under its title, inside .st
+  const subNotesHtml = s => (s && s.n && s.n.length ? s.n.map(n => `<span class="snote">${inline(n)}</span>`).join('') : '');
+  // a click on it: copy that subtask as plain words (no bangs, no ** _ ~~ marks; its description lines follow the
+  // title), the icon turns into a check
   async function subCopyClick(btn, copy) {
     const row = btn.closest('[data-sub]');
     if (!row) return;
-    await copy(plain(row.dataset.sub));
-    btn.innerHTML = icon('check'); btn.classList.add('done');
-    setTimeout(() => { btn.innerHTML = icon('copy'); btn.classList.remove('done'); }, 1100);
+    const notes = [...row.querySelectorAll('.snote')].map(n => n.textContent);
+    await copy(notes.length ? [plain(row.dataset.sub), ...notes].join('\n') : plain(row.dataset.sub));
+    copyFlash(btn);
+  }
+  // a subtask field that takes MULTIPLE lines (owner 2026-11-08, N2): Enter commits, Shift+Enter breaks the line, the
+  // field grows with its text up to maxLines then scrolls inside. grow() also resets it after a programmatic clear.
+  function multiField(ta, { onEnter, maxLines = 3 } = {}) {
+    const grow = () => {
+      const cs = getComputedStyle(ta), max = parseFloat(cs.lineHeight) * maxLines + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, max) + 'px';
+    };
+    ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onEnter(); } });
+    ta.addEventListener('input', grow);
+    grow();
+    return { grow };
+  }
+  // multiline typed text → a subtask (N2): the first non-blank line (whitespace collapsed) is the title, the rest its description
+  function splitSub(v) {
+    const lines = String(v || '').split('\n').map(l => l.trim());
+    const at = lines.findIndex(l => l);
+    return { title: at < 0 ? '' : lines[at].replace(/\s+/g, ' ').trim(), notes: at < 0 ? [] : lines.slice(at + 1).filter(Boolean) };
   }
 
   // The formatting pop-up: select text in a task field → a small bar (B · I · S · U) above the selection; the same
@@ -1112,5 +1148,5 @@
     document.addEventListener('pointerdown', () => { eatClick = false; }, true); // a release that made no click must not eat the next real one
     return { active: () => !!ghost };
   }
-  window.UI = { subUnits, subCls, subDropPlan, paintSubMark, pointerDrag, glideTick, taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subCopyClick, attClipHtml, attPeek, attIcon, attHint, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
+  window.UI = { subUnits, subCls, subDropPlan, paintSubMark, pointerDrag, glideTick, taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subNotesHtml, subCopyClick, multiField, splitSub, attClipHtml, attPeek, attIcon, attHint, attCopyHtml, attCopyText, copyFlash, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
 })();

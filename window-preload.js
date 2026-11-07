@@ -13,10 +13,10 @@ contextBridge.exposeInMainWorld('api', {
   updateTask: (file, id, patch) => ipcRenderer.invoke('update-task', file, id, patch),
   toggleActive: (id, file) => ipcRenderer.invoke('toggle-active', id, file),
   addTask: (file, data) => ipcRenderer.invoke('add-task', file, data),
-  addSubtask: (file, parentId, title, session, under) => ipcRenderer.invoke('add-subtask', file, parentId, title, session, under), // under = a phase title → a step
+  addSubtask: (file, parentId, title, session, under, notes) => ipcRenderer.invoke('add-subtask', file, parentId, title, session, under, notes), // under = a phase title → a step; notes = description lines (N2)
   toggleSubtask: (file, parentId, title, session) => ipcRenderer.invoke('toggle-subtask', file, parentId, title, session),
   subtaskPriority: (file, parentId, title, p, session) => ipcRenderer.invoke('subtask-priority', file, parentId, title, p, session),
-  renameSubtask: (file, parentId, title, newTitle, session) => ipcRenderer.invoke('rename-subtask', file, parentId, title, newTitle, session),
+  renameSubtask: (file, parentId, title, newTitle, session, notes) => ipcRenderer.invoke('rename-subtask', file, parentId, title, newTitle, session, notes),
   subtaskPhase: (file, parentId, title, on, session) => ipcRenderer.invoke('subtask-phase', file, parentId, title, on, session), // phases (owner 2026-10-29)
   subtaskNest: (file, parentId, title, dir, session) => ipcRenderer.invoke('subtask-nest', file, parentId, title, dir, session), // dir 1 = Tab, -1 = Shift+Tab
   subtaskUnder: (file, parentId, title, phaseTitle, session) => ipcRenderer.invoke('subtask-under', file, parentId, title, phaseTitle, session),

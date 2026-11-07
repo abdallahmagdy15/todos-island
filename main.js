@@ -4,7 +4,7 @@
 const { app, Tray, Menu, BrowserWindow, ipcMain, nativeImage, screen, globalShortcut, nativeTheme, shell, clipboard, net, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { NoteFile, resolveDue, MONTHS, stampMs, fmtTime, parseDueText } = require('./lib/parse.js');
+const { NoteFile, resolveDue, MONTHS, stampMs, fmtTime, parseDueText, subMeta } = require('./lib/parse.js');
 // the due as the note writes it: "28 Sep", "28 Sep 2pm", or a bare "2pm" (= today) (#7)
 const dueTextOf = t => [t.due ? `${t.due.d} ${t.due.m}` : null, t.time != null ? fmtTime(t.time) : null].filter(Boolean).join(' ') || null;
 const { composeTask } = require('./lib/compose.js');
@@ -152,7 +152,7 @@ const RANK = { '!!!': 3, '!!': 2, '!': 1 };
 function snapshot() {
   // subtasks, open + done alike: ph = a first-level phase; under = the uid of the first-level subtask it sits under
   // (null = first-level itself). subInfo carries the note's nesting (owner 2026-10-29).
-  const subSnap = (f, t) => f.subInfo(t).map(({ sub: s, under }) => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, ph: !!s.phase, under: under ? (under.uid || null) : null, c: s.created || null, u: s.updated || null, i: (s.uid && (state.icons || {})[s.uid]) || null })); // t = the note's title = the address; i = its picked icon
+  const subSnap = (f, t) => f.subInfo(t).map(({ sub: s, under }) => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, ph: !!s.phase, under: under ? (under.uid || null) : null, c: s.created || null, u: s.updated || null, n: f.subNotesOf(t, s), i: (s.uid && (state.icons || {})[s.uid]) || null })); // t = the note's title = the address; n = its description lines (N2); i = its picked icon
   const collect = (f, group) => f.topTasks().filter(t => !t.checked).map(t => ({
     id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, active: !!t.active,
@@ -774,7 +774,13 @@ ipcMain.handle('toggle-active', (_e, id, file) => {
 });
 ipcMain.handle('toggle-subtask', (_e, file, parentId, subTitle, session) => subtaskWrite(file, parentId, session, f => f.toggleSubtask(parentId, subTitle)));
 ipcMain.handle('subtask-priority', (_e, file, parentId, subTitle, p, session) => subtaskWrite(file, parentId, session, f => f.setSubtaskPriority(parentId, subTitle, p)));
-ipcMain.handle('rename-subtask', (_e, file, parentId, subTitle, newTitle, session) => subtaskWrite(file, parentId, session, f => f.renameSubtask(parentId, subTitle, newTitle)));
+ipcMain.handle('rename-subtask', (_e, file, parentId, subTitle, newTitle, session, notes) => subtaskWrite(file, parentId, session, f => {
+  const renamed = f.renameSubtask(parentId, subTitle, newTitle);
+  if (notes === undefined) return renamed; // no notes sent (N2): a plain rename
+  // the title may have just changed (or normalized to the same): address the subtask by what it is called now
+  const changed = f.setSubNotes(parentId, renamed ? subMeta(newTitle).title : subTitle, notes);
+  return renamed || changed;
+}));
 // phases (owner 2026-10-29): mark/unmark a phase, Tab/Shift+Tab nest/unnest, drag onto a phase — all subtaskWrite, so
 // the editor's session undo covers them like every other subtask change
 ipcMain.handle('subtask-phase', (_e, file, parentId, subTitle, on, session) => subtaskWrite(file, parentId, session, f => f.setPhase(parentId, subTitle, on)));
@@ -1078,9 +1084,9 @@ ipcMain.handle('add-task', (_e, file, data) => {
   f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: !!t, id: t ? f.id(t) : null };
 });
-ipcMain.handle('add-subtask', (_e, file, parentId, title, session, under) => { // under = a phase title → a step of it
-  if (session) return subtaskWrite(file, parentId, session, f => f.addSubtask(parentId, title, under));
-  const f = fileFor(file); f.addSubtask(parentId, title, under); f.save(); sendSnap();
+ipcMain.handle('add-subtask', (_e, file, parentId, title, session, under, notes) => { // under = a phase title → a step of it; notes = its description lines (N2)
+  if (session) return subtaskWrite(file, parentId, session, f => f.addSubtask(parentId, title, under, notes));
+  const f = fileFor(file); f.addSubtask(parentId, title, under, notes); f.save(); sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
 ipcMain.handle('delete-task', (_e, id, file) => {
