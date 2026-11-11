@@ -69,7 +69,7 @@
     if (kind === 'edit' && (file !== FILE || id !== ID)) await saveNow(); // switching tasks: the old one lands first
     const same = kind === 'edit' && file === FILE && id === ID;
     FILE = file; ID = id;
-    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); endMove(); }
+    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); endMove(); subHide(); }
     show('edit');
     await load(!same);
     if (opts.focus === 'sub') setTimeout(() => $('ed-sub').focus({ preventScroll: true }), 80);
@@ -102,7 +102,7 @@
     // open first (owner 2026-09-30); the note keeps its order. Phases (owner 2026-10-29): a phase's steps stay right under it
     const openFirst = arr => [...arr.filter(x => !x.done), ...arr.filter(x => x.done)];
     const units = window.UI.subUnits(t.subs, openFirst), subs = units.flatMap(u => [u.head, ...u.steps]);
-    const stepField = ph => `<li class="substep step-add"><textarea rows="1" class="sub-edit step-in" data-under="${esc(ph)}" spellcheck="true" placeholder="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}" aria-label="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}"></textarea></li>`;
+    const stepField = ph => `<li class="substep step-add"><textarea rows="1" class="sub-edit step-in" data-under="${esc(ph)}" spellcheck="true" placeholder="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}" aria-label="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}"></textarea><button class="btn-soft step-go" type="button" data-stepadd>${esc(T('win.btn.add'))}</button></li>`;
     // the ONE field goes after the open phase's last row — found by the phase's unit, never by a row title (two rows may
     // share a title: R2, 2026-10-30, the field showed twice)
     const atUnit = stepAt ? units.find(u => u.head.ph && u.head.t === stepAt) : null;
@@ -111,12 +111,19 @@
     const keep = document.querySelector('#ed-subs .step-in'), keepVal = keep ? keep.value : '', keepFocus = !!keep && document.activeElement === keep;
     stepRender = true;
     $('ed-subs').innerHTML = subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}${window.UI.subCls(x)}${mvPicked.has(x.t) ? ' picked' : ''}" draggable="false" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><button class="sbp ${x.p ? bangCls(x.p) : 'none'}" type="button" data-subprio title="${esc(T('ed.sub.prio'))}" aria-label="${esc(T('ed.sub.prioAria', { t: plain(x.t), p: x.p || '–' }))}">${x.p ? esc(x.p) : '!'}</button><button class="sic${x.i ? ' has' : ''}" type="button" data-subicon aria-haspopup="dialog" aria-expanded="false" title="${esc(T('ti.pick'))}" aria-label="${esc(T('ti.pickFor', { t: plain(x.t) }))}">${window.UI.taskIcon(x.i) || window.UI.icon('iconAdd')}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${inline(x.t)}${window.UI.subNotesHtml(x)}</span>${x.ph ? `<button class="sub-step" type="button" title="${esc(T('ed.sub.step'))}" aria-label="${esc(T('ed.sub.stepFor', { t: plain(x.t) }))}">${window.UI.icon('plus')}</button>` : ''}${x.under ? '' : `<button class="sub-ph${x.ph ? ' on' : ''}" type="button" aria-pressed="${!!x.ph}" title="${esc(T(x.ph ? 'ed.sub.phaseOff' : 'ed.sub.phaseOn'))}">${esc(T('ed.sub.phase'))}</button>`}<button class="sub-del" type="button" aria-label="${esc(T('ed.sub.del', { t: plain(x.t) }))}">&times;</button></li>${x === fieldAfter ? stepField(stepAt) : ''}`).join('')
+      `<li class="${x.done ? 'done' : ''}${window.UI.subCls(x)}${mvPicked.has(x.t) ? ' picked' : ''}" draggable="false" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${x.p ? `<span class="bang sbang ${bangCls(x.p)}">${esc(x.p)}</span>` : ''}${window.UI.taskIcon(x.i)}${inline(x.t)}${window.UI.subNotesHtml(x)}</span></li>${x === fieldAfter ? stepField(stepAt) : ''}`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
     stepRender = false;
     const sf = document.querySelector('#ed-subs .step-in');
     if (sf) { sf.value = keepVal; window.UI.multiField(sf, { onEnter: () => addStep(sf, true) }); if (keepFocus || stepFocus) sf.focus({ preventScroll: true }); }
     stepFocus = false;
+    // the row tabs (M3): after a re-render they re-attach to the same subtask while the pointer (or a focused tab)
+    // never left it, so Priority can be clicked again right away; Delete and + Step hid them already
+    if (subRow) {
+      const again = [...$('ed-subs').querySelectorAll('li[data-sub]')].find(x => x.dataset.sub === subRow.dataset.sub);
+      if (again && !subBlocked() && (again.matches(':hover') || subBtns.some(b => b.matches(':hover') || b.contains(document.activeElement)))) subShow(again);
+      else subHide();
+    }
     if (selecting) { for (const k of [...mvPicked]) if (!subs.some(x => x.t === k)) mvPicked.delete(k); } // a picked one that is gone
     paintSel();
   }
@@ -201,25 +208,15 @@
       li.classList.toggle('picked', mvPicked.has(li.dataset.sub)); window.SFX.play('tick'); paintSel();
       return;
     }
+    const sa = e.target.closest('[data-stepadd]'); // the step field's Add (M1): same as Enter, the field stays open
+    if (sa) { const sf = $('ed-subs').querySelector('.step-in'); if (sf) addStep(sf, true); return; }
     if (!li || e.target.closest('.sub-edit')) return;
     if (e.target.closest('.st')) { startSubEdit(li); return; }
-    const sic = e.target.closest('[data-subicon]');
-    if (sic) { pickIcon(sic, li.dataset.sub, curSubIcon(li.dataset.sub)); return; }
-    if (e.target.closest('.sub-step')) { window.SFX.play('tick'); openStep(li.dataset.sub); return; }
     await saveNow();
-    if (e.target.closest('.sub-ph')) { window.SFX.play('tick'); await window.api.subtaskPhase(FILE, ID, li.dataset.sub, !li.classList.contains('ph'), session); load(false); return; }
-    if (e.target.closest('.sub-del')) { window.SFX.play('delete'); await window.api.deleteSubtask(FILE, ID, li.dataset.sub, session); }
-    else if (e.target.closest('[data-subprio]')) { // one click steps the importance: none → ! → !! → !!! → none (owner 2026-09-29)
-      const next = { '': '!', '!': '!!', '!!': '!!!', '!!!': null }[li.dataset.p || ''];
-      window.SFX.play('tick'); await window.api.subtaskPriority(FILE, ID, li.dataset.sub, next, session);
-    }
-    else if (e.target.closest('[data-subtick]')) { // the row glides to its new place (R8, owner 2026-10-30)
+    if (e.target.closest('[data-subtick]')) { // the row glides to its new place (R8, owner 2026-10-30)
       window.SFX.play('tick');
       await window.UI.glideTick($('ed-subs'), li, async () => { await window.api.toggleSubtask(FILE, ID, li.dataset.sub, session); await load(false); }, { sel: 'li[data-sub]' });
-      return;
     }
-    else return;
-    load(false);
   });
   $('ed-subs').addEventListener('keydown', async e => {
     if (e.target.classList.contains('step-in')) {
@@ -243,6 +240,8 @@
     const back = [...$('ed-subs').querySelectorAll('li[data-sub]')].find(x => x.dataset.sub === title);
     if (back) back.querySelector('.st').focus({ preventScroll: true });
   });
+  // pressing the step field's Add must not blur the field first (focusout would add AND close it before the click)
+  $('ed-subs').addEventListener('mousedown', e => { if (e.target.closest('[data-stepadd]')) e.preventDefault(); });
   $('ed-subs').addEventListener('focusout', e => {
     if (!e.target.classList.contains('step-in') || stepRender) return;
     const input = e.target;
@@ -260,6 +259,7 @@
     start(el) {
       const li = el.closest('li[data-sub]');
       if (!li || selecting || subEditing) return null;
+      subHide(); // the tabs never ride a drag (M3)
       edDrag = { title: li.dataset.sub, ph: li.classList.contains('ph') };
       return li;
     },
@@ -274,8 +274,146 @@
     },
     clean: () => { edDrag = null; edMark = window.UI.paintSubMark(edMark, null); }
   });
+  // ---- the subtask row tabs (M3, owner 2026-11-11): the per-row controls (× · Phase · + Step · Icon · priority) moved
+  // out of the row into ONE floating group with the tasks window's tab look (.etab in tokens.css) and behaviour: a
+  // SUB_REST_MS rest on a row shows it, a quick pass shows nothing, leaving keeps it SUB_GRACE, and another row's rest
+  // swaps it only once it lands. Host = the .field that holds #ed-subs (position: relative), so the group scrolls with
+  // the list and survives load()'s innerHTML re-render. The row itself reads clean: [ ] · its bang (a mark, not a
+  // button) · its icon · the title. UI.editTab is NOT touched — that one is the task tabs' component.
+  const SUB_REST_MS = 600, SUB_GRACE = 1000;
+  const subHost = $('ed-subs').closest('.field');
+  let subRow = null, subCand = null, subRestT = null, subGraceT = null;
+  const subMk = cls => { const b = document.createElement('button'); b.type = 'button'; b.className = 'etab ' + cls; b.tabIndex = -1; subHost.appendChild(b); return b; }; // invisible until .on (the .etab look); only Phase / + Step use hidden
+  const subBDel = subMk('etab-ic etab-del'), subBPh = subMk('etab-ph'), subBStep = subMk('etab-step'), subBIco = subMk('etab-ico'), subBPrio = subMk('etab-prio');
+  const subBtns = [subBDel, subBPh, subBStep, subBIco, subBPrio]; // the first sits at the row's inline-end corner, the rest line up inside it
+  subBDel.innerHTML = window.UI.icon('trash');
+  subBStep.innerHTML = window.UI.icon('plus') + '<span class="etab-t"></span>';
+  subBIco.innerHTML = '<span class="icw"></span><span class="etab-t"></span>';
+  subBPh.innerHTML = '<span class="etab-t"></span>';
+  subBPrio.innerHTML = '<span class="etab-t"></span><span class="etab-b"></span>';
+  subBIco.setAttribute('aria-haspopup', 'dialog');
+  function subPlace() { // UI.editTab's place(): over the row's top edge (clamped at the host's top), inline-end aligned — never over the [ ], which sits at the inline START
+    if (!subRow || !subRow.isConnected) { if (subRow) subHide(); return; }
+    const h = subHost.getBoundingClientRect(), b = subRow.getBoundingClientRect(), rtl = getComputedStyle(subHost).direction === 'rtl';
+    if (!b.height || b.bottom < h.top || b.top > h.bottom) { subBtns.forEach(t => t.classList.remove('on')); return; } // scrolled out: never parked elsewhere
+    let edge = rtl ? b.left - h.left + 14 : h.right - b.right + 14;
+    for (const t of subBtns) {
+      if (t.hidden) continue;
+      t.style.top = Math.max(2, b.top - h.top - 12) + 'px';
+      t.style.right = rtl ? '' : edge + 'px';
+      t.style.left = rtl ? edge + 'px' : '';
+      edge += t.offsetWidth + 4;
+    }
+  }
+  function subHide() {
+    clearTimeout(subRestT); clearTimeout(subGraceT); subCand = null;
+    if (subRow) { subRow.classList.remove('sub-hot'); subRow = null; }
+    subBtns.forEach(b => b.classList.remove('on'));
+  }
+  function subGraceLater() { // off the row and its tabs: they stay SUB_GRACE; coming back (row or tab) cancels it
+    clearTimeout(subGraceT);
+    subGraceT = setTimeout(() => {
+      if (subRow && (subRow.matches(':hover') || subBtns.some(b => b.matches(':hover')))) { subGraceLater(); return; } // back on something: re-check until it really leaves
+      subHide();
+    }, SUB_GRACE);
+  }
+  function subShow(li) {
+    if (subRow && subRow !== li) subRow.classList.remove('sub-hot');
+    subRow = li; li.classList.add('sub-hot');
+    const t = li.dataset.sub, p = li.dataset.p || '', first = !li.classList.contains('substep');
+    const del = T('ed.sub.del', { t: plain(t) });
+    subBDel.title = del; subBDel.setAttribute('aria-label', del);
+    subBPh.hidden = !first; // first-level rows only — a step is never a phase
+    if (first) {
+      const on = li.classList.contains('ph');
+      subBPh.classList.toggle('on-ph', on);
+      subBPh.setAttribute('aria-pressed', String(on));
+      subBPh.querySelector('.etab-t').textContent = T('ed.sub.phase');
+      subBPh.title = T(on ? 'ed.sub.phaseOff' : 'ed.sub.phaseOn');
+    }
+    subBStep.hidden = !(li.classList.contains('ph') && !li.classList.contains('done'));
+    const sf = T('ed.sub.stepFor', { t: plain(t) });
+    subBStep.querySelector('.etab-t').textContent = T('ed.sub.tabStep');
+    subBStep.title = sf; subBStep.setAttribute('aria-label', sf);
+    subBIco.querySelector('.icw').innerHTML = window.UI.taskIcon(curSubIcon(t)) || window.UI.icon('iconAdd');
+    subBIco.querySelector('.etab-t').textContent = T('ed.sub.tabIcon');
+    subBIco.title = T('ti.pick'); subBIco.setAttribute('aria-label', T('ti.pickFor', { t: plain(t) }));
+    subBPrio.querySelector('.etab-t').textContent = T('ed.sub.tabPrio'); // the word stays (owner 2026-11-11); the bang rides beside it
+    subBPrio.querySelector('.etab-b').textContent = p; subBPrio.querySelector('.etab-b').className = 'etab-b' + (p ? ' ' + bangCls(p) : '');
+    subBPrio.className = 'etab etab-prio';
+    subBPrio.title = T('ed.sub.prio');
+    subBtns.forEach(b => b.classList.toggle('on', !b.hidden));
+    subPlace();
+  }
+  // the actions the tabs run — the same code the old in-row buttons ran, as named functions (M3)
+  async function subPrioClick(li) { // one click steps the importance: none → ! → !! → !!! → none (owner 2026-09-29)
+    await saveNow();
+    const next = { '': '!', '!': '!!', '!!': '!!!', '!!!': null }[li.dataset.p || ''];
+    window.SFX.play('tick'); await window.api.subtaskPriority(FILE, ID, li.dataset.sub, next, session);
+    load(false);
+  }
+  async function subPhaseClick(li) {
+    await saveNow();
+    window.SFX.play('tick'); await window.api.subtaskPhase(FILE, ID, li.dataset.sub, !li.classList.contains('ph'), session);
+    load(false);
+  }
+  async function subDelClick(li) {
+    await saveNow();
+    window.SFX.play('delete'); await window.api.deleteSubtask(FILE, ID, li.dataset.sub, session);
+    load(false);
+  }
+  // the tabs hide: the step field takes over. That row stays muted until the pointer leaves it, or a fresh rest (the
+  // pointer is still on it) would bring the group back over the field being typed in
+  let subMute = null;
+  function subStepClick(li) { window.SFX.play('tick'); subHide(); subMute = li.dataset.sub; openStep(li.dataset.sub); }
+  subBDel.addEventListener('click', () => { if (subRow) subDelClick(subRow); });
+  subBPh.addEventListener('click', () => { if (subRow) subPhaseClick(subRow); });
+  subBStep.addEventListener('click', () => { if (subRow) subStepClick(subRow); });
+  subBIco.addEventListener('click', () => { if (subRow) pickIcon(subBIco, subRow.dataset.sub, curSubIcon(subRow.dataset.sub)); });
+  subBPrio.addEventListener('click', () => { if (subRow) subPrioClick(subRow); });
+  // leaving the group itself (not back onto its row or another tab) starts the same grace as leaving the row
+  subBtns.forEach(b => b.addEventListener('mouseleave', e => { if (subRow && !subRow.contains(e.relatedTarget) && !subBtns.some(x => x.contains(e.relatedTarget))) subGraceLater(); }));
+  const subBlocked = () => selecting || !!subEditing || !!edDrag; // never while picking, renaming or dragging
+  $('ed-subs').addEventListener('mouseover', e => {
+    const li = e.target.closest('li[data-sub]');
+    if (!li || subBlocked() || li.dataset.sub === subMute) return;
+    if (li === subRow) { clearTimeout(subGraceT); if (subCand && subCand !== li) { clearTimeout(subRestT); subCand = null; } return; }
+    if (li === subCand) return;
+    clearTimeout(subRestT);
+    if (subRow) subGraceLater(); // the old row keeps its tabs until the new rest lands
+    subCand = li;
+    const title = li.dataset.sub;
+    subRestT = setTimeout(() => {
+      const r = li.isConnected ? li : [...$('ed-subs').querySelectorAll('li[data-sub]')].find(x => x.dataset.sub === title);
+      subCand = null;
+      if (r && !subBlocked()) subShow(r);
+    }, SUB_REST_MS);
+  });
+  $('ed-subs').addEventListener('mouseout', e => {
+    const li = e.target.closest('li[data-sub]');
+    if (!li || li.contains(e.relatedTarget) || subBtns.some(b => b.contains(e.relatedTarget))) return;
+    if (li.dataset.sub === subMute) subMute = null; // left the row the step field opened from: it may rest again
+    if (li === subCand) { clearTimeout(subRestT); subCand = null; return; } // left before the rest landed
+    if (li === subRow) subGraceLater();
+  });
+  // keyboard focus is intent, like the tasks window: the focused row's tabs show at once, and hide when focus leaves them
+  $('ed-subs').addEventListener('focusin', e => {
+    const li = e.target.closest('.st') && e.target.closest('li[data-sub]');
+    if (li && !subBlocked() && e.target.matches(':focus-visible') && li !== subRow) subShow(li);
+  });
+  $('ed-subs').addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (!subRow) return;
+      const a = document.activeElement;
+      if (subRow.contains(a) || subBtns.some(b => b.contains(a)) || subRow.matches(':hover') || subBtns.some(b => b.matches(':hover'))) return;
+      subHide();
+    });
+  });
+  $('side-edit').addEventListener('scroll', () => subPlace());
+  window.addEventListener('resize', () => subPlace());
   function startSubEdit(li) {
     if (subEditing) return;
+    subHide(); // a rename field takes the row — the tabs step out (M3)
     const old = li.dataset.sub, st = li.querySelector('.st'), oldNotes = subNotesMap[old] || [];
     const input = document.createElement('textarea');
     input.rows = 1; input.className = 'sub-edit'; input.value = [old, ...oldNotes].join('\n'); input.spellcheck = true; // N2: title + description
@@ -316,9 +454,23 @@
     b.classList.toggle('has', !!iconNow);
   }
   const curSubIcon = title => subIcons[title] || null;
-  function pickIcon(anchor, subTitle, current) {
+  // M6 (owner 2026-11-11): the picker suggests from the title — the task's live first line (even mid-typing) or the
+  // subtask's own — and seeds Recent on first run from every icon already on tasks / subtasks. The snapshot is fetched
+  // ONLY when there is no saved 'icons.recent' yet, so opens stay snappy afterwards.
+  async function pickIcon(anchor, subTitle, current) {
     window.SFX.play('tick');
-    window.UI.iconPicker(anchor, { current, onPick: async name => {
+    const title = subTitle != null ? subTitle : ($('ed-title').value.split('\n')[0] || '').trim();
+    let usedIcons = null, has = false;
+    try { has = localStorage.getItem('icons.recent') != null; } catch (e) {}
+    if (!has) {
+      usedIcons = [];
+      const snap = await window.api.getSnapshot();
+      for (const sec of (snap && snap.sections) || []) for (const t of sec.items || []) {
+        if (t.icon) usedIcons.push(t.icon);
+        for (const s of t.subs || []) if (s.i) usedIcons.push(s.i);
+      }
+    }
+    window.UI.iconPicker(anchor, { current, title, usedIcons, onPick: async name => {
       await saveNow(); // a pending title edit lands first: the task is found by its current id
       const r = await window.api.iconSet(FILE, ID, subTitle, name);
       if (r && r.ok) { window.SFX.play(name ? 'starOn' : 'tick'); await load(false); flashSaved(T('set.save.saved')); } else flashSaved(T('ti.fail'), true);
@@ -474,6 +626,7 @@
   const mvPicked = new Set();
   function setSelecting(on) {
     selecting = on; mvPicked.clear();
+    if (on) subHide(); // picking takes the rows — the tabs step out (M3)
     $('ed-subs').classList.toggle('selecting', on);
     $('ed-subs').querySelectorAll('li.picked').forEach(li => li.classList.remove('picked'));
     paintSel();

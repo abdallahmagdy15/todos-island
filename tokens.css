@@ -392,6 +392,10 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @media (prefers-reduced-motion: reduce) { .arcdial, .arcdial.out { animation: none; } .gel-hit { animation: none; } .gel-wash { animation-duration: 2.4s; } }
 .etab-star:hover, .etab-star:focus-visible, .etab-star.now { color: var(--accent); }
 .etab-del:hover, .etab-del:focus-visible { color: var(--danger); }
+/* Priority keeps its word; the current bang sits beside it in its own colour (owner 2026-11-11) */
+.etab-prio .etab-b { font-family: var(--font-mono); font-weight: 750; letter-spacing: -1px; }
+.etab-prio .etab-b:empty { display: none; }
+.etab-prio .etab-b.p1 { color: var(--p1); } .etab-prio .etab-b.p2 { color: var(--p2); } .etab-prio .etab-b.p3 { color: var(--p3); }
 @media (prefers-reduced-motion: reduce) { .etab { transform: none; transition: opacity 120ms ease; } }
 
 /* Overdue flip (owner, 2026-09-28; UI.lateFlip): the due date and "Nd late" share ONE slot and swap every 2 s, so the
@@ -475,6 +479,12 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .ip-q:focus { border-color: var(--accent); outline: none; }
 .ip-list { display: flex; flex-direction: column; gap: 3px; max-height: 300px; overflow-y: auto; }
 .ip-empty { padding: 10px 4px; color: var(--faint); font-size: var(--fs-2); text-align: center; }
+/* M6 (owner 2026-11-11): Suggested + Recent on top of the picker. Fit inside the 284 px content (300 − 2×8 padding):
+   the first draft (66 + 7×30 + 7×2 = 290) did NOT fit, so label 58 px + 7×29 px buttons + gaps = 275 px. Never wrap. */
+.ip-top { display: flex; flex-direction: column; gap: 2px; padding: 3px 0 4px; margin-bottom: 2px; border-bottom: 1px solid var(--rule); } /* under the search field */
+.ip-row { display: flex; align-items: center; gap: 2px; min-width: 0; }
+.ip-rl { flex: none; width: 58px; padding-inline-start: 4px; font-size: var(--fs-1); font-weight: 650; color: var(--faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ip-row .ip-b { width: 29px; height: 29px; flex: none; }
 .apop button.ok { background: color-mix(in srgb, var(--ok) 14%, transparent); } .apop button.ok .ah { color: var(--ok); }
 .apop button.bad .ah { color: var(--danger); }
 .cl-grp { padding: 4px 4px 2px; font-size: 8.5px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
@@ -511,7 +521,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 /* ---- the undo swap (UI.mountUndo; island top bar + window header, owner 2026-10-06 pick T1 "title swap") ----
    The bar's own children slide down and fade; the undo line comes in from above on the same spring as the demo. */
 .pill-top > :not(#undo-bar), header > :not(#undo-toast) { transition: opacity 180ms ease, transform 260ms var(--ease-spring), background var(--d-1) ease, color var(--d-1) ease, box-shadow var(--d-1) ease; }
-.undo-on > :not(#undo-bar):not(#undo-toast) { opacity: 0; transform: translateY(6px); pointer-events: none; }
+.undo-on > :not(#undo-bar):not(#undo-toast):not(.win-ctl) { opacity: 0; transform: translateY(6px); pointer-events: none; }
 #undo-bar.on, #undo-toast.on { animation: undoIn 260ms var(--ease-spring) both; }
 #undo-bar.out, #undo-toast.out { animation: undoOut 180ms ease-in both; }
 @keyframes undoIn { from { opacity: 0; transform: translateY(-6px); } }

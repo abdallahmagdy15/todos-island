@@ -1,5 +1,9 @@
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('api', {
+  // the window's own frame (M7): buttons + edge resize; 'win-state' says whether it is maximized
+  winCtl: act => ipcRenderer.send('win-ctl', act),
+  winResize: (phase, edge, x, y) => ipcRenderer.send('win-resize', phase, edge, x, y),
+  onWinState: cb => ipcRenderer.on('win-state', (_e, s) => cb(s)),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   saveSettings: s => ipcRenderer.invoke('save-settings', s),
   resetSettings: () => ipcRenderer.invoke('reset-settings'),

@@ -1266,3 +1266,32 @@ window.api.onShowUndo(d => {
 for (const ev of ['dragover', 'drop']) document.addEventListener(ev, e => { if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault(); });
 window.api.onTasksChanged(refresh);
 window.api.foldGet().then(keys => keys.forEach(k => openRows.add(k)), () => {}).then(refresh); // the folds first, then the first render
+
+// ---- the window's own frame (M7, owner 2026-11-11, pick B): a transparent window with the island's corners, so its
+// minimize / maximize / close are ours (main.js win-ctl) and so are its resize edges (.rz → win-resize: the page sends
+// the pointer's SCREEN position, main moves the edges). Maximized = the work area, square corners, no edges.
+$('win-min').addEventListener('click', () => window.api.winCtl('min'));
+$('win-max').addEventListener('click', () => window.api.winCtl('max'));
+$('win-close').addEventListener('click', () => window.api.winCtl('close'));
+window.api.onWinState(s => {
+  document.documentElement.classList.toggle('maxed', !!s.max);
+  const b = $('win-max'), k = s.max ? 'win.ctl.restore' : 'win.ctl.max';
+  b.innerHTML = window.UI.icon(s.max ? 'winRestore' : 'winMax'); b.title = T(k); b.setAttribute('aria-label', T(k));
+});
+{
+  let rz = null, raf = 0, last = null; // rz = the edge being dragged (its pointer is captured)
+  document.addEventListener('pointerdown', e => {
+    const h = e.target.closest && e.target.closest('.rz');
+    if (!h || e.button !== 0) return;
+    e.preventDefault(); h.setPointerCapture(e.pointerId); rz = h;
+    window.api.winResize('start', h.dataset.edge, e.screenX, e.screenY);
+  });
+  document.addEventListener('pointermove', e => {
+    if (!rz || !rz.hasPointerCapture(e.pointerId)) return;
+    last = [e.screenX, e.screenY];
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (rz && last) window.api.winResize('move', rz.dataset.edge, last[0], last[1]); }); // one move per frame
+  });
+  const end = e => { if (!rz) return; try { rz.releasePointerCapture(e.pointerId); } catch (err) {} rz = null; last = null; window.api.winResize('end'); };
+  document.addEventListener('pointerup', end);
+  document.addEventListener('pointercancel', end);
+}

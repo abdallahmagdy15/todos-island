@@ -155,7 +155,12 @@ button.sec-peek { width: 100%; border: 0; background: transparent; font-family: 
   padding-top: 1px; line-height: 1.45; min-width: 0; font-size: var(--fs-task); font-weight: 550;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
+/* a long title (M2, owner 2026-11-11, pick B): its FIRST line keeps the title look; the lines it wraps onto read like a
+   description — smaller, muted, not bold — and up to 2 of them show (3 lines in all; the rest on rest / expand).
+   ::first-line works inside the -webkit-box clamp in Chromium (checked 2026-11-11, Latin + Arabic). */
+.rtitle { -webkit-line-clamp: 3; font-size: calc(var(--fs-task) * 0.9); font-weight: 400; color: var(--muted); }
+.rtitle::first-line { font-size: var(--fs-task); font-weight: 550; color: var(--ink); }
+body.expanded .rtitle { -webkit-line-clamp: 99; overflow: visible; }
 
 /* hover unfold: the row itself opens (grid rows 0fr → 1fr, no max-height), then its lines settle in */
 .rd-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 280ms var(--ease-out); }
@@ -163,7 +168,7 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .rd-inner .rd-note { font-style: italic; }
 .rd-inner > :first-child { margin-top: 6px; }
 .row.hovered { background: var(--accent-soft); border-color: var(--accent-border); }
-.row.hovered .rtitle { -webkit-line-clamp: unset; overflow: visible; }
+.row.hovered .rtitle { -webkit-line-clamp: 99; overflow: visible; }
 .row.hovered .row-sub { display: none; }
 .row.hovered .rd-wrap { grid-template-rows: 1fr; }
 .row.hovered .rd-inner > * { animation: settle 240ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 30ms + 60ms); }
@@ -253,7 +258,9 @@ body.expanded .rtitle { -webkit-line-clamp: unset; overflow: visible; }
 .star:hover::before { content: '\2606'; } .star:hover { font-size: 0; } .star:hover::before { font-size: calc(var(--fs-task-lg) * 1.3); }
 .active-card .ac-title { flex: 1; min-width: 0; font-weight: 650; font-size: var(--fs-task-lg); line-height: 1.4; cursor: pointer;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; } /* a long Now title never eats the island (owner 2026-10-06) */
-.active-card:hover .ac-title, body.expanded .active-card .ac-title { -webkit-line-clamp: unset; overflow: visible; }
+.active-card:hover .ac-title, body.expanded .active-card .ac-title { -webkit-line-clamp: 99; overflow: visible; } /* 99, never unset: Chromium drops ::first-line (M2) on an unclamped -webkit-box, so hover turned the bold first line plain (owner 2026-11-11) */
+.active-card .ac-title { -webkit-line-clamp: 3; font-size: calc(var(--fs-task-lg) * 0.88); font-weight: 400; color: var(--muted); } /* M2: the wrapped lines */
+.active-card .ac-title::first-line { font-size: var(--fs-task-lg); font-weight: 650; color: var(--ink); }
 .ac-subs { margin-block-start: 8px; margin-inline-start: 22px; } /* owner 2026-09-30: was 34px — subtask text gets more room; inline-start = right side in Arabic */
 
 /* subtasks (Now card + hover-unfolded rows): the note's own [ ] / [x] brackets at task-text size */

@@ -47,21 +47,30 @@ function subsHtml(subs, attrs = '', key = '') {
   // the rest fold behind one "[ ] N more" line that opens on a rest — the same fold as the done ones
   return open.slice(0, OPEN_SHOW).map(one).join('') + foldOf(open.slice(OPEN_SHOW), 'isl.sub.moreN', 'more') + foldOf(done, 'isl.sub.doneN', 'done');
 }
-// priority sits on the right with the date. It is CLICKABLE (owner 2026-10-01): ! → !! → !!! → none, undoable.
-// No priority → an empty ghost mark that draws a faint "!" only on the row you rest on (CSS ::before), so nothing shifts.
+// priority sits on the right with the date, as a MARK only (owner 2026-11-11): it changes from the row's floating
+// Priority tab (UI.editTab onPrio), ! → !! → !!! → none, undoable. No priority → nothing.
 const PRIO_NEXT = { '': '!', '!': '!!', '!!': '!!!', '!!!': '' };
-const bangHtml = t => `<span class="bang ${t.priority ? bangCls(t.priority) : 'ghost'}" data-prio="${esc(t.priority || '')}" role="button" title="${esc(T('prio.click'))}">${t.priority ? esc(t.priority) : ''}</span>`;
-// the island's order is FROZEN while it is shown (owner 2026-10-01): a priority click never moves the row under the pointer;
-// every new appearance sorts fresh. id → rank; a priority change renames the id, and the rank follows it.
+const bangHtml = t => (t.priority ? `<span class="bang ${bangCls(t.priority)}">${esc(t.priority)}</span>` : '');
+// the island's order is FROZEN while it is shown (owner 2026-10-01, again 2026-11-11: "no live reorder"): a priority
+// change never moves, re-sorts or scrolls anything; the next appearance sorts fresh. Keyed by the task's hidden uid:
+// the id carries the priority, so keying by id dropped a re-prioritised row to the bottom until its rank was re-mapped.
 let frozenOrder = null;
-const freezeSort = items => !frozenOrder ? items : items.map((t, i) => [t, frozenOrder.has(t.id) ? frozenOrder.get(t.id) : 1e9 + i])
+const keyOf = t => t.uid || t.id;
+const freezeSort = items => !frozenOrder ? items : items.map((t, i) => [t, frozenOrder.has(keyOf(t)) ? frozenOrder.get(keyOf(t)) : 1e9 + i])
   .sort((a, b) => a[1] - b[1]).map(x => x[0]);
+// a fresh appearance (owner 2026-11-11): Now first, then PRIORITY (above the due date), then due (soonest; none last),
+// then last edit — the island only; the tasks window keeps the snapshot's order. Array.sort is stable.
+const RANK_T = { '!!!': 3, '!!': 2, '!': 1 };
+const islandSort = items => [...items].sort((a, b) => ((b.active ? 1 : 0) - (a.active ? 1 : 0))
+  || ((RANK_T[b.priority] || 0) - (RANK_T[a.priority] || 0))
+  || ((a.dueTs || Infinity) - (b.dueTs || Infinity))
+  || ((b.updatedTs || 0) - (a.updatedTs || 0)));
 function rowHtml(t) {
   const subsBadge = t.subs.length ? `<span class="row-sub">${T('isl.sub.badge', { a: t.subs.filter(s => !s.done).length, b: t.subs.length })}</span>` : '';
   const notes = (t.notes || []).map((n, i) => `<div class="rd-note" style="--i:${Math.min(i, 6)}">${inline(n)}</div>`).join('');
   const detail = notes || t.subs.length ? `<div class="rd-wrap"><div class="rd-inner">${notes}${subsHtml(t.subs, '', t.file + ':' + t.id)}</div></div>` : '';
   const timed = snap && snap.timer && snap.timer.id === t.id;
-  return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" ${t.shadow ? 'data-shadow draggable="false"' : 'draggable="true"'}>
+  return `<div class="fold"><div class="fold-in"><div class="row${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-uid="${esc(t.uid || '')}" data-file="${t.file}" data-nav tabindex="-1" aria-label="${esc(plain(t.title))}" ${t.shadow ? 'data-shadow draggable="false"' : 'draggable="true"'}>
     <div class="row-main"><span class="rtitle"><span class="tt">${window.UI.taskIcon(t.icon)}${inline(t.title)}</span></span>${detail}</div>
     <span class="meta">${timed ? `<span class="tmark" title="${esc(T('timer.on'))}">${window.UI.icon('timer')}</span>` : ''}${subsBadge}${bangHtml(t)}${dueHtml(t)}${window.UI.attClipHtml(t)}${window.UI.linkMarkHtml(t)}</span>
   </div></div></div>`;
@@ -247,8 +256,12 @@ async function flipPeek() {
 }
 function render() {
   if (!snap) { renderSkeleton(); return; }
-  const hoverRowId = hoverRow ? hoverRow.dataset.id : null;
-  const focusedId = kbdActive && document.activeElement && document.activeElement.dataset ? (document.activeElement.dataset.id || document.activeElement.dataset.card) : null;
+  const hoverRowUid = hoverRow ? (hoverRow.dataset.uid || hoverRow.dataset.id) : null; // by uid: a priority change renames the id
+  const tabUid = etab.row ? (etab.row.dataset.uid || etab.row.dataset.id || etab.row.dataset.card) : null;
+  // keyboard mode: remember the TASK that had focus, by uid (the id carries the priority); focus on a tab / the top bar is left alone
+  const focusNav = kbdActive && document.activeElement && document.activeElement.closest ? document.activeElement.closest('#body [data-nav]') : null;
+  const focusedUid = focusNav ? (focusNav.dataset.uid || focusNav.dataset.id || focusNav.dataset.card) : null;
+  const focusLost = kbdActive && (!document.activeElement || document.activeElement === document.body);
   clearTimeout(hoverT); hoverRow = null;
   // focus by time: the pill mirrors the clock — work tasks in the workday, personal outside (toggle in Settings).
   // snapshot keeps both sections, so the tasks/share windows are never filtered — this is island-only.
@@ -261,9 +274,9 @@ function render() {
   // a linked ("shadow") task shows in the other note — but never twice: when its home note is on screen too, the home row wins
   const shownNotes = new Set(sections.map(s => s.name.toLowerCase()));
   sections = sections.map(s => ({ ...s, items: s.items.filter(t => !t.shadow || !shownNotes.has(t.home)) }));
-  sections = sections.map(s => ({ ...s, items: freezeSort(s.items) }));
+  sections = sections.map(s => ({ ...s, items: frozenOrder ? freezeSort(s.items) : islandSort(s.items) }));
   const flat = sections.flatMap(s => s.items);
-  if (!frozenOrder) frozenOrder = new Map(flat.map((t, i) => [t.id, i]));
+  if (!frozenOrder) frozenOrder = new Map(flat.map((t, i) => [keyOf(t), i]));
   const total = flat.length;
   const actives = flat.filter(t => t.active);
   const errs = hasErrors();
@@ -287,7 +300,7 @@ function render() {
   // owner 2026-10-06: the note's "## Work / ## Personal" header leads, ABOVE its Now card(s); then that note's rows
   const cardHtml = a => {
     const subs = a.subs.length ? `<div class="ac-subs">${subsHtml(a.subs, ` data-parent="${esc(a.id)}" data-file="${a.file}"`, a.file + ':' + a.id)}</div>` : '';
-    return `<div class="fold"><div class="fold-in"><div class="active-card rim${snap.timer && snap.timer.id === a.id ? ' timed' : ''}" data-card="${esc(a.id)}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
+    return `<div class="fold"><div class="fold-in"><div class="active-card rim${snap.timer && snap.timer.id === a.id ? ' timed' : ''}" data-card="${esc(a.id)}" data-uid="${esc(a.uid || '')}" data-file="${a.file}" data-nav tabindex="-1" aria-label="${esc(T('isl.cardAria', { t: a.title }))}">
         <div class="ac-head">
           <button class="rchk" data-done="${esc(a.id)}" data-file="${a.file}" type="button" title="${esc(T('isl.btn.complete'))}" aria-label="${esc(T('isl.btn.completeAria', { t: a.title }))}">[ ]</button>
           <span class="ac-title" data-unstar="${esc(a.id)}" data-file="${a.file}"><span class="tt">${window.UI.taskIcon(a.icon)}${inline(a.title)}</span></span>
@@ -316,16 +329,24 @@ function render() {
   const hiddenCount = flat.filter(t => !t.active).length - shown;
   $('body').classList.toggle('has-more', !expanded && hiddenCount > 0);
   if (expanded && hiddenCount > 0) html += `<div class="more-rest" data-open-tasks role="button">${esc(T('isl.expand.rest', { n: hiddenCount }))}${window.UI.icon('arrowUpRight')}</div>`;
+  const scrollWas = $('body').scrollTop; // a re-render never moves the list (owner 2026-11-11)
   $('body').innerHTML = html;
-  if (hoverRowId) { // hover-unfold survives snapshot re-renders (re-applied to the same task)
-    const again = $('body').querySelector(`.row[data-id="${CSS.escape(hoverRowId)}"]`);
-    if (again) { again.classList.add('hovered'); hoverRow = again; showEdit(again); }
+  $('body').scrollTop = scrollWas;
+  const byUid = u => [...$('body').querySelectorAll('.row, .active-card')].find(n => (n.dataset.uid || n.dataset.id || n.dataset.card) === u);
+  if (hoverRowUid) { // hover-unfold survives snapshot re-renders (re-applied to the same task)
+    const again = byUid(hoverRowUid);
+    if (again && again.matches('.row')) { again.classList.add('hovered'); hoverRow = again; showEdit(again); }
   }
-  if (etab.row && !etab.row.isConnected) etab.hide(); // the rested card/row was re-rendered away
-  if (kbdActive) { // keyboard mode survives re-renders: focus returns to the same task (or the first one)
-    const navs = [...$('body').querySelectorAll('[data-nav]')];
-    const again = navs.find(n => (n.dataset.id || n.dataset.card) === focusedId) || navs[0];
-    if (again) again.focus();
+  if (etab.row && !etab.row.isConnected) { // the rested card/row was re-rendered: its tabs follow the same task (a Priority click), else hide
+    const again = tabUid && byUid(tabUid);
+    if (again) showEdit(again); else etab.hide();
+  }
+  // keyboard mode survives re-renders: focus returns to the same task; only a LOST focus falls back to the first one.
+  // Never scrolls (owner 2026-11-11): the fallback to the first task + focus() used to jump a scrolled list to the top
+  // after a Priority click (the click left focus on the tab, so no task matched).
+  if (focusedUid || focusLost) {
+    const again = (focusedUid && byUid(focusedUid)) || (focusLost && $('body').querySelector('[data-nav]'));
+    if (again) again.focus({ preventScroll: true });
   }
   renderUndo();
 
@@ -378,6 +399,8 @@ let hoverT = null, hoverRow = null;
 // the copy list's choices (#5): subtasks + day per viewer, the format = the Share setting (saved through save-settings);
 // priority + dates still follow the Share panel's Include options for that format
 const copyPrefs = window.UI.copyPrefs(() => (snap && snap.settings.shareFmt === 'md' ? 'md' : 'text'), f => { if (snap) snap.settings.shareFmt = f; window.api.saveShareFmt(f); });
+// the snapshot item behind a rested row / Now card
+const itemOf = r => { const id = r.dataset.id || r.dataset.card; return snap && snap.sections.flatMap(s => s.items).find(x => x.id === id); };
 const etab = window.UI.editTab($('wrap'), {
   onEdit: r => editFromIsland(r.dataset.file, r.dataset.id || r.dataset.card),
   // quick Copy (owner 2026-09-29): the task in the Share format (Settings shareFmt: plain text or Markdown); no note write
@@ -395,6 +418,15 @@ const etab = window.UI.editTab($('wrap'), {
   timerOf: r => (snap && snap.timer && snap.timer.id === (r.dataset.id || r.dataset.card) ? snap.timer : null),
   onTimerStop: async () => { window.SFX.play('starOff'); await window.api.timerStop(); },
   onTimer: (r, tab) => openDial(r, tab),
+  // Priority (owner 2026-11-11): moved from the row's mark to a tab; ! → !! → !!! → none — never stages Now; one-off
+  // session = its own Undo. Nothing re-sorts or scrolls: the order is frozen by uid, the tabs re-attach after the re-render.
+  prioOf: r => { const t = itemOf(r); return t ? t.priority || '' : ''; },
+  onPrio: r => {
+    const t = itemOf(r);
+    if (!t) return;
+    window.SFX.play('tick');
+    window.api.updateTask(t.file, t.id, { priority: PRIO_NEXT[t.priority || ''] || null, session: 'islp' + Date.now() });
+  },
   copyLabel: () => T('etab.copyTitle', { f: snap && snap.settings.shareFmt === 'md' ? 'Markdown' : T('sh.fmt.text') }),
   onLeave: () => graceLater(), // off the tabs / a closed pop: the same L1 grace as leaving the row
   onEnter: () => { clearTimeout(graceT); cancelCand(); }
@@ -571,17 +603,6 @@ document.addEventListener('click', e => {
   if (e.target.closest('[data-peek]')) { flipPeek(); return; }
   if (e.target.closest('[data-open-tasks]')) { window.SFX.play('tick'); window.api.openWindow(); retract(); return; }
   if (e.target.closest('[data-open-settings]')) { window.api.openWindow('settings'); return; }
-  const pr = e.target.closest('[data-prio]');
-  if (pr) { // the priority mark: ! → !! → !!! → none — never stages Now; one-off session = its own Undo
-    e.stopPropagation();
-    const host = pr.closest('.row, .active-card');
-    const id = host.dataset.id || host.dataset.card, file = host.dataset.file;
-    window.SFX.play('tick');
-    window.api.updateTask(file, id, { priority: PRIO_NEXT[pr.dataset.prio] || null, session: 'islp' + Date.now() }).then(res => {
-      if (res && res.id && res.id !== id && frozenOrder && frozenOrder.has(id)) { frozenOrder.set(res.id, frozenOrder.get(id)); render(); }
-    });
-    return;
-  }
   const sub = e.target.closest('[data-sub]');
   if (sub) { // tick a subtask — works in hover-unfold rows AND in Now cards
     e.stopPropagation();

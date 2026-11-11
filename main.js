@@ -444,16 +444,22 @@ function openWindow(tab) {
     if (tab) mainWin.webContents.send('show-tab', tab);
     return;
   }
+  // M7 (owner 2026-11-11, pick B): TRANSPARENT and frameless, so the page rounds its corners like the island (26 px,
+  // window.css: html clip-path) and draws its own minimize / maximize / close. Electron 44 on Windows: a transparent
+  // window is not natively resizable and can't maximize from the system menu or a double-click — so resizable and
+  // maximizable are off and the page's edges resize it (win-resize) and its button maximizes it (win-ctl, the work area).
   mainWin = new BrowserWindow({
-    width: 880, height: 660, minWidth: 660, minHeight: 540, // 880 by default (owner 2026-09-28: "slightly wider" — room for the side panel)
-    backgroundColor: theme().bg,
+    width: 880, height: 660, minWidth: WIN_MIN_W, minHeight: WIN_MIN_H, // 880 by default (owner 2026-09-28: "slightly wider" — room for the side panel)
+    transparent: true, backgroundColor: '#00000000', resizable: false, maximizable: false, thickFrame: false,
     autoHideMenuBar: true, show: false, icon: appIcon(), // the [★] tile, never the Electron logo (owner 2026-10-06)
-    frame: false, titleBarStyle: 'hidden',
-    // overlay must exist at creation — setTitleBarOverlay throws otherwise ("Titlebar overlay is not enabled")
-    titleBarOverlay: overlay(),
+    frame: false,
     webPreferences: { preload: path.join(__dirname, 'window-preload.js') }
   });
-  applyOverlay();
+  mainWin.on('move', () => { // dragged away from a maximized state: it is a normal window again
+    if (!winMaxPrev || winOwnMove || !mainWin || mainWin.isDestroyed()) return;
+    const b = mainWin.getBounds(), wa = screen.getDisplayMatching(b).workArea;
+    if (b.x !== wa.x || b.y !== wa.y || b.width !== wa.width || b.height !== wa.height) { winMaxPrev = null; winSendState(); }
+  });
   lockZoom(mainWin.webContents);
   if (!spellLangsSet) {
     spellLangsSet = true;
@@ -486,7 +492,7 @@ function openWindow(tab) {
   }
   mainWin.on('render-process-gone', (_e, d) => LOG('WIN-GONE: ' + d.reason));
   mainWin.on('restore', () => mainWin.webContents.send('window-opened')); // un-minimized = opened again
-  mainWin.on('closed', () => { mainWin = null; });
+  mainWin.on('closed', () => { mainWin = null; winMaxPrev = null; winRz = null; });
 }
 
 // Edit and Share are the tasks window's side panel (owner 2026-09-28: no popup windows). Callers outside the window
@@ -618,8 +624,51 @@ function lockZoom(wc) {
   wc.on('zoom-changed', () => wc.setZoomFactor(1)); // accidental Ctrl+scroll/plus must never wreck the layout
 }
 
-function applyOverlay() { // Light/Dark switched: every open window's caption symbols follow
-  for (const w of [mainWin, onboardWin]) {
+// ---- the tasks window's own frame (M7, owner 2026-11-11): its buttons minimize / maximize / close it, its edges resize it
+const WIN_MIN_W = 660, WIN_MIN_H = 540; // the tasks window's smallest size (our edges keep to it)
+let winMaxPrev = null, winRz = null, winOwnMove = false; // winMaxPrev = the bounds to restore while "maximized" (= the work area)
+// A transparent window at 125 % scaling lands 1 px taller than asked on EVERY setBounds (measured 2026-11-11: 700→701,
+// 705→706, same for setSize / setContentBounds), so each maximize / restore / drag start grew it. winApply learns that
+// offset from the first read-back and asks for (wanted − offset) from then on; a correct display learns 0.
+let winFix = { w: 0, h: 0 };
+function winApply(w, b) {
+  const ask = () => w.setBounds({ x: b.x, y: b.y, width: b.width - winFix.w, height: b.height - winFix.h });
+  ask();
+  const g = w.getBounds();
+  if (g.width !== b.width || g.height !== b.height) { winFix = { w: winFix.w + g.width - b.width, h: winFix.h + g.height - b.height }; ask(); }
+}
+const winSetBounds = (w, b) => { winOwnMove = true; winApply(w, b); setTimeout(() => { winOwnMove = false; }, 200); }; // our own move never reads as "dragged off max"
+function winSendState() { if (mainWin && !mainWin.isDestroyed()) mainWin.webContents.send('win-state', { max: !!winMaxPrev }); }
+ipcMain.on('win-ctl', (e, act) => {
+  const w = mainWin;
+  if (!w || w.isDestroyed() || BrowserWindow.fromWebContents(e.sender) !== w) return;
+  if (act === 'min') w.minimize();
+  else if (act === 'close') w.close();
+  else if (act === 'max') {
+    if (winMaxPrev) { const b = winMaxPrev; winMaxPrev = null; winSetBounds(w, b); }
+    else { const b = w.getBounds(); winMaxPrev = b; winSetBounds(w, screen.getDisplayMatching(b).workArea); }
+    winSendState();
+  }
+});
+// a drag on an edge: the page sends the pointer's screen position; the new bounds = the start bounds + the delta,
+// never under the window's minimum size (the opposite edge stays put)
+ipcMain.on('win-resize', (e, phase, edge, x, y) => {
+  const w = mainWin;
+  if (!w || w.isDestroyed() || BrowserWindow.fromWebContents(e.sender) !== w || winMaxPrev) return;
+  if (phase === 'start') { winRz = { edge: String(edge || ''), x: +x, y: +y, b: w.getBounds() }; return; }
+  if (phase === 'end' || !winRz) { winRz = null; return; }
+  const { b, edge: ed } = winRz, dx = Math.round(+x - winRz.x), dy = Math.round(+y - winRz.y);
+  const minW = WIN_MIN_W, minH = WIN_MIN_H; // NOT getMinimumSize(): on this non-resizable window it reports the CURRENT size after a setBounds, so every shrink was blocked
+  let L = b.x, T = b.y, W = b.width, H = b.height;
+  if (ed.includes('e')) W = Math.max(minW, b.width + dx);
+  if (ed.includes('s')) H = Math.max(minH, b.height + dy);
+  if (ed.includes('w')) { W = Math.max(minW, b.width - dx); L = b.x + b.width - W; }
+  if (ed.includes('n')) { H = Math.max(minH, b.height - dy); T = b.y + b.height - H; }
+  winApply(w, { x: L, y: T, width: W, height: H });
+});
+
+function applyOverlay() { // Light/Dark switched: the onboarding window's caption symbols follow (the tasks window draws its own, M7)
+  for (const w of [onboardWin]) {
     if (!w || w.isDestroyed()) continue;
     try { w.setTitleBarOverlay(overlay()); } catch (e) { LOG('OVERLAY-SKIP ' + e.message); }
   }

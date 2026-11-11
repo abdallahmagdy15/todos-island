@@ -21,6 +21,12 @@
     <button id="btn-share" class="hdr-btn" type="button" data-i18n-title="win.share.title" data-i18n-aria="win.share.aria">
       <svg class="ic" data-icon="share" viewBox="0 0 24 24"></svg>
     </button>
+    <!-- the window's own frame (M7, owner 2026-11-11): minimize / maximize like the island's top-bar buttons, close like its round X -->
+    <div class="win-ctl">
+      <button id="win-min" type="button" data-i18n-title="win.ctl.min" data-i18n-aria="win.ctl.min"><svg class="ic" data-icon="winMin" viewBox="0 0 24 24"></svg></button>
+      <button id="win-max" type="button" data-i18n-title="win.ctl.max" data-i18n-aria="win.ctl.max"><svg class="ic" data-icon="winMax" viewBox="0 0 24 24"></svg></button>
+      <button id="win-close" type="button" data-i18n-title="win.ctl.close" data-i18n-aria="win.ctl.close"><svg class="ic" data-icon="x" viewBox="0 0 24 24"></svg></button>
+    </div>
     <div id="undo-toast" hidden role="status" aria-live="polite"></div>
   </header>
 
@@ -563,10 +569,14 @@
 <script src="locales/ar.js"></script>
 <script src="lib/i18n.js"></script>
 <script src="lib/task-icons.js"></script>
+<script src="lib/icon-suggest.js"></script>
 <script src="lib/themes.js"></script>
 <script src="ui-shared.js"></script>
 <script src="lib/share.js"></script>
   <script src="panels.js"></script>
   <script src="window.js"></script>
+  <!-- the edges that resize the window (M7): a transparent window is not natively resizable on Windows -->
+  <div class="rz" data-edge="n"></div><div class="rz" data-edge="s"></div><div class="rz" data-edge="e"></div><div class="rz" data-edge="w"></div>
+  <div class="rz" data-edge="ne"></div><div class="rz" data-edge="nw"></div><div class="rz" data-edge="se"></div><div class="rz" data-edge="sw"></div>
 </body>
 </html>

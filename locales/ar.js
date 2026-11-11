@@ -10,6 +10,7 @@ const STRINGS_AR = {
   'win.tab.settings': 'الإعدادات',
   'win.share.title': 'مشاركة التقدّم — اختر المهام، انسخ أو صدّر',
   'win.share.aria': 'مشاركة التقدّم',
+  'win.ctl.min': 'تصغير', 'win.ctl.max': 'تكبير', 'win.ctl.restore': 'استعادة', 'win.ctl.close': 'إغلاق', // أزرار الشباك (M7)
   'win.search.ph': 'ابحث…   ( / )',
   'win.search.aria': 'البحث في المهام',
   'win.search.clear': 'مسح البحث',
@@ -185,6 +186,7 @@ const STRINGS_AR = {
   'ed.sub.ph': 'مهمة فرعية جديدة…',
   'ed.sub.phase': 'مرحلة', 'ed.sub.phaseOn': 'اجعلها مرحلة (هدف تشاركه)', 'ed.sub.phaseOff': 'لم تعد مرحلة — خطواتها تبقى، مستوى واحد للخارج',
   'ed.sub.step': 'أضف خطوة تحت هذه المرحلة', 'ed.sub.stepFor': 'أضف خطوة تحت {t}', 'ed.sub.stepPh': 'خطوة جديدة في {t}…',
+  'ed.sub.tabStep': 'خطوة', 'ed.sub.tabIcon': 'أيقونة', 'ed.sub.tabPrio': 'أولوية', // أزرار صف المهمة الفرعية (M3)
   'ed.saveTitle': 'حفظ (Ctrl+Enter)',
   'ed.complete': 'إنجاز',
   'ed.more': 'المزيد',
@@ -244,7 +246,7 @@ const STRINGS_AR = {
   'fmt.strike': "يتوسطه خط (Ctrl+Shift+X)",
   'fmt.underline': "تسطير (Ctrl+U)",
   'sh.fmt.text': "نص عادي",
-  'etab.copy': "نسخ",
+  'etab.copy': "نسخ", 'etab.prio': "أولوية",
   'etab.copied': "تم النسخ ✓",
   'etab.timer': "مؤقت",
   'cw.grp.subs': "المهام الفرعية",
@@ -498,6 +500,8 @@ const STRINGS_AR = {
   'ti.fail': "تعذّر حفظ الأيقونة",
   'ti.search': "ابحث عن أيقونة",
   'ti.noMatch': "لا توجد أيقونة مطابقة",
+  'ti.suggested': "مقترحة",
+  'ti.recent': "الأخيرة",
   'set.size.5': "أضخم",
 };
 if (typeof window !== 'undefined') (window.LOCALES = window.LOCALES || {}).ar = STRINGS_AR;

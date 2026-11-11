@@ -41,6 +41,9 @@
   // data, 24×24, stroke = currentColor, so every window draws the same family. UI.icon(name) → an <svg class="ic">;
   // static markup writes <svg class="ic" data-icon="name" viewBox="0 0 24 24"></svg> and UI.hydrateIcons() fills it.
   const ICONS = {
+    winMin: '<path d="M5 12h14"/>', // the tasks window's own frame (M7): Lucide minus · square · two squares (restore)
+    winMax: '<rect width="16" height="16" x="4" y="4" rx="3"/>',
+    winRestore: '<rect width="13" height="13" x="4" y="7" rx="2.5"/><path d="M8 7V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-1"/>',
     iconAdd: '<path d="M22 11v1a10 10 0 1 1-9-10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" x2="9.01" y1="9" y2="9"/><line x1="15" x2="15.01" y1="9" y2="9"/><path d="M16 5h6"/><path d="M19 2v6"/>', // smile-plus: pick a task icon
     plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
@@ -83,7 +86,9 @@
   // (Lucide v0.460.0, ISC; en/ar names, search words, svg), loaded by the windows right before this file. TASK_ICONS
   // stays { n: svg } over every icon, so taskIcon(name) is unchanged.
   const TASK_ICON_SET = window.TASK_ICON_SET || [];
-  const TASK_ICONS = Object.fromEntries(TASK_ICON_SET.flatMap(g => g.icons.map(i => [i.n, i.svg])));
+  const TASK_ICON_FLAT = TASK_ICON_SET.flatMap(g => g.icons); // M6: the flat list ICON_SUGGEST scores over
+  const TASK_ICONS = Object.fromEntries(TASK_ICON_FLAT.map(i => [i.n, i.svg]));
+  const TASK_ICON_BY = new Map(TASK_ICON_FLAT.map(i => [i.n, i])); // M6: a name → its icon (the quick rows' labels)
   const taskIcon = name => TASK_ICONS[name] ? `<svg class="ic tic" viewBox="0 0 24 24" aria-hidden="true">${TASK_ICONS[name]}</svg>` : '';
   const icon = (name, cls = '') => `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`;
   function hydrateIcons(root = document) {
@@ -560,7 +565,8 @@
   // field grows with its text up to maxLines then scrolls inside. grow() also resets it after a programmatic clear.
   function multiField(ta, { onEnter, maxLines = 3 } = {}) {
     const grow = () => {
-      const cs = getComputedStyle(ta), max = parseFloat(cs.lineHeight) * maxLines + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+      const cs = getComputedStyle(ta), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.25; // 'normal' → NaN: never let it
+      const max = lh * maxLines + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
       ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, max) + 'px';
     };
     ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); onEnter(); } });
@@ -658,14 +664,16 @@
   // Row tabs (owner 2026-10-05, demo pick A2): icon + WORD again, a little closer together, a darker shadow under
   // each so they read clearly over any row. Delete stays an icon (its word is the tooltip). Placed from the row's corner
   // inward: Now · Copy · Timer · Edit · Delete in the tasks window, Copy · Timer · Edit in the island.
-  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, copyOpts, onTimer, timerOf, onTimerStop, onLeave, onEnter }) {
+  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, copyOpts, onTimer, timerOf, onTimerStop, onLeave, onEnter, onPrio, prioOf }) {
     const mk = (cls, html) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'etab ' + cls; b.tabIndex = -1; b.innerHTML = html; host.appendChild(b); return b; };
     const tab = mk('etab-edit', icon('pencil') + '<span class="etab-t"></span>');
     const del = onDelete ? mk('etab-ic etab-del', icon('trash')) : null;
     const star = onStar ? mk('etab-star', icon('star', 'etab-g') + '<span class="etab-t"></span>') : null; // quick Now (owner 2026-09-29)
     const copy = onCopy ? mk('etab-copy', '<span class="cw-fill" aria-hidden="true"></span>' + icon('copy') + '<span class="etab-t"></span>') : null;
     const timer = onTimer ? mk('etab-timer', icon('timer') + '<span class="etab-t"></span>') : null; // focus timer (#10)
-    const tabs = [del, tab, timer, copy, star].filter(Boolean);
+    // Priority (owner 2026-11-11, the island): the word stays, the current bang rides beside it; a click steps ! → !! → !!! → none
+    const prio = onPrio ? mk('etab-prio', '<span class="etab-t"></span><span class="etab-b"></span>') : null;
+    const tabs = [del, tab, timer, copy, prio, star].filter(Boolean);
     const word = (b, w) => { b.querySelector('.etab-t').textContent = w; };
     let row = null, pop = null, hiddenAt = 0; // pop = the copy list or the running-timer pill hanging under a tab
     const place = () => {
@@ -698,6 +706,7 @@
         if (del) { const dl = T('etab.del'); del.title = dl; del.setAttribute('aria-label', dl); }
         if (star) api.setNow(r.classList.contains('is-now'));
         paintTimer();
+        if (prio) { const p = (prioOf && prioOf(r)) || ''; word(prio, T('etab.prio')); const b = prio.querySelector('.etab-b'); b.textContent = p; b.className = 'etab-b' + (p ? ' ' + bangCls(p) : ''); prio.title = T('prio.click'); prio.setAttribute('aria-label', T('prio.click')); }
         if (copy) { word(copy, T('etab.copy')); const cl = copyLabel ? copyLabel() : T('etab.copy'); copy.title = cl; copy.setAttribute('aria-label', cl); }
         tabs.forEach(t => t.classList.add('on')); place();
       },
@@ -758,6 +767,7 @@
       timer.addEventListener('pointerleave', e => { clearTimeout(inT); if (pop && pop.kind === 'pill' && !pop.el.contains(e.relatedTarget)) pop.later(); });
     }
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
+    if (prio) prio.addEventListener('click', e => { e.stopPropagation(); if (row) onPrio(row); });
     if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
     if (star) star.addEventListener('click', e => { e.stopPropagation(); if (row) onStar(row); });
     if (timer) timer.addEventListener('click', e => {
@@ -917,19 +927,33 @@
     const name = n => T(n === 'work' ? 'win.tab.work' : 'win.tab.personal'), tip = T('link.mark', { n: name(also), h: name(home) });
     return `<span class="lmark" title="${esc(tip)}" aria-label="${esc(tip)}">${icon('link')}</span>`;
   }
-  // The task icon picker (owner 2026-10-15; 76 icons + search, 2026-10-17): a solid grid (the copy list’s material)
+  // The task icon picker (owner 2026-10-15; 76 icons + search, 2026-10-17; 146 since 2026-11-11): a solid grid (the copy list’s material)
   // under the anchor — groups from lib/task-icons.js, a live search field on top, "No icon" at the bottom. One click
   // picks; the field’s Enter picks the first visible icon, arrows move over the VISIBLE icons (6 columns, ArrowUp
   // from the first row returns to the field), Esc / a click outside closes. It lives inside the side panel (when the
   // anchor is in it), so the panel never reads a pick as a click outside.
-  let pickOpen = null;
-  function iconPicker(anchor, { current = null, onPick } = {}) {
+  let pickOpen = null, recentMem = null; // recentMem: in-memory Recent fallback when localStorage is blocked (M6)
+  const readRecent = () => { try { return JSON.parse(localStorage.getItem('icons.recent')) || null; } catch (e) { return null; } };
+  const writeRecent = s => { try { localStorage.setItem('icons.recent', JSON.stringify(s)); } catch (e) {} };
+  function iconPicker(anchor, { current = null, onPick, title = '', usedIcons = null } = {}) {
     if (pickOpen) pickOpen.close();
     const host = anchor.closest('#side') || document.body;
     const el = document.createElement('div');
     el.className = 'clist ipick'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', T('ti.pick'));
     const label = i => esc(i[LANG === 'ar' ? 'ar' : 'en']);
-    el.innerHTML = `<input type="text" class="ip-q" spellcheck="false" autocomplete="off" placeholder="${esc(T('ti.search'))}" aria-label="${esc(T('ti.search'))}">`
+    // Suggested + Recent (owner 2026-11-11): everything here is computed ONCE, on open — never per keystroke.
+    // Recent lives in localStorage ('icons.recent' = { list, counts }); missing → seeded from the icons already in
+    // use; broken / blocked storage → memory (recentMem). No ICON_SUGGEST (window that didn't load it) → no rows.
+    let st = readRecent() || recentMem;
+    if (!st && window.ICON_SUGGEST) { st = window.ICON_SUGGEST.seed(usedIcons || []); recentMem = st; writeRecent(st); }
+    const sug = window.ICON_SUGGEST ? window.ICON_SUGGEST.suggest(title, TASK_ICON_FLAT, { counts: (st && st.counts) || {}, recent: (st && st.list) || [], n: 3 }) : [];
+    const rec = ((st && st.list) || []).filter(n => TASK_ICON_BY.has(n)); // only names still in the set
+    const qRow = (names, key) => `<div class="ip-row"><span class="ip-rl">${esc(T(key))}</span>${names.map(n => {
+      const l = label(TASK_ICON_BY.get(n));
+      return `<button type="button" class="ip-b ip-qb${n === current ? ' sel' : ''}" data-pick="${n}" title="${l}" aria-label="${l}" aria-pressed="${n === current}">${taskIcon(n)}</button>`;
+    }).join('')}</div>`;
+    const topHtml = (sug.length || rec.length) ? `<div class="ip-top">${sug.length ? qRow(sug, 'ti.suggested') : ''}${rec.length ? qRow(rec, 'ti.recent') : ''}</div>` : '';
+    el.innerHTML = `<input type="text" class="ip-q" spellcheck="false" autocomplete="off" placeholder="${esc(T('ti.search'))}" aria-label="${esc(T('ti.search'))}">` + topHtml // search stays on top (owner 2026-11-11), then Suggested / Recent
       + `<div class="ip-list">${TASK_ICON_SET.map(g => `<div class="ip-g"><div class="ip-h">${esc(g[LANG === 'ar' ? 'ar' : 'en'])}</div><div class="ip-grid">${g.icons.map(i =>
         `<button type="button" class="ip-b${i.n === current ? ' sel' : ''}" data-pick="${i.n}" data-hay="${esc((i.n + ' ' + i.en + ' ' + i.ar + ' ' + i.k).toLowerCase())}" title="${label(i)}" aria-label="${label(i)}" aria-pressed="${i.n === current}">${taskIcon(i.n)}</button>`).join('')}</div></div>`).join('')}`
         + `<div class="ip-empty" hidden>${esc(T('ti.noMatch'))}</div></div>`
@@ -942,11 +966,13 @@
     let y = ab.bottom + 6; if (y + h > hb.bottom - 8) y = Math.max(hb.top + 8, ab.top - h - 6);
     el.style.left = (x - hb.left) + 'px'; el.style.top = (y - hb.top) + 'px';
     if (host === document.body) el.style.position = 'fixed';
-    const q = el.querySelector('.ip-q'), empty = el.querySelector('.ip-empty');
-    const btns = [...el.querySelectorAll('.ip-b')], groups = [...el.querySelectorAll('.ip-g')];
+    const q = el.querySelector('.ip-q'), empty = el.querySelector('.ip-empty'), ipTop = el.querySelector('.ip-top');
+    // grid buttons only: the quick rows' .ip-b never join the filter or the 6-column arrow navigation (M6)
+    const btns = [...el.querySelectorAll('.ip-grid .ip-b')], groups = [...el.querySelectorAll('.ip-g')];
     // live search: every typed word (split on spaces, case-insensitive; Arabic compared as typed) hits n + en + ar + k
     const filter = () => {
       const words = q.value.toLowerCase().split(' ').filter(Boolean);
+      if (ipTop) ipTop.hidden = q.value !== ''; // typing hides Suggested / Recent; clearing the field brings them back
       let any = false;
       for (const b of btns) { const on = words.every(w => b.dataset.hay.includes(w)); b.hidden = !on; if (on) any = true; }
       for (const g of groups) g.hidden = !g.querySelector('.ip-b:not([hidden])');
@@ -967,7 +993,9 @@
       const b = e.target.closest('[data-pick]');
       if (!b || b.disabled) return;
       e.stopPropagation(); close(); anchor.focus({ preventScroll: true });
-      if (onPick) onPick(b.dataset.pick || null);
+      const nm = b.dataset.pick;
+      if (nm && window.ICON_SUGGEST) { st = window.ICON_SUGGEST.remember(st, nm); recentMem = st; writeRecent(st); } // a real pick feeds Recent
+      if (onPick) onPick(nm || null);
     });
     el.addEventListener('keydown', e => {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); anchor.focus({ preventScroll: true }); return; }

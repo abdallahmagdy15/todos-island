@@ -14,8 +14,7 @@ body {
 header {
   flex: none; display: flex; align-items: center; justify-content: space-between;
   height: 50px; padding: 0 18px; /* = main.js overlay() height, so the native controls center on the header */
-  /* stay clear of the native window controls (Window Controls Overlay); 158px when the env vars are absent */
-  padding-right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 140px)) + 18px);
+  padding-inline-end: 10px; /* the window's own buttons (M7) sit at the end; was room for Windows' native controls */
   background: var(--head);
   border-bottom: 1px solid var(--rule-soft);
   -webkit-app-region: drag;
@@ -50,6 +49,33 @@ nav { position: relative; margin-inline-start: auto; -webkit-app-region: no-drag
 .tab:active:not(:disabled) { transform: none; filter: none; } /* the lens answers the press, not the label */
 .hdr-btn { -webkit-app-region: no-drag; margin-inline-start: var(--s-2); width: 32px; height: 32px; flex: none; }
 .hdr-btn .ic { width: 16px; height: 16px; }
+
+/* ---- the window's own frame (M7, owner 2026-11-11, pick B): a transparent window with the island's 26 px corners ----
+   html clips everything (fixed panels and pops too) to the rounded shape; its background-image keeps body's paper from
+   spreading to the canvas, so the corners stay see-through. Maximized (the work area) = square corners, no edges. */
+html { background-image: linear-gradient(transparent, transparent); clip-path: inset(0 round var(--r-pill)); }
+html.maxed { clip-path: none; }
+body::after { content: ''; position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; border-radius: var(--r-pill);
+  box-shadow: inset 0 0 0 1px var(--rule); } /* a hairline rim on the rounded edge (no native frame / shadow any more) */
+html.maxed body::after { border-radius: 0; }
+.win-ctl { flex: none; display: flex; align-items: center; gap: 2px; margin-inline-start: var(--s-2); -webkit-app-region: no-drag; }
+.win-ctl button { flex: none; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--r-2);
+  background: transparent; color: var(--muted); cursor: pointer; transition: background var(--d-1) ease, color var(--d-1) ease; } /* = the island's .pill-top buttons */
+.win-ctl button:hover { background: var(--hover); color: var(--ink); }
+.win-ctl .ic { width: 15px; height: 15px; }
+#win-close { width: 36px; height: 36px; border-radius: 18px; margin-inline-start: 2px; background: color-mix(in srgb, var(--ink) 6%, transparent); } /* = the island's X1 close */
+#win-close .ic { width: 17px; height: 17px; stroke-width: 2.2; }
+#win-close:hover { background: color-mix(in srgb, var(--p3) 15%, transparent); color: var(--p3); }
+/* resize edges: thin strips along the sides, larger squares at the corners (they follow the curve's inside) */
+.rz { position: fixed; z-index: 2147483001; -webkit-app-region: no-drag; }
+.rz[data-edge="n"] { top: 0; left: 22px; right: 22px; height: 5px; cursor: ns-resize; }
+.rz[data-edge="s"] { bottom: 0; left: 22px; right: 22px; height: 5px; cursor: ns-resize; }
+.rz[data-edge="e"] { right: 0; top: 22px; bottom: 22px; width: 5px; cursor: ew-resize; }
+.rz[data-edge="w"] { left: 0; top: 22px; bottom: 22px; width: 5px; cursor: ew-resize; }
+.rz[data-edge="ne"], .rz[data-edge="nw"], .rz[data-edge="se"], .rz[data-edge="sw"] { width: 18px; height: 18px; }
+.rz[data-edge="ne"] { top: 0; right: 0; cursor: nesw-resize; } .rz[data-edge="sw"] { bottom: 0; left: 0; cursor: nesw-resize; }
+.rz[data-edge="nw"] { top: 0; left: 0; cursor: nwse-resize; } .rz[data-edge="se"] { bottom: 0; right: 0; cursor: nwse-resize; }
+html.maxed .rz { display: none; }
 
 /* ---- task list ---- */
 main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
@@ -433,7 +459,7 @@ h2.md-h { margin-bottom: var(--s-1); }
 header { position: relative; }
 #undo-toast {
   position: absolute; z-index: 60; top: 0; bottom: 0; left: 18px;
-  right: calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, calc(100vw - 140px)) + 12px);
+  inset-inline-end: 120px; /* clear of the window's own buttons (M7), which stay while the undo line shows */
   display: flex; align-items: center; gap: 10px; font-size: var(--fs-2); color: var(--muted); -webkit-app-region: no-drag;
 }
 .notice { bottom: calc(var(--dock-h, 36px) + 60px); color: var(--ink); z-index: 51; }
@@ -703,14 +729,6 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 .ticon-btn.has { color: var(--ink); }
 .ticon-btn:hover, .ticon-btn:focus-visible, .ticon-btn[aria-expanded="true"] { background: var(--hover); color: var(--ink); outline: none; }
 .ticon-btn .ic { width: 17px; height: 17px; margin: 0; vertical-align: 0; color: inherit; }
-/* each panel subtask: an icon slot before its text, always reserved (nothing shifts); empty = the smile-plus on hover */
-.subs-list .sic { flex: none; width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--faint); cursor: pointer; }
-.subs-list .sic .ic { width: 15px; height: 15px; margin: 0; vertical-align: 0; color: inherit; }
-.subs-list .sic:not(.has) .ic { opacity: 0; transition: opacity 120ms ease; }
-.subs-list li:hover .sic:not(.has) .ic, .subs-list .sic:focus-visible .ic, .subs-list .sic[aria-expanded="true"] .ic { opacity: 0.85; }
-.subs-list .sic.has { color: var(--muted); }
-.subs-list .sic:hover, .subs-list .sic:focus-visible { background: var(--hover); color: var(--ink); outline: none; }
-.subs-list.selecting .sic { pointer-events: none; }
 #ed-active.sel { color: var(--accent); }
 /* owner 2026-09-30: the "will write" preview row is gone; Priority + Now share a line; the add-subtask field stays in view */
 .field-row { display: flex; flex-wrap: wrap; align-items: flex-start; column-gap: var(--s-5, 24px); }
@@ -738,21 +756,14 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 .menu button:hover, .menu button:focus-visible { background: var(--hover); outline: none; }
 .menu button.danger { color: var(--danger); }
 .menu hr { border: 0; border-top: 1px solid var(--rule-soft); margin: 4px 2px; }
-/* a panel subtask: [ ] ticks · the text renames (a field in place) · × deletes */
+/* a panel subtask (M3, owner 2026-11-11): [ ] ticks · the text renames (a field in place) — the rest (priority, icon,
+   Phase, + Step, delete) lives in the floating row tabs below; the bang mark reads like the tasks window's (.bang/.sbang) */
 .subs-list li { display: flex; align-items: center; gap: 6px; }
 .subs-list li .sb { border: 0; background: transparent; cursor: pointer; padding: 3px 4px; border-radius: var(--r-1); transition: color var(--d-1) ease, background var(--d-1) ease; }
 .subs-list li .sb:hover { color: var(--accent); background: var(--accent-soft); }
-/* a subtask's importance (owner 2026-09-29): its bangs as ONE button that steps none → ! → !! → !!! → none; a fixed
-   3-character slot so the title never jumps; with no priority a faint "!" shows where a click adds one */
-.subs-list li .sbp { flex: none; width: 3.2ch; border: 0; background: transparent; cursor: pointer; padding: 3px 0; border-radius: var(--r-1);
-  font-family: var(--font-mono); font-weight: 750; font-size: var(--fs-2); letter-spacing: -1px; text-align: center; color: var(--faint);
-  transition: color var(--d-1) ease, background var(--d-1) ease, opacity var(--d-1) ease; }
-.subs-list li .sbp:hover { background: var(--hover); }
-.subs-list li .sbp.none { opacity: 0.35; } .subs-list li:hover .sbp.none, .subs-list li .sbp.none:focus-visible { opacity: 0.8; }
-.subs-list li .sbp.p3 { color: var(--p3); } .subs-list li .sbp.p2 { color: var(--p2); } .subs-list li .sbp.p1 { color: var(--p1); }
 .subs-list li .st { cursor: text; padding: 3px 6px; margin-inline-start: -2px; border-radius: var(--r-1); transition: background var(--d-1) ease; }
 .subs-list li .st:hover { background: var(--hover); color: var(--ink); }
-.sub-edit { flex: 1; min-width: 0; display: block; resize: none; overflow-y: auto; min-height: 30px; padding: 5px 8px; line-height: 20px; border: 0; border-radius: var(--r-1); font: inherit; color: var(--ink);
+.sub-edit { flex: 1; min-width: 0; display: block; resize: none; overflow-y: auto; min-height: 30px; padding: 5px 8px; border: 0; border-radius: var(--r-1); font: inherit; line-height: 20px; /* after font: the shorthand resets line-height (v1.30 bug: the field never grew) */ color: var(--ink);
   background: var(--field); caret-color: var(--accent); box-shadow: inset 0 1px 2px var(--inner-shade), inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--accent-soft); outline: none; }
 .subs-list li.none-yet { cursor: default; color: var(--faint); }
 .sub-del {
@@ -761,19 +772,18 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
   transition: background var(--d-1) ease, color var(--d-1) ease;
 }
 .sub-del:hover { background: var(--hover); color: var(--p3); }
-/* phases (owner 2026-10-29): "Phase" marks a first-level subtask, + on a phase opens the step field; both show on the
-   row's hover / focus like the icon slot, and a phase keeps its "Phase" lit in its own hue */
-.sub-ph, .sub-step { flex: none; height: 22px; border: 0; border-radius: var(--r-1); background: transparent; color: var(--faint); font: inherit;
-  font-size: var(--fs-1); font-weight: 650; cursor: pointer; opacity: 0; transition: opacity 120ms ease, background var(--d-1) ease, color var(--d-1) ease; }
-.sub-ph { padding: 0 6px; margin-inline-start: auto; } .sub-ph + .sub-del { margin-inline-start: 0; }
-.sub-step { width: 22px; display: grid; place-items: center; padding: 0; margin-inline-start: auto; } .sub-step + .sub-ph { margin-inline-start: 0; }
-.sub-step .ic { width: 14px; height: 14px; margin: 0; }
-.subs-list li:hover :is(.sub-ph, .sub-step), .subs-list li:focus-within :is(.sub-ph, .sub-step), .sub-ph.on { opacity: 1; }
-.sub-ph.on, .sub-step { color: var(--phase); }
-.sub-ph:hover, .sub-step:hover, .sub-ph:focus-visible, .sub-step:focus-visible { background: var(--hover); color: var(--phase); outline: none; }
-.subs-list.selecting :is(.sub-ph, .sub-step), .subs-list li.done .sub-step { display: none; }
-.subs-list li.step-add { border-bottom: 0; padding-block: 3px; }
-.step-in { min-height: 26px; padding: 3px 8px; font-size: calc(var(--fs-task) * 0.9); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--phase) 55%, transparent); } /* a notch under the rows (R2) */
+/* the subtask row tabs (M3, owner 2026-11-11): ONE floating group in the tasks window's tab look (.etab, tokens.css)
+   that rests onto the row (panels.js subShow/subPlace) — the row stays clean: [ ] · its bang · its icon · the title */
+.field:has(#ed-subs) { position: relative; } /* the group's host: it scrolls with the list and survives load()'s re-render */
+.subs-list li.sub-hot { background: var(--hover); border-radius: var(--r-1); } /* the row the group belongs to */
+.etab.etab-ph.on-ph, .etab.etab-step { color: var(--phase); } /* the Phase tab lit on a phase row; + Step always phase-coloured */
+/* the row's priority mark and picked icon read as part of the text: inline, a small gap before the title (owner 2026-11-11);
+   the gap from [ ] stays the row's own */
+.subs-list li .st .sbang { display: inline; margin-inline-end: 0.3em; }
+.subs-list li.step-add { border-bottom: 0; padding-block: 3px; align-items: flex-start; }
+/* the step field's Add (M1, owner 2026-11-11): does what Enter does, keeps the field open for the next step */
+.step-go { flex: none; height: 26px; padding: 0 10px; border-radius: var(--r-1); font-size: var(--fs-2); font-weight: 650; }
+.step-in { min-height: 26px; padding: 3px 8px; line-height: 20px; font-size: calc(var(--fs-task) * 0.9); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--phase) 55%, transparent); } /* a notch under the rows (R2) */
 /* Move subtasks (owner 2026-10-09, like WhatsApp's forward): Move… beside the Subtasks label, then a click picks a
    subtask (a round check at its start), a bar says how many with Cancel · Move to; Move to = the other tasks, full view */
 .sub-head { display: flex; align-items: center; gap: 8px; }
@@ -788,8 +798,8 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
   box-shadow: inset 0 0 0 1px var(--lq-rim), inset 0 1px 0 var(--lq-rim), inset 0 -1px 0 var(--lq-bounce), 0 1px 1px var(--lq-drop); }
 .subs-list.selecting li.picked::before { content: "[\2713]"; color: var(--accent); } /* the text check mark, never the emoji */
 .subs-list.selecting li.picked .st { color: var(--ink); }
-.subs-list.selecting li .sb, .subs-list.selecting li .sbp.none, .subs-list.selecting li .sub-del { display: none; }
-.subs-list.selecting li .sbp, .subs-list.selecting li .st { pointer-events: none; }
+.subs-list.selecting li .sb { display: none; }
+.subs-list.selecting li .st { pointer-events: none; }
 .subs-list.selecting li .st { padding: 0; margin: 0; }
 /* the selection bar: a small solid card stuck to the bottom of the panel (the time wheel / Share pops' material) */
 .move-bar { position: sticky; bottom: 0; z-index: 2; display: flex; align-items: center; gap: 8px; margin-top: 10px; padding-block: 8px; padding-inline: 14px 8px;
@@ -798,8 +808,6 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 .mv-count { flex: 1; min-width: 0; font-size: var(--fs-2); font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mv-count.none { font-weight: 500; color: var(--muted); }
 #mv-next { gap: 6px; } #mv-next .ic { width: 14px; height: 14px; }
-/* a subtask with no priority keeps only a narrow faint "!" (owner 2026-10-09: too much room between [ ] and the text) */
-.subs-list li .sbp.none { width: 1.6ch; }
 .mv-tools { display: flex; flex-wrap: wrap; gap: 8px; }
 .mv-list { display: flex; flex-direction: column; gap: 1px; }
 .mv-opt { border: 0; background: transparent; text-align: start; font: inherit; color: var(--ink); padding: 6px 8px; border-radius: var(--r-1); cursor: pointer;

@@ -10,6 +10,7 @@ const STRINGS_EN = {
   'win.tab.settings': 'Settings',
   'win.share.title': 'Share progress — pick tasks, copy or export',
   'win.share.aria': 'Share progress',
+  'win.ctl.min': 'Minimize', 'win.ctl.max': 'Maximize', 'win.ctl.restore': 'Restore', 'win.ctl.close': 'Close', // the window's own frame (M7)
   'win.search.ph': 'Search…   ( / )',
   'win.search.aria': 'Search tasks',
   'win.search.clear': 'Clear search',
@@ -185,6 +186,7 @@ const STRINGS_EN = {
   'ed.sub.ph': 'New subtask…',
   'ed.sub.phase': 'Phase', 'ed.sub.phaseOn': 'Mark as a phase (a milestone you share)', 'ed.sub.phaseOff': 'Not a phase any more — its steps stay, one level out',
   'ed.sub.step': 'Add a step under this phase', 'ed.sub.stepFor': 'Add a step under {t}', 'ed.sub.stepPh': 'New step in {t}…',
+  'ed.sub.tabStep': 'Step', 'ed.sub.tabIcon': 'Icon', 'ed.sub.tabPrio': 'Priority', // the subtask row tabs (M3)
   'ed.saveTitle': 'Save (Ctrl+Enter)',
   'ed.complete': 'Complete',
   'ed.more': 'More',
@@ -244,7 +246,7 @@ const STRINGS_EN = {
   'fmt.strike': "Strikethrough (Ctrl+Shift+X)",
   'fmt.underline': "Underline (Ctrl+U)",
   'sh.fmt.text': "Plain text",
-  'etab.copy': "Copy",
+  'etab.copy': "Copy", 'etab.prio': "Priority",
   'etab.copied': "Copied ✓",
   'etab.timer': "Timer",
   'cw.grp.subs': "Subtasks",
@@ -498,6 +500,8 @@ const STRINGS_EN = {
   'ti.fail': "Couldn't set the icon",
   'ti.search': "Search icons",
   'ti.noMatch': "No icon matches",
+  'ti.suggested': "Suggested",
+  'ti.recent': "Recent",
   'set.size.5': "3XL",
 };
 if (typeof window !== 'undefined') (window.LOCALES = window.LOCALES || {}).en = STRINGS_EN;
