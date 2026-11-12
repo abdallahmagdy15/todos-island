@@ -446,20 +446,22 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @keyframes popOut { to { opacity: 0; transform: scale(.95); } }
 .clist { width: 150px; padding: 4px; border-radius: 12px; } /* small (owner 2026-10-05) */
 /* task attachments (owner 2026-10-09): the 📎 mark beside priority + date (island rows, the Now card, tasks-window rows);
-   a click drops the list under it — the copy list's solid pop, wider, one row per attachment: icon · name · what it opens */
-.aclip { display: inline-flex; align-items: center; gap: 2px; align-self: center; height: 18px; padding: 0 4px; border: 0; border-radius: 6px;
+   a click drops the list under it — the copy list's solid pop, wider, one row per attachment: icon · name · what it opens.
+   .simg (E2b, owner 2026-11-12): the same chip on a subtask row — its pasted images; same size, same look. */
+.aclip, .simg { display: inline-flex; align-items: center; gap: 2px; align-self: center; height: 18px; padding: 0 4px; border: 0; border-radius: 6px;
   background: transparent; color: var(--muted); font-family: var(--font-mono); font-size: 11px; font-weight: 700; cursor: pointer; -webkit-app-region: no-drag;
   transition: color 120ms ease, background 120ms ease; }
-.aclip .ic { width: 12px; height: 12px; }
-.aclip:hover, .aclip[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
-.aclip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.aclip .ic, .simg .ic { width: 12px; height: 12px; }
+.aclip:hover, .aclip[aria-expanded="true"], .simg:hover, .simg[aria-expanded="true"] { color: var(--accent); background: var(--accent-soft); }
+.aclip:focus-visible, .simg:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.simg { flex: none; } /* a chip between the subtask's title and its Copy button never takes the title's width */
 .clist.apop { width: min(340px, calc(100vw - 16px)); display: flex; flex-direction: column; gap: 1px; } /* wider so long names read (owner 2026-10-15; was 240) */
 /* a row = the item (opens it) + its Copy icon (N1, owner 2026-11-08), so the item is no longer the list's direct child */
 .apop .arow { display: flex; align-items: center; gap: 2px; min-width: 0; padding-inline-end: 3px; border-radius: 8px; }
 .apop .arow:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.apop button[data-i] { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; height: 28px; padding: 0 7px; border: 0; border-radius: 8px; background: transparent;
+.apop :is(button[data-i], button[data-img]) { flex: 1; display: flex; align-items: center; gap: 7px; min-width: 0; height: 28px; padding: 0 7px; border: 0; border-radius: 8px; background: transparent;
   color: var(--ink); font-family: inherit; font-size: 12px; text-align: start; cursor: pointer; }
-.apop button[data-i]:focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: none; }
+.apop :is(button[data-i], button[data-img]):focus-visible { background: color-mix(in srgb, var(--ink) 7%, transparent); outline: none; }
 .apop .ic { width: 13px; height: 13px; flex: none; color: var(--muted); }
 .apop .an { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .apop .ah { flex: none; font-size: 10px; color: var(--faint); }

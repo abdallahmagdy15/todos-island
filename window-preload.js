@@ -43,6 +43,11 @@ contextBridge.exposeInMainWorld('api', {
   attSet: (file, id, list) => ipcRenderer.invoke('att-set', file, id, list),
   iconSet: (file, id, subTitle, name) => ipcRenderer.invoke('icon-set', file, id, subTitle, name), // the picked icon (owner 2026-10-15)
   attOpen: (file, id, index) => ipcRenderer.invoke('att-open', file, id, index),
+  imgSave: bytes => ipcRenderer.invoke('img-save', bytes), // a pasted image → a file in <userData>/images (E2a)
+  imgAttach: (file, parentId, subTitle, name, session) => ipcRenderer.invoke('img-attach', file, parentId, subTitle, name, session), // the link line lands under the subtask / task
+  imgRemove: (file, parentId, subTitle, name, session) => ipcRenderer.invoke('img-remove', file, parentId, subTitle, name, session), // the line leaves; the FILE stays (Undo)
+  imgOpen: name => ipcRenderer.invoke('img-open', name), // an image attachment (E2a)
+  imgDiscard: name => ipcRenderer.invoke('img-discard', name), // a pending image's × — its file goes (owner 2026-11-12)
   pathOf: f => webUtils.getPathForFile(f), // a file dropped on the editor → its path on disk
   foldGet: () => ipcRenderer.invoke('fold-get'), // rows opened since the app started (main keeps them; the window dies on close)
   foldSet: (keys, open) => ipcRenderer.invoke('fold-set', keys, open),

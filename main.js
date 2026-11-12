@@ -17,12 +17,14 @@ const LINKS = require('./lib/links.js');
 const ICONS = require('./lib/icons.js');
 const { recentSessions, claudeTitle } = require('./lib/sessions.js');
 const THEMES = require('./lib/themes.js'); // theme presets (owner 2026-10-18): defaults, validation, one-tile patches
+const IMG = require('./lib/images.js'); // image link lines (owner 2026-11-12, E2a)
 
 // test/dev isolation: point the app at a scratch userData (its own state.json → its own note paths).
 // E2E runs use this so they never touch the owner's real notes.
 const SANDBOX = !!process.env.TODO_ISLAND_USERDATA;
 if (SANDBOX) app.setPath('userData', process.env.TODO_ISLAND_USERDATA);
 const STATE_PATH = path.join(app.getPath('userData'), 'state.json'); // userData: writable in dev AND packaged (asar is read-only)
+const IMG_DIR = path.join(app.getPath('userData'), 'images'); // pasted screenshots (owner 2026-11-12, E2a): the files; the note keeps only a link line
 const LOGF = path.join(process.env.TEMP || __dirname, 'todo-island.log');
 const LOG = m => { try { fs.appendFileSync(LOGF, `${new Date().toISOString()} ${m}\n`); } catch (e) {} };
 
@@ -152,13 +154,13 @@ const RANK = { '!!!': 3, '!!': 2, '!': 1 };
 function snapshot() {
   // subtasks, open + done alike: ph = a first-level phase; under = the uid of the first-level subtask it sits under
   // (null = first-level itself). subInfo carries the note's nesting (owner 2026-10-29).
-  const subSnap = (f, t) => f.subInfo(t).map(({ sub: s, under }) => ({ t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, ph: !!s.phase, under: under ? (under.uid || null) : null, c: s.created || null, u: s.updated || null, n: f.subNotesOf(t, s), i: (s.uid && (state.icons || {})[s.uid]) || null })); // t = the note's title = the address; n = its description lines (N2); i = its picked icon
+  const subSnap = (f, t) => f.subInfo(t).map(({ sub: s, under }) => { const sn = IMG.split(f.subNotesOf(t, s)); return { t: s.title, uid: s.uid || null, done: s.checked, p: s.priority || null, ph: !!s.phase, under: under ? (under.uid || null) : null, c: s.created || null, u: s.updated || null, n: sn.text, im: sn.images, i: (s.uid && (state.icons || {})[s.uid]) || null }; }); // t = the note's title = the address; n = its description text (N2); im = its image link names (E2a, never text); i = its picked icon
   const collect = (f, group) => f.topTasks().filter(t => !t.checked).map(t => ({
     id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, active: !!t.active,
     dueText: dueTextOf(t), dueTime: t.time != null ? fmtTime(t.time) : null,
       dueTs: t.due || t.time != null ? resolveDue(t.due, t.time) : null,
-      notes: f.notesOf(t),
+      notes: IMG.split(f.notesOf(t)).text, imgs: IMG.split(f.notesOf(t)).images, // E2a: image link lines never reach a renderer as text
       subs: subSnap(f, t),
       created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
       lines: f.blockLines(t), // Share → Markdown: the block as the note has it, stamp stripped
@@ -169,7 +171,7 @@ function snapshot() {
   const doneOf = (f, group) => f.topTasks().filter(t => t.checked).map(t => ({
     id: f.id(t), uid: t.uid || null, file: group, title: t.title, // uid = the hidden id (references); raw: **bold** etc. render in the app (UI.inline)
     priority: t.priority, dueText: dueTextOf(t),
-    notes: f.notesOf(t),
+    notes: IMG.split(f.notesOf(t)).text, imgs: IMG.split(f.notesOf(t)).images, // E2a: image link lines never reach a renderer as text
     subs: subSnap(f, t),
     lines: f.blockLines(t),
     created: t.created, updated: t.updated, updatedTs: stampMs(t.updated),
@@ -1349,6 +1351,7 @@ function sortNoteSubtasks() {
   }
   pruneTaskLinks();
   pruneTaskIcons();
+  pruneImages(15e3); // pasted images no note names any more (deleted tasks / subtasks, a quit app) — E2, owner 2026-11-12
   if (state.attachments && ATT.migrateKeys(state.attachments, (tag, title) => {
     try { const t = noteOn(tag) && fileFor(tag).topTasks().find(x => x.title === title); return (t && t.uid) || null; } catch (e) { return null; }
   })) saveState();
@@ -1524,6 +1527,87 @@ ipcMain.handle('att-open', async (_e, file, id, index) => {
     }
   } catch (err) { LOG('ATT-OPEN-FAIL ' + err.message); return { ok: false }; }
   return { ok: true };
+});
+// ---- image attachments (owner 2026-11-12, E2a): a pasted screenshot = a FILE in <userData>/images plus ONE Markdown
+// link line under its subtask (or task) — "[🖼 img-…](file:///…/img-….png)". The app reads only the NAME from that line
+// and finds the file in ITS folder, never the path in the note. img-save writes the file (no note); img-attach /
+// img-remove rewrite the line through subtaskWrite (the session Undo); the FILE is never deleted, so an Undo that brings
+// the line back finds its image still there.
+ipcMain.handle('img-save', async (_e, bytes) => {
+  try {
+    const img = bytes ? nativeImage.createFromBuffer(Buffer.from(bytes)) : await clipboard.readImage();
+    if (img.isEmpty()) return { ok: false, reason: 'empty' };
+    const png = img.toPNG();
+    if ((bytes ? bytes.byteLength : png.length) > 25 * 1024 * 1024) return { ok: false, reason: 'big' };
+    fs.mkdirSync(IMG_DIR, { recursive: true });
+    const name = IMG.newName(n => fs.existsSync(path.join(IMG_DIR, n + '.png')));
+    fs.writeFileSync(path.join(IMG_DIR, name + '.png'), png);
+    heldImgs.add(name); // pending until a note names it (pruneImages never takes a held one)
+    LOG('IMG-SAVE ' + name);
+    return { ok: true, name, line: IMG.imageLine(name, IMG_DIR) };
+  } catch (err) { LOG('IMG-SAVE-FAIL ' + err.message); return { ok: false, reason: 'error' }; }
+});
+ipcMain.handle('img-attach', (_e, file, parentId, subTitle, name, session) => {
+  if (!IMG.NAME_RE.test(name || '')) return { ok: false };
+  heldImgs.delete(name); // it is in the note now
+  return subtaskWrite(file, parentId, session, f => f.addImageLine(parentId, subTitle || null, IMG.imageLine(name, IMG_DIR)));
+});
+ipcMain.handle('img-remove', (_e, file, parentId, subTitle, name, session) => {
+  if (!IMG.NAME_RE.test(name || '')) return { ok: false };
+  const r = subtaskWrite(file, parentId, session, f => f.removeImageLine(parentId, subTitle || null, name));
+  if (r && r.changed) pruneImages((state.settings.undoSec + 1) * 1000); // the FILE goes too, once no Undo can bring the line back
+  return r;
+});
+// a pending image's × (pasted into a field, never written to the note): its file goes now — unless a note names it
+ipcMain.handle('img-discard', (_e, name) => {
+  if (!IMG.NAME_RE.test(name || '')) return { ok: false };
+  heldImgs.delete(name);
+  const named = imgsInNotes();
+  if (!named || named.has(name)) return { ok: true, kept: true };
+  try { fs.unlinkSync(path.join(IMG_DIR, name + '.png')); LOG('IMG-DISCARD ' + name); } catch (e) {}
+  return { ok: true };
+});
+// Deleting a pasted image deletes its FILE (owner 2026-11-12) — but never while an Undo could still bring its line back
+// (any undo entry still counting, + IMG_UNDO_GRACE for a bubble paused by a hover), and only files NO note line names.
+// ⚠️ A bubble hovered for longer than the grace and THEN undone brings the line back without its file ("missing"). Pending
+// images (`heldImgs`: saved by img-save, not yet in a note) are skipped until they land or their × discards them.
+// Runs after a remove and at startup (orphans of deleted tasks / subtasks, a quit app). Never when a note can't be read.
+const heldImgs = new Set();
+const IMG_UNDO_GRACE = 30e3;
+function imgsInNotes() { // every img-<id> the enabled notes mention, or null when one of them can't be read
+  const named = new Set();
+  for (const [tag, p] of [['work', state.settings.workPath], ['personal', state.settings.personalPath]]) {
+    if (!p || (!noteOn(tag) && !fs.existsSync(p))) continue;
+    let txt; try { txt = fs.readFileSync(p, 'utf8'); } catch (e) { LOG('IMG-PRUNE-SKIP ' + tag + ' ' + e.message); return null; }
+    for (const m of txt.match(/img-[0-9a-z]{6}/g) || []) named.add(m);
+  }
+  return named;
+}
+let imgPruneT = null;
+function pruneImages(delay = 0) {
+  clearTimeout(imgPruneT);
+  imgPruneT = setTimeout(() => {
+    imgPruneT = null;
+    const now = Date.now();
+    if ([...undoLog.values()].some(v => v.expires + IMG_UNDO_GRACE > now)) { pruneImages(10e3); return; } // an Undo may still need a file
+    let files; try { files = fs.readdirSync(IMG_DIR).filter(f => /^img-[0-9a-z]{6}\.png$/.test(f)); } catch (e) { return; }
+    const named = files.length ? imgsInNotes() : null;
+    if (!named) return;
+    for (const f of files) {
+      const n = f.slice(0, -4);
+      if (named.has(n)) { heldImgs.delete(n); continue; } // landed through add-subtask: no longer pending
+      if (heldImgs.has(n)) continue;
+      try { fs.unlinkSync(path.join(IMG_DIR, f)); LOG('IMG-PRUNE ' + n); } catch (e) {}
+    }
+  }, delay);
+}
+ipcMain.handle('img-open', async (_e, name) => {
+  if (!IMG.NAME_RE.test(name || '')) return { ok: false };
+  const p = path.join(IMG_DIR, name + '.png');
+  if (!fs.existsSync(p)) return { ok: false, reason: 'missing' };
+  if (SANDBOX) { LOG('IMG-OPEN-SANDBOX ' + name); return { ok: true }; } // E2E never opens anything
+  const err = await shell.openPath(p);
+  return err ? { ok: false, reason: 'error' } : { ok: true };
 });
 // tasks-window folds (owner 2026-10-09): every row starts folded at app start; the rows you open stay open while the app
 // runs. Kept here because the tasks window is destroyed on close. Memory only: a restart folds everything again.

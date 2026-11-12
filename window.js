@@ -115,7 +115,7 @@ function doneRowHtml(d) {
   const hasDetail = !!(notes.length || subs.length), open = hasDetail && (openRows.has(ck(d.id)));
   const body = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${notes.map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${subs.map(s => `<div class="wsubrow view ${s.done ? 'done' : ''}${window.UI.subCls(s)}"><span class="sb">${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}${window.UI.subNotesHtml(s)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${subRowsHtml(d, !!$('search').value.trim(), true)}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow done${open ? ' open' : ''}${hasDetail ? ' has-detail' : ''}" data-id="${esc(d.id)}" data-file="${d.file}" tabindex="-1" aria-label="Done: ${esc(plain(d.title))}"${hasDetail ? ` aria-expanded="${open}"` : ''}>
@@ -126,29 +126,60 @@ function doneRowHtml(d) {
       ${!open && subs.length ? `<div class="wsub">${subs.filter(s => s.done).length}/${subs.length} subtasks</div>` : ''}
     </div>
     <span class="wmeta">${d.priority ? `<span class="bang ${bangCls(d.priority)}">${esc(d.priority)}</span>` : ''}${d.dueText ? `<span class="wdue">${esc(d.dueText)}</span>` : ''}<button class="btn-soft sm" data-restore="${esc(d.id)}" data-file="${d.file}" type="button">Restore</button><span class="wacts"><button class="wtrash" data-del="${esc(d.id)}" data-file="${d.file}" type="button" title="Delete" aria-label="Delete completed task">${window.UI.icon('trash')}</button></span></span>
-  </div></div></div>`;
+  </div>${hasDetail && !open ? WEDGE : ''}</div></div>`;
 }
 // subtasks open first (owner 2026-10-30, R8 — was note order): a done step sits at the end of its phase, a done
 // first-level row (a phase with its steps) at the end of the list — the editor's order (panels.js)
-const subsOpenFirst = subs => window.UI.subUnits(subs, a => [...a.filter(x => !x.done), ...a.filter(x => x.done)]).flatMap(u => [u.head, ...u.steps]);
+const openFirst = a => [...a.filter(x => !x.done), ...a.filter(x => x.done)];
+// E3 (owner pick C): two thin card edges UNDER a folded row with details, shown on hover. A sibling of the row (never
+// inside it), so the row's own frame / Now tint never wraps them (owner 2026-11-12: inside the row it read wrong).
+const WEDGE = '<span class="wedge" aria-hidden="true"><i></i><i></i></span>';
+// E3 (owner 2026-11-12, demo design-demos/fold-hint.html): a PHASE with steps folds them. Phases start folded (like
+// rows); the key lives in openRows / fold-set with the row keys. While the search has text every phase renders OPEN —
+// a match inside a step must stay visible — without touching the saved state.
+const phKey = (t, s) => ck('ph:' + (s.uid || t.id + '|' + s.t));
+// the rows to render: each unit { s }, a phase-with-steps { s, key, open, steps } (its steps render only while open)
+function foldPlan(t, searching, order) {
+  const out = [];
+  for (const u of window.UI.subUnits(t.subs || [], order)) {
+    if (u.head.ph && u.steps.length) {
+      const key = phKey(t, u.head), open = searching || openRows.has(key);
+      out.push({ s: u.head, key, open, steps: u.steps });
+    } else out.push({ s: u.head });
+  }
+  return out;
+}
+// one row emitter for both lists — view = the Done tab (no data-sub / ticking; data-si = the row's index in the note's
+// order, so E2b's image chips find their subtask even when folded phases hide steps). A phase row carries data-phase /
+// data-phkey; folded, it shows its step count (.phcnt) on hover; open, its steps sit in .wsteps and unfold like the body.
+function subRowsHtml(t, searching, view) {
+  const subs = t.subs || [];
+  const row = (s, attrs = '', cls = '', after = '') => `<div class="wsubrow${view ? ' view' : ''} ${s.done ? 'done' : ''}${window.UI.subCls(s)}${cls}"${view ? ` data-si="${subs.indexOf(s)}"` : ` data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="false"`}${attrs}><span class="sb"${view ? '' : ' data-subtick'}>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}${window.UI.subNotesHtml(s)}</span>${after}${window.UI.subImgHtml(s)}${window.UI.subCopyHtml()}</div>`;
+  return foldPlan(t, searching, view ? undefined : openFirst).map(u => {
+    if (u.key == null) return row(u.s);
+    const head = row(u.s, ` data-phase data-phkey="${esc(u.key)}" aria-expanded="${u.open}"`, u.open ? ' ph-open' : '', u.open ? '' : `<span class="phcnt" aria-hidden="true">${u.steps.length}</span>`);
+    return u.open ? head + `<div class="wsteps"><div class="wsteps-in">${u.steps.map(s => row(s)).join('')}</div></div>` : head;
+  }).join('');
+}
 function rowHtml(t) {
   const timed = !!(snap && snap.timer && snap.timer.id === t.id); // focus timer (#10) running on this task
   if (currentTab === 'done') return doneRowHtml(t);
   const hasDetail = !!((t.notes || []).length || t.subs.length), open = hasDetail && (openRows.has(t.id));
+  const searching = !!$('search').value.trim(); // E3: phases render open while searching — a hit inside a step must be visible
   const expandBody = open ? `<div class="wexp-body"><div class="wexp-inner">
     ${(t.notes || []).map(n => `<div class="wdesc">${inline(n)}</div>`).join('')}
-    ${subsOpenFirst(t.subs).map(s => `<div class="wsubrow ${s.done ? 'done' : ''}${window.UI.subCls(s)}" data-sub="${esc(s.t)}" data-file="${t.file}" data-parent="${esc(t.id)}" draggable="false"><span class="sb" data-subtick>${s.done ? '[x]' : '[ ]'}</span>${s.p ? `<span class="bang sbang ${bangCls(s.p)}">${esc(s.p)}</span>` : ''}<span class="st">${window.UI.taskIcon(s.i)}${inline(s.t)}${window.UI.subNotesHtml(s)}</span>${window.UI.subCopyHtml()}</div>`).join('')}
+    ${subRowsHtml(t, searching, false)}
   </div></div>` : '';
   return `
   <div class="fold" role="listitem"><div class="fold-in"><div class="wrow ${open ? 'open' : ''} ${t.active ? 'is-now' : ''} ${hasDetail ? 'has-detail' : ''}${timed ? ' timed' : ''}" data-id="${esc(t.id)}" data-file="${t.file}" tabindex="-1" aria-label="${esc(rowLabel(t))}"${hasDetail ? ` aria-expanded="${open}"` : ''} ${t.shadow ? 'data-shadow ' : ''}draggable="false">
     <button class="chk" data-chk="${esc(t.id)}" data-file="${t.file}" type="button" tabindex="-1" aria-label="Complete: ${esc(plain(t.title))}"></button>
     <div class="wrow-main">
-      <span class="wtitle"><span class="tt">${window.UI.taskIcon(t.icon)}${inline(t.title)}</span></span>
+      <span class="wtitle"><span class="tt">${window.UI.taskIcon(t.icon)}${inline(t.title)}<span class="pen" aria-hidden="true">✎</span></span></span>
       ${expandBody}
       ${!open && t.subs.length ? `<div class="wsub" data-exp="${esc(t.id)}">${t.subs.filter(s => !s.done).length}/${t.subs.length} subtasks</div>` : ''}
     </div>
     <span class="wmeta">${timed ? `<span class="tmark" title="${esc(T('timer.chipTitle', { t: plain(t.title), left: window.UI.timerLeft(snap.timer) }))}">${window.UI.icon('timer')}${esc(window.UI.timerLeft(snap.timer))}</span>` : ''}<span class="bang ${t.priority ? bangCls(t.priority) : 'ghost'}" data-prio="${esc(t.priority || '')}" role="button" title="${esc(T('prio.click'))}">${t.priority ? esc(t.priority) : ''}</span>${t.dueText ? `<span class="wdue ${t.dueState === 'today' ? 'today' : t.dueState === 'overdue' ? 'overdue' : ''}">${dueHtml(t)}</span>` : ''}${t.active ? '<span class="wstar">&#9733;</span>' : ''}${window.UI.attClipHtml(t)}${window.UI.linkMarkHtml(t)}</span>
-  </div></div></div>`;
+  </div>${hasDetail && !open ? WEDGE : ''}</div></div>`;
 }
 function renderList() {
   if (!snap) return; // first snapshot not in yet (tab restore runs before refresh resolves)
@@ -225,7 +256,7 @@ function restClear() {
 }
 function restOn(row) {
   row.classList.add('dwelt'); restRow = row; restId = row.dataset.id;
-  if (!row.classList.contains('done')) editTabEl().show(row, T('isl.btn.editAria', { t: row.querySelector('.tt').textContent }));
+  if (!row.classList.contains('done')) editTabEl().show(row, T('isl.btn.editAria', { t: row.querySelector('.tt').textContent.replace(/✎$/, '') }));
 }
 function restRestore() { // a re-render keeps the rested task (same id) rested
   if (!restId) return;
@@ -465,7 +496,8 @@ function foldAllLabel(rows) {
 $('btn-fold-all').addEventListener('click', () => {
   window.SFX.play('tick');
   const f = foldable(taskRows());
-  setOpen(f.map(t => ck(t.id)), $('btn-fold-all').dataset.mode !== 'collapse');
+  // E3: every phase-with-steps of those rows folds too — one toggle reaches the whole list
+  setOpen(f.flatMap(t => [ck(t.id), ...foldPlan(t, false).filter(u => u.key).map(u => u.key)]), $('btn-fold-all').dataset.mode !== 'collapse');
   renderList();
 });
 $('task-list').addEventListener('mouseover', e => {
@@ -539,6 +571,10 @@ function rowInPlace(id) {
   row.className = fresh.className; row.classList.add(...keep);
   row.setAttribute('aria-expanded', fresh.getAttribute('aria-expanded'));
   row.querySelector('.wrow-main').replaceWith(fresh.querySelector('.wrow-main'));
+  // E3: the stacked edges (the row's next sibling, under the card) follow the fold
+  const wedge = tpl.content.querySelector('.wedge'), nx = row.nextElementSibling, had = nx && nx.classList.contains('wedge') ? nx : null;
+  if (wedge) had ? had.replaceWith(wedge) : row.after(wedge);
+  else if (had) had.remove();
   fold._html = html; // the next refresh sees this row as already current
   foldAllLabel(taskRows().filter(x => matches(x, $('search').value.trim().toLowerCase())));
   editTabEl().place();
@@ -548,8 +584,9 @@ async function toggleNow(id, file, row) { // the ☆ tab and the * / s keys: the
   await window.api.toggleActive(id, file);
   await refresh();
 }
-// the 📎 mark (owner 2026-10-09): the same folded list as the island; a second click closes it
-let attPop = null;
+// the 📎 mark (owner 2026-10-09): the same folded list as the island; a second click closes it. The task's images and
+// its subtasks' images list there too (E2b) — the clip shows whenever attachments OR images exist.
+let attPop = null, imgPop = null;
 async function onListAction(e) {
   const clip = e.target.closest('[data-attclip]');
   if (clip) {
@@ -557,10 +594,29 @@ async function onListAction(e) {
     if (attPop) attPop.close();
     if (was) return;
     const t = taskRows().find(x => x.id === clip.dataset.attclip && x.file === clip.dataset.file);
-    if (!t || !t.att || !t.att.length) return;
+    if (!t || (!(t.att || []).length && !window.UI.imgCount(t))) return;
     window.SFX.play('tick');
-    const pop = window.UI.attPeek(document.querySelector('.list-sheet'), clip, t, { open: i => window.api.attOpen(t.file, t.id, i), copy: async s => { await window.api.copyText(s); window.SFX.play('tick'); }, onClose: () => { if (attPop === pop) attPop = null; } });
+    const pop = window.UI.attPeek(document.querySelector('.list-sheet'), clip, t, { open: i => window.api.attOpen(t.file, t.id, i), copy: async s => { await window.api.copyText(s); window.SFX.play('tick'); }, openImg: n => window.api.imgOpen(n), onClose: () => { if (attPop === pop) attPop = null; } });
     pop.clip = clip; attPop = pop;
+    return;
+  }
+  const sg = e.target.closest('[data-simg]'); // a subtask's image chip (E2b): its images drop under it — never a tick, an editor or a fold
+  if (sg) {
+    e.stopPropagation();
+    const was = imgPop && imgPop.anchor === sg;
+    if (imgPop) imgPop.close();
+    if (was) return;
+    const row = sg.closest('.wrow');
+    const t = row && taskRows().find(x => x.id === row.dataset.id && x.file === row.dataset.file);
+    if (!t) return;
+    // open rows carry data-sub; done rows (view only) carry their index in the note's order (data-si) — folded phases
+    // hide steps, so counting rendered rows no longer finds them (E3)
+    const srow = sg.closest('[data-sub]'), siRow = srow ? null : sg.closest('[data-si]');
+    const s = srow ? t.subs.find(x => x.t === srow.dataset.sub) : siRow ? t.subs[+siRow.dataset.si] : t.subs[[...row.querySelectorAll('.wsubrow')].indexOf(sg.closest('.wsubrow'))];
+    if (!s || !s.im || !s.im.length) return;
+    window.SFX.play('tick');
+    const pop = window.UI.imgPeek(document.querySelector('.list-sheet'), sg, s.im.map((n, k) => ({ name: n, label: T('img.n', { n: k + 1 }) })), { open: n => window.api.imgOpen(n), onClose: () => { if (imgPop === pop) imgPop = null; } });
+    pop.anchor = sg; imgPop = pop;
     return;
   }
   const chk = e.target.closest('[data-chk]');
@@ -578,6 +634,11 @@ async function onListAction(e) {
       window.SFX.play('tick');
       await window.UI.glideTick($('task-list'), sub, async () => { await window.api.toggleSubtask(sub.dataset.file, sub.dataset.parent, sub.dataset.sub, 'win' + Date.now()); await refresh(); }, { sel: '.wsubrow[data-sub]' });
     }
+    else if (sub.hasAttribute('data-phase')) { // E3: a phase row folds / unfolds its steps (a phase with none edits, as before)
+      window.SFX.play('tick');
+      setOpen(sub.dataset.phkey, !openRows.has(sub.dataset.phkey));
+      rowInPlace(sub.dataset.parent);
+    }
     else window.Panels.edit(sub.dataset.file, sub.dataset.parent);
     return;
   }
@@ -585,11 +646,14 @@ async function onListAction(e) {
   if (del) { window.SFX.play('delete'); await window.api.deleteTask(del.dataset.del, del.dataset.file); await refresh(); return; }
   const res = e.target.closest('[data-restore]');
   if (res) { window.SFX.play('add'); await window.api.uncomplete(res.dataset.restore, res.dataset.file); await refresh(); return; }
+  const dph = e.target.closest('[data-phkey]'); // E3: a DONE phase row (no data-sub there) folds its steps — view only
+  if (dph) { window.SFX.play('tick'); setOpen(dph.dataset.phkey, !openRows.has(dph.dataset.phkey)); rowInPlace(dph.closest('.wrow').dataset.id); return; }
   // row click = open / fold its notes + subtasks (the ⌄ button is gone); a row with nothing to open goes to the editor
   const row = e.target.closest('.wrow');
   if (row && row.classList.contains('done')) { if (row.classList.contains('has-detail')) toggleRow(row.dataset.id); return; } // view only: a click just folds
   if (!row) return;
   if (editTabEl().justHid()) return; // a click meant for a tab that just hid (H6)
+  if (e.target.closest('.tt')) { window.Panels.edit(row.dataset.file, row.dataset.id); return; } // E3: the title is the edit route
   if (row.classList.contains('has-detail')) { toggleRow(row.dataset.id); return; }
   window.Panels.edit(row.dataset.file, row.dataset.id);
 }

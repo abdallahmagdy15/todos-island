@@ -432,7 +432,7 @@
               <!-- Move subtasks (owner 2026-10-09, like WhatsApp's forward): select them, then pick the task they go to -->
               <button class="btn-text sub-mv" id="ed-sub-move" type="button" data-i18n-title="ed.mv.btnTitle"><svg class="ic" data-icon="moveTo" viewBox="0 0 24 24"></svg><span data-i18n="ed.mv.btn">Move…</span></button></div>
             <ul class="subs-list" id="ed-subs"></ul>
-            <div class="addsub" id="ed-addsub-row"><textarea id="ed-sub" rows="1" spellcheck="true" data-i18n-ph="ed.sub.ph"></textarea><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button></div>
+            <div class="addsub" id="ed-addsub-row"><textarea id="ed-sub" rows="1" spellcheck="true" data-i18n-ph="ed.sub.ph"></textarea><button id="ed-addsub" type="button" data-i18n="win.btn.add">Add</button><div class="img-pend" id="ed-pend" hidden><!-- pasted images (owner 2026-11-12, E2b): waiting for the subtask this field adds; inside the sticky add row so it is never covered --></div></div>
             <div class="move-bar" id="ed-move-bar" hidden>
               <span class="mv-count" id="mv-count"></span>
               <button class="btn-text" id="mv-cancel" type="button" data-i18n="ed.mv.cancel">Cancel</button>
@@ -572,6 +572,7 @@
 <script src="lib/icon-suggest.js"></script>
 <script src="lib/themes.js"></script>
 <script src="ui-shared.js"></script>
+<script src="lib/images.js"></script>
 <script src="lib/share.js"></script>
   <script src="panels.js"></script>
   <script src="window.js"></script>

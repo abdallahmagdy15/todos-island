@@ -69,7 +69,7 @@
     if (kind === 'edit' && (file !== FILE || id !== ID)) await saveNow(); // switching tasks: the old one lands first
     const same = kind === 'edit' && file === FILE && id === ID;
     FILE = file; ID = id;
-    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); endMove(); subHide(); }
+    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); endMove(); subHide(); discardPending('sub'); discardPending('step'); } // E2b: pending images never cross tasks
     show('edit');
     await load(!same);
     if (opts.focus === 'sub') setTimeout(() => $('ed-sub').focus({ preventScroll: true }), 80);
@@ -83,6 +83,7 @@
     $('ed-form').hidden = !t || wizOpen || moveOpen; // the Attach steps / Move to keep the view until they close
     $('ed-foot').hidden = !t || wizOpen || moveOpen;
     if (!t) return;
+    curTask = t; // saveAtt repaints from it when only the attachment list changed
     $('ed-badge').textContent = T(t.file === 'work' ? 'win.st.file.work' : 'win.st.file.personal');
     if (full) {
       $('ed-title').value = [t.title, ...(t.notes || [])].join('\n');
@@ -93,16 +94,17 @@
       updatePreview();
     }
     paintIcon(t.icon);
-    paintAtt(t.att || []);
+    paintAtt(t);
     paintNoteMenu(t, s.settings && s.settings.mode);
     if (subEditing) return; // a subtask being renamed keeps its field — the list refreshes once it commits
     // a subtask (owner 2026-09-28): its [ ] ticks it; its TEXT is editable (click → a field; Enter / leaving saves, Esc cancels)
     subIcons = Object.fromEntries(t.subs.filter(x => x.i).map(x => [x.t, x.i]));
     subNotesMap = Object.fromEntries(t.subs.filter(x => x.n && x.n.length).map(x => [x.t, x.n])); // N2: .sub-edit opens with them
+    subImgsMap = Object.fromEntries(t.subs.filter(x => x.im && x.im.length).map(x => [x.t, x.im])); // E2b: the chip's image names
     // open first (owner 2026-09-30); the note keeps its order. Phases (owner 2026-10-29): a phase's steps stay right under it
     const openFirst = arr => [...arr.filter(x => !x.done), ...arr.filter(x => x.done)];
     const units = window.UI.subUnits(t.subs, openFirst), subs = units.flatMap(u => [u.head, ...u.steps]);
-    const stepField = ph => `<li class="substep step-add"><textarea rows="1" class="sub-edit step-in" data-under="${esc(ph)}" spellcheck="true" placeholder="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}" aria-label="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}"></textarea><button class="btn-soft step-go" type="button" data-stepadd>${esc(T('win.btn.add'))}</button></li>`;
+    const stepField = ph => `<li class="substep step-add"><textarea rows="1" class="sub-edit step-in" data-under="${esc(ph)}" spellcheck="true" placeholder="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}" aria-label="${esc(T('ed.sub.stepPh', { t: plain(ph) }))}"></textarea><button class="btn-soft step-go" type="button" data-stepadd>${esc(T('win.btn.add'))}</button><div class="img-pend" data-pendstep hidden></div></li>`; // E2b: pasted images waiting for the step field
     // the ONE field goes after the open phase's last row — found by the phase's unit, never by a row title (two rows may
     // share a title: R2, 2026-10-30, the field showed twice)
     const atUnit = stepAt ? units.find(u => u.head.ph && u.head.t === stepAt) : null;
@@ -111,7 +113,7 @@
     const keep = document.querySelector('#ed-subs .step-in'), keepVal = keep ? keep.value : '', keepFocus = !!keep && document.activeElement === keep;
     stepRender = true;
     $('ed-subs').innerHTML = subs.map(x =>
-      `<li class="${x.done ? 'done' : ''}${window.UI.subCls(x)}${mvPicked.has(x.t) ? ' picked' : ''}" draggable="false" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${x.p ? `<span class="bang sbang ${bangCls(x.p)}">${esc(x.p)}</span>` : ''}${window.UI.taskIcon(x.i)}${inline(x.t)}${window.UI.subNotesHtml(x)}</span></li>${x === fieldAfter ? stepField(stepAt) : ''}`).join('')
+      `<li class="${x.done ? 'done' : ''}${window.UI.subCls(x)}${mvPicked.has(x.t) ? ' picked' : ''}" draggable="false" data-sub="${esc(x.t)}" data-p="${x.p || ''}"><button class="sb" type="button" data-subtick aria-label="${esc(T(x.done ? 'ed.sub.untick' : 'ed.sub.tick', { t: plain(x.t) }))}">${x.done ? '[x]' : '[ ]'}</button><span class="st" tabindex="0" role="button" title="${esc(T('ed.sub.rename'))}">${x.p ? `<span class="bang sbang ${bangCls(x.p)}">${esc(x.p)}</span>` : ''}${window.UI.taskIcon(x.i)}${inline(x.t)}${window.UI.subNotesHtml(x)}</span>${window.UI.subImgHtml(x)}</li>${x === fieldAfter ? stepField(stepAt) : ''}`).join('')
       || `<li class="none-yet">${esc(T('ed.sub.none'))}</li>`;
     stepRender = false;
     const sf = document.querySelector('#ed-subs .step-in');
@@ -126,6 +128,8 @@
     }
     if (selecting) { for (const k of [...mvPicked]) if (!subs.some(x => x.t === k)) mvPicked.delete(k); } // a picked one that is gone
     paintSel();
+    if (!stepAt && pendingImgs.step.length) discardPending('step'); // the step field is gone: its waiting images go with it
+    paintPending();
   }
   function paintActive() {
     $('ed-active').classList.toggle('sel', activeState);
@@ -192,16 +196,19 @@
   // next; Esc, a click elsewhere or leaving it closes it (typed text is added, like the editor's autosave)
   let stepAt = null, stepFocus = false, stepRender = false;
   let subNotesMap = {}; // title → description lines (N2), refreshed on load for .sub-edit
+  let subImgsMap = {}; // title → its image names (E2b), refreshed on load for the chip's peek
   function openStep(ph) { stepAt = ph; stepFocus = true; load(false); }
   async function addStep(input, keepOpen) {
     const { title, notes } = window.UI.splitSub(input.value), ph = input.dataset.under;
     input.value = '';
     if (!keepOpen) stepAt = null;
-    if (title) { await saveNow(); window.SFX.play('tick'); await window.api.addSubtask(FILE, ID, title, session, ph, notes); }
+    if (title) { await saveNow(); window.SFX.play('tick'); await window.api.addSubtask(FILE, ID, title, session, ph, [...notes, ...pendingImgs.step.map(p => p.line)]); pendingImgs.step = []; } // E2b: its waiting images land with it
     if (keepOpen) stepFocus = true;
     load(false);
   }
   $('ed-subs').addEventListener('click', async e => {
+    const sg = e.target.closest('[data-simg]'); // the subtask's image chip (E2b): its images drop under it — never a rename; while selecting, the row's click picks instead
+    if (sg && !selecting) { subImgPeek(sg); return; }
     const li = e.target.closest('li[data-sub]');
     if (li && selecting) { // selection mode: a click picks / unpicks, nothing else
       mvPicked.has(li.dataset.sub) ? mvPicked.delete(li.dataset.sub) : mvPicked.add(li.dataset.sub);
@@ -218,6 +225,25 @@
       await window.UI.glideTick($('ed-subs'), li, async () => { await window.api.toggleSubtask(FILE, ID, li.dataset.sub, session); await load(false); }, { sel: 'li[data-sub]' });
     }
   });
+  // ---- pasted images (owner 2026-11-12, E2b): a chip on a subtask row; a click lists its images (open · × = the note
+  // line leaves, the FILE stays — Undo brings it back). The peek lives inside #side, so the panel never reads a click
+  // on it as "outside".
+  let imgPop = null;
+  function subImgPeek(btn) {
+    const was = imgPop && imgPop.anchor === btn;
+    if (imgPop) imgPop.close();
+    if (was) return;
+    const title = btn.closest('li[data-sub]').dataset.sub;
+    const im = subImgsMap[title] || [];
+    if (!im.length) return;
+    window.SFX.play('tick');
+    const pop = window.UI.imgPeek(side, btn, im.map((n, k) => ({ name: n, label: T('img.n', { n: k + 1 }) })), {
+      open: n => window.api.imgOpen(n),
+      remove: async n => { await saveNow(); await window.api.imgRemove(FILE, ID, title, n, session); await load(false); },
+      onClose: () => { if (imgPop === pop) imgPop = null; }
+    });
+    pop.anchor = btn; imgPop = pop;
+  }
   $('ed-subs').addEventListener('keydown', async e => {
     if (e.target.classList.contains('step-in')) {
       if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); e.target.value = ''; stepAt = null; load(false); } // Esc closes the field, not the panel
@@ -478,22 +504,28 @@
   }
   $('ed-icon').addEventListener('click', () => pickIcon($('ed-icon'), null, iconNow));
   let att = [];
+  let curTask = {}; // the loaded task (E2b): saveAtt repaints its images alongside a fresh attachment list
   let attOpen = false; try { attOpen = localStorage.getItem('ed.attOpen') === '1'; } catch (e) {} // folded by default, remembered per viewer
   function paintAttFold() {
     $('ed-att-fold').setAttribute('aria-expanded', String(attOpen));
     $('ed-att').hidden = !attOpen;
   }
-  function paintAtt(list) {
-    att = list;
-    $('ed-att-field').hidden = !list.length; // the block shows only when something is attached
-    $('ed-att-count').textContent = list.length ? '· ' + list.length : '';
+  function paintAtt(t) {
+    att = t.att || [];
+    // the task's own images + its subtasks' (E2b), the same labels as the 📎 peek: "Task" / the subtask's title
+    const imgRows = [...(t.imgs || []).map(n => ({ name: n, sub: null, label: T('img.task') })),
+      ...(t.subs || []).flatMap(s => (s.im || []).map(n => ({ name: n, sub: s.t, label: plain(s.t) })))];
+    const total = att.length + imgRows.length;
+    $('ed-att-field').hidden = !total; // the block shows only when something is attached
+    $('ed-att-count').textContent = total ? '· ' + total : '';
     paintAttFold();
-    $('ed-att').innerHTML = list.map((a, i) => `<li data-i="${i}" tabindex="0" role="button" title="${esc(a.path || a.url || a.dir || '')}">${window.UI.icon(window.UI.attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(window.UI.attHint(a))}</span>${window.UI.attCopyHtml(a, i)}<button class="sub-del" type="button" data-attdel="${i}" aria-label="${esc(T('att.del', { t: a.name }))}">&times;</button></li>`).join('');
+    $('ed-att').innerHTML = att.map((a, i) => `<li data-i="${i}" tabindex="0" role="button" title="${esc(a.path || a.url || a.dir || '')}">${window.UI.icon(window.UI.attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(window.UI.attHint(a))}</span>${window.UI.attCopyHtml(a, i)}<button class="sub-del" type="button" data-attdel="${i}" aria-label="${esc(T('att.del', { t: a.name }))}">&times;</button></li>`).join('')
+      + imgRows.map(m => `<li data-img="${esc(m.name)}" tabindex="0" role="button">${window.UI.icon('image')}<span class="an">${esc(m.label)}</span><span class="ah">${esc(T('img.hint'))}</span><button class="sub-del" type="button" data-imgdel="${esc(m.name)}" data-imgsub="${esc(m.sub || '')}" aria-label="${esc(T('img.del'))}">&times;</button></li>`).join('');
   }
   async function saveAtt(list) {
     await saveNow(); // a pending title edit lands first: attachments are filed under the task's title
     const r = await window.api.attSet(FILE, ID, list);
-    if (r && r.ok) { paintAtt(r.att); flashSaved(T('set.save.saved')); } else flashSaved(T('att.fail'), true);
+    if (r && r.ok) { paintAtt({ ...curTask, att: r.att }); flashSaved(T('set.save.saved')); } else flashSaved(T('att.fail'), true); // the images didn't change — keep the task's
   }
   async function openAtt(li, i) { // same feedback as the peek: copied says so, a failure turns the hint red
     const r = await window.api.attOpen(FILE, ID, i);
@@ -503,17 +535,27 @@
       setTimeout(() => { li.classList.remove('ok'); if (att[i]) hint.textContent = window.UI.attHint(att[i]); }, 1400);
     } else if (!r || !r.ok) { li.classList.add('bad'); setTimeout(() => li.classList.remove('bad'), 1400); }
   }
-  $('ed-att').addEventListener('click', e => {
+  $('ed-att').addEventListener('click', async e => {
+    const gd = e.target.closest('[data-imgdel]'); // an image's × (E2b): the note line leaves, the FILE stays — Undo brings it back
+    if (gd) { window.SFX.play('delete'); await saveNow(); await window.api.imgRemove(FILE, ID, gd.dataset.imgsub || null, gd.dataset.imgdel, session); load(false); return; }
     const d = e.target.closest('[data-attdel]');
     if (d) { window.SFX.play('delete'); saveAtt(att.filter((_, i) => i !== +d.dataset.attdel)); return; }
     const c = e.target.closest('[data-attcopy]'); // N1: copy its path / link / command / name, open nothing
     if (c) { const a = att[+c.dataset.attcopy]; if (a) window.api.copyText(window.UI.attCopyText(a)).then(() => { window.SFX.play('tick'); window.UI.copyFlash(c); }); return; }
+    const gi = e.target.closest('li[data-img]'); // an image row (E2b): open it, same feedback as the peek
+    if (gi) {
+      const r = await window.api.imgOpen(gi.dataset.img), h = gi.querySelector('.ah');
+      if (!r || !r.ok) { gi.classList.add('bad'); h.textContent = T(r && r.reason === 'missing' ? 'img.missing' : 'att.fail'); setTimeout(() => { gi.classList.remove('bad'); h.textContent = T('img.hint'); }, 1400); }
+      return;
+    }
     const li = e.target.closest('li[data-i]');
     if (li) openAtt(li, +li.dataset.i);
   });
   $('ed-att').addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     if (e.target.closest('button')) return; // the × keeps its own click
+    const gi = e.target.closest('li[data-img]');
+    if (gi) { e.preventDefault(); gi.click(); return; }
     const li = e.target.closest('li[data-i]');
     if (li) { e.preventDefault(); openAtt(li, +li.dataset.i); }
   });
@@ -617,6 +659,55 @@
     const add = files.map(f => window.api.pathOf(f)).filter(Boolean).map(p => ({ type: 'file', path: p })); // main tells file from folder
     if (add.length) { window.SFX.play('tick'); saveAtt([...att, ...add]); }
   });
+  // ---- paste an image (owner 2026-11-12, E2b): Ctrl+V in the editor → a file + ONE link line under the subtask you
+  // are on — focus first (a field that ADDS a subtask keeps the image pending until that subtask lands; a rename field
+  // targets the renamed subtask), then the row under the pointer, then the floating tabs' row, else the task itself.
+  const pendingImgs = { sub: [], step: [] }; // { name, line } waiting for the field that adds the subtask
+  function paintPending() {
+    const chip = (p, i, which) => `<span class="img-pending" title="${esc(T('img.pending'))}">${window.UI.icon('image')}<span>${esc(T('img.n', { n: i + 1 }))}</span><button class="sub-del" type="button" data-pendx="${which}" data-i="${i}" aria-label="${esc(T('img.del'))}">&times;</button></span>`;
+    const fill = (el, list, which) => { if (!el) return; el.innerHTML = list.map((p, i) => chip(p, i, which)).join(''); el.hidden = !list.length; };
+    fill($('ed-pend'), pendingImgs.sub, 'sub');
+    if (pendingImgs.sub.length && selecting) $('ed-pend').hidden = true; // the add row hides while selecting — its chips follow
+    fill(document.querySelector('[data-pendstep]'), pendingImgs.step, 'step');
+  }
+  // a waiting image that won't land (its ×, another task, the step field closing) deletes its FILE too (owner 2026-11-12)
+  function discardPending(which, i = null) {
+    const gone = i === null ? pendingImgs[which].splice(0) : pendingImgs[which].splice(i, 1);
+    gone.forEach(p => window.api.imgDiscard(p.name));
+  }
+  side.addEventListener('click', e => { // a chip's ×: it leaves the list and its file is deleted
+    const x = e.target.closest('[data-pendx]');
+    if (!x || kind !== 'edit') return;
+    e.stopPropagation();
+    discardPending(x.dataset.pendx, +x.dataset.i);
+    paintPending();
+  });
+  $('side-edit').addEventListener('paste', async e => {
+    if (kind !== 'edit') return;
+    const item = [...((e.clipboardData && e.clipboardData.items) || [])].find(i => i.kind === 'file' && /^image\//.test(i.type));
+    if (!item) return; // no image on the clipboard: a normal text paste
+    e.preventDefault();
+    const f = item.getAsFile(); // read NOW — clipboard items die with the event
+    const r = f && await window.api.imgSave(new Uint8Array(await f.arrayBuffer()));
+    if (!r || !r.ok) { flashSaved(T(r && r.reason === 'big' ? 'img.big' : 'img.fail'), true); return; }
+    const ae = document.activeElement;
+    if (ae === $('ed-sub') || (ae && ae.classList.contains('step-in'))) { // the field adds a subtask: the image waits for it
+      pendingImgs[ae === $('ed-sub') ? 'sub' : 'step'].push({ name: r.name, line: r.line });
+      paintPending();
+      return;
+    }
+    let subTitle = null;
+    const renaming = ae && ae.classList.contains('sub-edit'); // the rename field (a step-in was caught above)
+    const hovered = document.querySelector('#ed-subs li[data-sub]:hover');
+    if (renaming) subTitle = (ae.closest('li[data-sub]') || {}).dataset?.sub || null;
+    else if (hovered) subTitle = hovered.dataset.sub;
+    else if (subRow) subTitle = subRow.dataset.sub; // the floating tab group is showing for that row
+    await saveNow();
+    await window.api.imgAttach(FILE, ID, subTitle, r.name, session);
+    window.SFX.play('tick');
+    await load(false);
+    flashSaved(T(subTitle ? 'img.attachedTo' : 'img.attached', { t: plain(subTitle || '') }));
+  });
 
   // Move subtasks (owner 2026-10-09, like WhatsApp's forward; replaced the per-subtask ↳ picker): Move… turns the list
   // into a selection (click subtasks to pick them), "Move to" opens the other OPEN tasks of both notes as the whole editor
@@ -695,10 +786,11 @@
   const edSubField = window.UI.multiField($('ed-sub'), { onEnter: () => $('ed-addsub').click() }); // N2: Enter adds, Shift+Enter a description line
   $('ed-addsub').addEventListener('click', async () => {
     const { title, notes } = window.UI.splitSub($('ed-sub').value);
-    if (!title) { window.Motion.nudge($('ed-sub')); $('ed-sub').focus(); return; }
+    if (!title) { window.Motion.nudge($('ed-sub')); $('ed-sub').focus(); return; } // empty field: its waiting images keep waiting (E2b)
     await saveNow();
     window.SFX.play('tick');
-    await window.api.addSubtask(FILE, ID, title, session, undefined, notes);
+    await window.api.addSubtask(FILE, ID, title, session, undefined, [...notes, ...pendingImgs.sub.map(p => p.line)]); // E2b: its waiting images land with it
+    pendingImgs.sub = [];
     $('ed-sub').value = '';
     edSubField.grow();
     load(false);

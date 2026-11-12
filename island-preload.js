@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('api', {
   openUpdate: () => ipcRenderer.invoke('open-update'),
   getSnapshot: () => ipcRenderer.invoke('get-snapshot'),
   attOpen: (file, id, index) => ipcRenderer.invoke('att-open', file, id, index), // a task attachment (owner 2026-10-09)
+  imgOpen: name => ipcRenderer.invoke('img-open', name), // an image attachment (owner 2026-11-12, E2a)
   copyText: text => ipcRenderer.invoke('copy-text', text), // the quick Copy tab
   setCaptureHide: on => ipcRenderer.invoke('save-settings', { hideFromCapture: !!on }), // the top-bar eye (owner 2026-10-10)
   saveShareFmt: fmt => ipcRenderer.invoke('save-settings', { shareFmt: fmt }), // the copy wheel's Markdown / plain petal

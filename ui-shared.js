@@ -69,6 +69,7 @@
     moveTo: '<path d="m15 10 5 5-5 5"/><path d="M4 4v7a4 4 0 0 0 4 4h12"/>', // corner-down-right: a subtask's "Move to…"
     // task attachments (owner 2026-10-09)
     paperclip: '<path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/>',
+    image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>', // pasted-image attachments (owner 2026-11-12, E2b)
     folder: '<path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>',
     link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
     terminal: '<path d="m4 17 6-6-6-6"/><path d="M12 19h8"/>',
@@ -512,7 +513,8 @@
   const ATT_TOOL = { claude: 'Claude Code', codex: 'Codex', opencode: 'opencode' };
   const attIcon = a => a.type === 'session' ? (a.mode === 'terminal' ? 'terminal' : 'monitor') : { file: 'file', folder: 'folder', link: 'link' }[a.type] || 'file';
   const attHint = a => a.type === 'session' ? `${ATT_TOOL[a.tool] || a.tool} · ${T(a.mode === 'terminal' ? 'att.cmd' : 'att.app')}` : T('att.t.' + a.type);
-  const attClipHtml = t => (t.att && t.att.length ? `<button class="aclip" type="button" data-attclip="${esc(t.id)}" data-file="${t.file}" title="${esc(T('att.title'))}" aria-label="${esc(T('att.aria', { n: t.att.length }))}" aria-expanded="false">${icon('paperclip')}<span>${t.att.length}</span></button>` : '');
+  const imgCount = t => (t.imgs || []).length + (t.subs || []).reduce((n, s) => n + ((s.im && s.im.length) || 0), 0); // pasted images (E2b): the task's own + its subtasks'
+  const attClipHtml = t => { const n = (t.att ? t.att.length : 0) + imgCount(t); return n ? `<button class="aclip" type="button" data-attclip="${esc(t.id)}" data-file="${t.file}" title="${esc(T('att.title'))}" aria-label="${esc(T('att.aria', { n }))}" aria-expanded="false">${icon('paperclip')}<span>${n}</span></button>` : ''; };
   // Copy on an attachment (owner 2026-11-08, N1): the subtask Copy's icon and 1 s rest (.scopy), at the end of the row.
   // It copies a file / folder path, a link's URL, a terminal session's resume command, a desktop session's name.
   // Only text goes to the clipboard here; opening still goes through main by index (lib/attach.js).
@@ -526,16 +528,54 @@
     btn.innerHTML = icon('check'); btn.classList.add('done');
     setTimeout(() => { btn.innerHTML = icon('copy'); btn.classList.remove('done'); }, 1100);
   }
-  function attPeek(host, clip, t, { open, copy, onClose }) {
+  // ---- pasted-image attachments (owner 2026-11-12, E2b): the same quiet language as the 📎 — a chip on the subtask
+  // row, and a click drops the image list under it (underTab, like attPeek); a click opens the file in main.
+  const subImgHtml = s => (s && s.im && s.im.length ? `<button class="simg" type="button" data-simg title="${esc(T('img.sub'))}" aria-label="${esc(T('img.aria', { n: s.im.length }))}">${icon('paperclip')}<span>${s.im.length}</span></button>` : '');
+  const imgItemsOf = t => [...(t.imgs || []).map(name => ({ name, label: T('img.task') })),
+    ...(t.subs || []).flatMap(s => (s.im || []).map(name => ({ name, label: plain(s.t) })))]; // the task's own, then each subtask's
+  const imgRowHtml = (it, del) => `<div class="arow" role="none"><button type="button" role="menuitem" data-img="${esc(it.name)}">${icon('image')}<span class="an">${esc(it.label)}</span><span class="ah">${esc(T('img.hint'))}</span></button>${del ? `<button class="sub-del" type="button" data-imgdel="${esc(it.name)}" aria-label="${esc(T('img.del'))}">&times;</button>` : ''}</div>`;
+  function imgPeek(host, anchor, items, { open, remove, onClose } = {}) {
+    const el = document.createElement('div');
+    el.className = 'clist apop'; el.setAttribute('role', 'menu'); el.setAttribute('aria-label', T('img.sub'));
+    el.innerHTML = items.map(it => imgRowHtml(it, !!remove)).join('');
+    anchor.setAttribute('aria-expanded', 'true');
+    const api = underTab(host, anchor, el, 'att', fromLeave => { anchor.setAttribute('aria-expanded', 'false'); if (onClose) onClose(fromLeave); });
+    el.addEventListener('click', async e => {
+      e.stopPropagation();
+      const d = e.target.closest('[data-imgdel]');
+      if (d) {
+        await remove(d.dataset.imgdel);
+        const row = d.closest('.arow'); if (row) row.remove();
+        if (!el.querySelector('.arow')) api.close();
+        return;
+      }
+      const b = e.target.closest('button[data-img]');
+      if (!b) return;
+      const r = await open(b.dataset.img), hint = b.querySelector('.ah');
+      if (r && r.ok) api.close();
+      else { b.classList.add('bad'); hint.textContent = T(r && r.reason === 'missing' ? 'img.missing' : 'att.fail'); }
+    });
+    setTimeout(() => { const f = el.querySelector('button[data-img]'); if (f && anchor.matches(':focus-visible')) f.focus(); }, 0);
+    return api;
+  }
+  function attPeek(host, clip, t, { open, copy, openImg, onClose }) {
     const el = document.createElement('div');
     el.className = 'clist apop'; el.setAttribute('role', 'menu'); el.setAttribute('aria-label', T('att.title'));
-    el.innerHTML = t.att.map((a, i) => `<div class="arow" role="none"><button type="button" role="menuitem" data-i="${i}" title="${esc(a.name)}">${icon(attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(attHint(a))}</span></button>${attCopyHtml(a, i)}</div>`).join('');
+    el.innerHTML = (t.att || []).map((a, i) => `<div class="arow" role="none"><button type="button" role="menuitem" data-i="${i}" title="${esc(a.name)}">${icon(attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(attHint(a))}</span></button>${attCopyHtml(a, i)}</div>`).join('')
+      + imgItemsOf(t).map(it => imgRowHtml(it)).join(''); // the task's images + its subtasks' follow the attachments (E2b)
     clip.setAttribute('aria-expanded', 'true');
     const api = underTab(host, clip, el, 'att', fromLeave => { clip.setAttribute('aria-expanded', 'false'); if (onClose) onClose(fromLeave); });
     el.addEventListener('click', async e => {
       e.stopPropagation();
       const c = e.target.closest('[data-attcopy]');
       if (c) { const a = t.att[+c.dataset.attcopy]; if (a && copy) { await copy(attCopyText(a)); copyFlash(c); } return; }
+      const gi = e.target.closest('button[data-img]'); // an image row (E2b): opens the file, same feedback
+      if (gi) {
+        const r = openImg ? await openImg(gi.dataset.img) : null, hint = gi.querySelector('.ah');
+        if (r && r.ok) api.close();
+        else if (r) { gi.classList.add('bad'); hint.textContent = T(r.reason === 'missing' ? 'img.missing' : 'att.fail'); }
+        return;
+      }
       const b = e.target.closest('button[data-i]');
       if (!b) return;
       const r = await open(+b.dataset.i);
@@ -1176,5 +1216,5 @@
     document.addEventListener('pointerdown', () => { eatClick = false; }, true); // a release that made no click must not eat the next real one
     return { active: () => !!ghost };
   }
-  window.UI = { subUnits, subCls, subDropPlan, paintSubMark, pointerDrag, glideTick, taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subNotesHtml, subCopyClick, multiField, splitSub, attClipHtml, attPeek, attIcon, attHint, attCopyHtml, attCopyText, copyFlash, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
+  window.UI = { subUnits, subCls, subDropPlan, paintSubMark, pointerDrag, glideTick, taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subNotesHtml, subCopyClick, multiField, splitSub, attClipHtml, attPeek, imgCount, subImgHtml, imgPeek, attIcon, attHint, attCopyHtml, attCopyText, copyFlash, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
 })();

@@ -110,7 +110,10 @@ main { flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 /* the pointer drag's lifted copy (R1, 2026-10-30): a card that follows the pointer, never hit-tested */
 .drag-ghost { position: fixed; left: 0; top: 0; z-index: 60; pointer-events: none; background: var(--card); border-radius: var(--r-2);
   box-shadow: var(--shadow), 0 0 0 1px var(--rule); overflow: hidden; max-height: 120px; padding-inline: 6px; }
-.drag-ghost > .wrow, .drag-ghost > .wsubrow { margin: 0; background: transparent; box-shadow: none; border: 0; }
+/* the lifted copy is plain: the GHOST is the card. :is(…is-now.has-detail) lifts the specificity over the Now row's tint +
+   rim and the folded row's 8px margin (owner 2026-11-12: a dragged Now task read as a blue box inside a white one) */
+.drag-ghost > :is(.wrow, .wrow.is-now.has-detail), .drag-ghost > .wsubrow { margin: 0; background: transparent; box-shadow: none; border: 0; }
+.drag-ghost:has(> .wrow.is-now) { background: color-mix(in srgb, var(--accent) 8%, var(--card)); box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
 .drag-ghost.sub { padding-block: 4px; }
 .drag-ghost > .subs-list { margin: 0; padding: 0; list-style: none; }
 .drag-ghost > .subs-list > li { border-bottom: 0; padding-inline-start: 0; } /* the editor's row, lifted */
@@ -222,6 +225,40 @@ body.pdrag, body.pdrag * { cursor: grabbing !important; user-select: none; }
 .wsubrow.substep { margin-inline-start: 18px; }
 .subs-list li.substep { padding-inline-start: 22px; }
 .wsubrow.drop-into, .subs-list li.drop-into { background: color-mix(in srgb, var(--phase) 12%, transparent); box-shadow: inset 0 0 0 2px var(--phase); }
+
+/* E3 (owner 2026-11-12, demo design-demos/fold-hint.html C): "expandable" shows as motion, never text — the title is
+   the edit route (accent + underline + a ✎ slides in); a folded row with details slides two thin card edges out under
+   it (a small stack); a folded phase shows its step count beside its name. */
+.wrow:not(.done) .tt {
+  cursor: pointer;
+  text-decoration: underline transparent 1.5px; text-underline-offset: 4px;
+  transition: text-decoration-color 180ms ease, color 180ms ease;
+}
+.wrow:not(.done) .tt:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.tt .pen { display: inline-block; margin-inline-start: 6px; font-size: .8em; color: var(--accent); opacity: 0; transform: translateX(-4px); transition: opacity 180ms ease, transform 250ms var(--ease-out); }
+.wrow:not(.done) .tt:hover .pen { opacity: 1; transform: none; }
+[dir="rtl"] .tt .pen { transform: translateX(4px); }
+/* a folded phase's step count: a quiet chip that arrives on hover, like the ✎ */
+.phcnt { display: inline-block; flex: none; font-family: var(--font-mono); font-size: var(--fs-1); font-weight: 400; color: var(--muted); background: var(--chip); border-radius: 999px; padding: 0 8px; margin-inline-start: 6px; opacity: 0; transform: translateX(-4px); transition: opacity 180ms ease, transform 300ms var(--ease-out); pointer-events: none; }
+.wsubrow.ph:hover .phcnt { opacity: 1; transform: none; }
+[dir="rtl"] .phcnt { transform: translateX(4px); }
+/* an open phase's steps unfold like the row body (the same grid-rows animation) */
+.wsteps { display: grid; grid-template-rows: 1fr; animation: unfold var(--d-2) var(--ease-out) both; }
+.wsteps-in { min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 4px; }
+/* the stacked edges (demo C): the folded row keeps 8px of margin under its card (the demo's spacing), and `.wedge` — the
+   row's next sibling, height 0 — draws two thin card edges into that gap on hover, staggered. Outside the row, so the
+   row's hover / Now tint and its rim never wrap them; inside .fold-in (a BFC), so the gap is in its box, never clipped. */
+.wrow.has-detail:not(.open) { margin-bottom: 8px; }
+.wedge { display: block; position: relative; height: 0; pointer-events: none; }
+.wedge i { position: absolute; inset-inline: 12px; top: -8px; height: 4px; border-radius: 0 0 8px 8px; background: color-mix(in srgb, var(--ink) 7%, transparent); opacity: 0; transform: translateY(-4px); transition: opacity 200ms ease, transform 300ms var(--ease-out); }
+.wedge i:last-child { inset-inline: 24px; top: -4px; height: 3px; }
+.wrow.is-now + .wedge i { background: color-mix(in srgb, var(--accent) 14%, transparent); } /* under the Now card: its tint */
+.wrow.has-detail:not(.open):hover + .wedge i { opacity: 1; transform: translateY(0); }
+.wrow.has-detail:not(.open):hover + .wedge i:last-child { opacity: .6; transition-delay: 50ms; }
+@media (prefers-reduced-motion: reduce) {
+  .tt .pen, .phcnt, .wedge i { transition: none; }
+  .wsteps { animation: none; }
+}
 
 /* M5 fresh ink: a just-added / just-restored row settles in with a fading highlight (opacity only) */
 .wrow.fresh::after {
@@ -740,6 +777,15 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 #ed-form > .field:last-child { flex: 1 0 auto; display: flex; flex-direction: column; margin-bottom: 0; }
 #ed-form .addsub, #ed-form .move-bar { margin-top: auto; }
 .glass-on #ed-form .addsub { background: rgb(var(--sheet-rgb)); } /* opaque: rows scrolling under it must not ghost through */
+/* pasted images waiting for the subtask the field adds (owner 2026-11-12, E2b): small muted chips under the add row */
+.img-pend { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 0 2px; }
+#ed-addsub-row { flex-wrap: wrap; } /* the pending chips (#ed-pend) take their own line under the field, inside the sticky row */
+#ed-pend { flex-basis: 100%; padding-top: 0; }
+.img-pend[hidden] { display: none; }
+.img-pending { display: inline-flex; align-items: center; gap: 4px; height: 22px; padding-inline-start: 7px; border-radius: var(--r-1); background: var(--chip); color: var(--muted); font-size: var(--fs-1); }
+.img-pending .ic { width: 12px; height: 12px; flex: none; }
+.img-pending .sub-del { flex: none; width: 18px; height: 18px; margin: 0; }
+.substep.step-add .img-pend { flex-basis: 100%; padding: 4px 0 0; } /* under an open step field, on its own line */
 .ed-actions { display: flex; align-items: center; gap: var(--s-2); }
 .saved.bad { color: var(--danger); }
 .saved:not(:empty) { animation: fstatIn var(--d-1) var(--ease-out) both; }
