@@ -41,8 +41,9 @@
   // and the floating layers above it (undo toast, notices) don't count as outside — they switch or act on the panel.
   document.addEventListener('pointerdown', e => {
     if (!kind || e.button !== 0) return;
-    // .fmtbar (B/I/S/U) and .twheel (the due time wheel) live on <body>, outside #side, but act on its fields
-    if (e.target.closest('#side, .etab, #btn-share, #undo-toast, #notice, #keys-pop, .fmtbar, .twheel')) return;
+    // .fmtbar (B/I/S/U), .twheel (the due time wheel) and .split-ask (the blank-line split card, P2) live on <body>,
+    // outside #side, but act on its fields
+    if (e.target.closest('#side, .etab, #btn-share, #undo-toast, #notice, #keys-pop, .fmtbar, .twheel, .split-ask')) return;
     if (e.target.closest('.wsubrow .st') || (e.target.closest('.wrow:not(.has-detail):not(.done)') && !e.target.closest('.chk'))) return;
     close();
   }, true);
@@ -78,6 +79,7 @@
   async function load(full) {
     const s = await window.api.getSnapshot();
     if (s && s.lang && s.lang !== LANG) setLang(s.lang);
+    if (s && s.settings) splitOn = s.settings.splitBlocks !== false; // P5 (owner 2026-11-15): read live from every snapshot
     const t = s.sections.flatMap(x => x.items).find(x => x.id === ID) || null;
     $('ed-missing').hidden = !!t;
     $('ed-form').hidden = !t || wizOpen || moveOpen; // the Attach steps / Move to keep the view until they close
@@ -199,8 +201,11 @@
   let subImgsMap = {}; // title → its image names (E2b), refreshed on load for the chip's peek
   function openStep(ph) { stepAt = ph; stepFocus = true; load(false); }
   async function addStep(input, keepOpen) {
+    if (splitOn && !input.dataset.oneItem && window.Blocks.count(input.value) >= 2) { askSplit(input, 'add', () => addStep(input, keepOpen)); return; } // P4b (owner 2026-11-15): blank-line blocks ask first
     const { title, notes } = window.UI.splitSub(input.value), ph = input.dataset.under;
     input.value = '';
+    delete input.dataset.oneItem;
+    splitBadge(input, null);
     if (!keepOpen) stepAt = null;
     if (title) { await saveNow(); window.SFX.play('tick'); await window.api.addSubtask(FILE, ID, title, session, ph, [...notes, ...pendingImgs.step.map(p => p.line)]); pendingImgs.step = []; } // E2b: its waiting images land with it
     if (keepOpen) stepFocus = true;
@@ -271,7 +276,7 @@
   $('ed-subs').addEventListener('focusout', e => {
     if (!e.target.classList.contains('step-in') || stepRender) return;
     const input = e.target;
-    setTimeout(() => { if (input.isConnected && document.activeElement !== input && stepAt) addStep(input, false); }, 0); // leaving it closes it
+    setTimeout(() => { if (input.isConnected && document.activeElement !== input && stepAt && !askOpen) addStep(input, false); }, 0); // leaving it closes it (a split card open owns the field)
   });
   // drag a subtask to reorder it (R5, owner 2026-10-30): the place it is let go decides its level (UI.subDropPlan) — a
   // phase's lower part = under that phase (owner 2026-10-29), between steps = a step, between first-level rows = first
@@ -310,9 +315,10 @@
   const subHost = $('ed-subs').closest('.field');
   let subRow = null, subCand = null, subRestT = null, subGraceT = null;
   const subMk = cls => { const b = document.createElement('button'); b.type = 'button'; b.className = 'etab ' + cls; b.tabIndex = -1; subHost.appendChild(b); return b; }; // invisible until .on (the .etab look); only Phase / + Step use hidden
-  const subBDel = subMk('etab-ic etab-del'), subBPh = subMk('etab-ph'), subBStep = subMk('etab-step'), subBIco = subMk('etab-ico'), subBPrio = subMk('etab-prio');
-  const subBtns = [subBDel, subBPh, subBStep, subBIco, subBPrio]; // the first sits at the row's inline-end corner, the rest line up inside it
+  const subBDel = subMk('etab-ic etab-del'), subBPh = subMk('etab-ph'), subBStep = subMk('etab-step'), subBIco = subMk('etab-ico'), subBCopy = subMk('etab-copy'), subBPrio = subMk('etab-prio');
+  const subBtns = [subBDel, subBPh, subBStep, subBIco, subBCopy, subBPrio]; // the first sits at the row's inline-end corner, the rest line up inside it
   subBDel.innerHTML = window.UI.icon('trash');
+  subBCopy.innerHTML = '<span class="cpi">' + window.UI.icon('copy') + '</span><span class="etab-t"></span>'; // P6 (owner 2026-11-15): the editor had no subtask Copy
   subBStep.innerHTML = window.UI.icon('plus') + '<span class="etab-t"></span>';
   subBIco.innerHTML = '<span class="icw"></span><span class="etab-t"></span>';
   subBPh.innerHTML = '<span class="etab-t"></span>';
@@ -364,6 +370,8 @@
     subBIco.querySelector('.icw').innerHTML = window.UI.taskIcon(curSubIcon(t)) || window.UI.icon('iconAdd');
     subBIco.querySelector('.etab-t').textContent = T('ed.sub.tabIcon');
     subBIco.title = T('ti.pick'); subBIco.setAttribute('aria-label', T('ti.pickFor', { t: plain(t) }));
+    subBCopy.querySelector('.etab-t').textContent = T('etab.copy');
+    subBCopy.title = T('sub.copy'); subBCopy.setAttribute('aria-label', T('sub.copy'));
     subBPrio.querySelector('.etab-t').textContent = T('ed.sub.tabPrio'); // the word stays (owner 2026-11-11); the bang rides beside it
     subBPrio.querySelector('.etab-b').textContent = p; subBPrio.querySelector('.etab-b').className = 'etab-b' + (p ? ' ' + bangCls(p) : '');
     subBPrio.className = 'etab etab-prio';
@@ -397,6 +405,16 @@
   subBStep.addEventListener('click', () => { if (subRow) subStepClick(subRow); });
   subBIco.addEventListener('click', () => { if (subRow) pickIcon(subBIco, subRow.dataset.sub, curSubIcon(subRow.dataset.sub)); });
   subBPrio.addEventListener('click', () => { if (subRow) subPrioClick(subRow); });
+  // Copy (P6): the same plain text as the island / tasks-window subtask Copy — the title, then its description lines
+  let copyT = null;
+  subBCopy.addEventListener('click', async () => {
+    if (!subRow) return;
+    const t = subRow.dataset.sub, notes = subNotesMap[t] || [];
+    await window.api.copyText([plain(t), ...notes].join('\n'));
+    window.SFX.play('tick');
+    subBCopy.querySelector('.cpi').innerHTML = window.UI.icon('check'); subBCopy.classList.add('done');
+    clearTimeout(copyT); copyT = setTimeout(() => { subBCopy.querySelector('.cpi').innerHTML = window.UI.icon('copy'); subBCopy.classList.remove('done'); }, 1100);
+  });
   // leaving the group itself (not back onto its row or another tab) starts the same grace as leaving the row
   subBtns.forEach(b => b.addEventListener('mouseleave', e => { if (subRow && !subRow.contains(e.relatedTarget) && !subBtns.some(x => x.contains(e.relatedTarget))) subGraceLater(); }));
   const subBlocked = () => selecting || !!subEditing || !!edDrag; // never while picking, renaming or dragging
@@ -784,16 +802,94 @@
     load(false);
   });
   const edSubField = window.UI.multiField($('ed-sub'), { onEnter: () => $('ed-addsub').click() }); // N2: Enter adds, Shift+Enter a description line
-  $('ed-addsub').addEventListener('click', async () => {
-    const { title, notes } = window.UI.splitSub($('ed-sub').value);
-    if (!title) { window.Motion.nudge($('ed-sub')); $('ed-sub').focus(); return; } // empty field: its waiting images keep waiting (E2b)
+  // ---- blank-line blocks (owner 2026-11-15, P1–P4): text whose parts are separated by blank lines can become several
+  // subtasks — steps under that phase for the step field — after a small confirm, NEVER several tasks. ONE helper serves
+  // both subtask fields; pending images of the field land with the FIRST item (E2b). Setting: Advanced "splitBlocks". ----
+  let splitOn = true; // load() refreshes it from every snapshot (P5)
+  let splitT = null, askOpen = false; // askOpen: a card is up — it owns the field's Add / focusout
+  const splitBtn = field => {
+    if (field === $('ed-sub')) return $('ed-addsub');
+    const li = field.closest('li');
+    return li ? li.querySelector('.step-go') : null;
+  };
+  function splitBadge(field, text) { // the ✂ N hint on the field's Add button, 400 ms after the last keystroke (P4a)
+    const btn = splitBtn(field), old = btn && btn.querySelector('.split-badge');
+    if (old) old.remove();
+    if (btn && text) { const b = document.createElement('span'); b.className = 'split-badge'; b.textContent = text; btn.appendChild(b); }
+  }
+  function splitHint(e) {
+    const field = e.target;
+    clearTimeout(splitT);
+    if (!field.value.trim() && field.dataset.oneItem) delete field.dataset.oneItem; // the "as one" mark leaves with the text
+    splitT = setTimeout(() => {
+      const n = field.isConnected ? window.Blocks.count(field.value) : 0;
+      splitBadge(field, splitOn && !field.dataset.oneItem && n >= 2 ? '✂ ' + n : null);
+    }, 400);
+  }
+  function splitPaste(e) { // P2: the paste lands first, then a 2+ block value asks
+    const field = e.target;
+    if (!splitOn || [...((e.clipboardData && e.clipboardData.items) || [])].some(i => i.kind === 'file' && /^image\//.test(i.type))) return; // image pastes belong to E2
+    const text = e.clipboardData.getData('text/plain');
+    if (window.Blocks.count(field.value.slice(0, field.selectionStart) + text + field.value.slice(field.selectionEnd)) < 2) return; // one part: the native paste (and its Ctrl+Z)
+    e.preventDefault();
+    field.setRangeText(text, field.selectionStart, field.selectionEnd, 'end');
+    field.dispatchEvent(new Event('input', { bubbles: true })); // multiField grow / the ✂ hint follow
+    if (window.Blocks.count(field.value) >= 2) askSplit(field, 'paste');
+  }
+  function askSplit(field, mode, run) {
+    if (askOpen) return;
+    const n = window.Blocks.count(field.value);
+    askOpen = true;
+    window.UI.splitAsk(field, {
+      q: T('sp.q.subs', { n }), yes: T('sp.yes.subs', { n }), no: T(mode === 'paste' ? 'sp.no.paste' : 'sp.no.add'),
+      preview: window.Blocks.items(field.value).map(i => i.title),
+      onYes: () => { askOpen = false; splitSubs(field); },
+      onNo: () => {
+        askOpen = false;
+        field.dataset.oneItem = '1'; // the next Add of this text does not ask again
+        splitBadge(field, null);
+        if (run) run(); // "Add as one": today's add, unchanged
+        else field.focus({ preventScroll: true }); // "Paste as one": the text simply stays
+      }
+    });
+  }
+  async function splitSubs(field) { // the split path: N subtasks in ONE write, the session's one Undo
+    const which = field === $('ed-sub') ? 'sub' : 'step';
+    const items = window.Blocks.items(field.value);
+    items[0].notes = [...items[0].notes, ...pendingImgs[which].map(p => p.line)]; // its waiting images land with the first (E2b)
+    pendingImgs[which] = [];
+    await saveNow();
+    await window.api.addSubtasks(FILE, ID, items, session, which === 'step' ? field.dataset.under : undefined);
+    field.value = '';
+    delete field.dataset.oneItem;
+    splitBadge(field, null);
+    if (which === 'sub') edSubField.grow(); else stepFocus = true; // a step field stays open after a split, like Enter
+    await load(false);
+    flashSaved(T('sp.done', { n: items.length }));
+    window.SFX.play('tick');
+  }
+  $('ed-sub').addEventListener('input', splitHint);
+  $('ed-subs').addEventListener('input', e => { if (e.target.classList.contains('step-in')) splitHint(e); }); // the step field re-renders: delegate
+  $('ed-sub').addEventListener('paste', splitPaste);
+  $('ed-subs').addEventListener('paste', e => { if (e.target.classList.contains('step-in')) splitPaste(e); });
+  async function addSubNow() { // today's add, unchanged (P4b: "Add as one" runs it too)
+    const field = $('ed-sub');
+    const { title, notes } = window.UI.splitSub(field.value);
+    if (!title) { window.Motion.nudge(field); field.focus(); return; } // empty field: its waiting images keep waiting (E2b)
     await saveNow();
     window.SFX.play('tick');
     await window.api.addSubtask(FILE, ID, title, session, undefined, [...notes, ...pendingImgs.sub.map(p => p.line)]); // E2b: its waiting images land with it
     pendingImgs.sub = [];
-    $('ed-sub').value = '';
+    field.value = '';
+    delete field.dataset.oneItem;
+    splitBadge(field, null);
     edSubField.grow();
     load(false);
+  }
+  $('ed-addsub').addEventListener('click', async () => {
+    const field = $('ed-sub');
+    if (splitOn && !field.dataset.oneItem && window.Blocks.count(field.value) >= 2) { askSplit(field, 'add', addSubNow); return; } // P4b: re-checks the text itself
+    await addSubNow();
   });
   // ⋯ menu — the rare, structural actions live here, out of the way
   function toggleMenu(open) {

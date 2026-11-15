@@ -314,11 +314,18 @@
     return `<svg class="tring" viewBox="0 0 14 14" aria-hidden="true"><circle class="bg" cx="7" cy="7" r="5.5"/><circle class="fg" cx="7" cy="7" r="5.5" stroke-dasharray="${c.toFixed(2)}" stroke-dashoffset="${(c * (1 - k)).toFixed(2)}"/></svg><span class="tleft">${timerLeft(timer)}</span>`;
   }
   // The arc dial: a half circle you drag around, 1 minute to 5 hours. Evenly spaced steps (owner 2026-10-17): 1m · 20m · 1h · 2h · 5h each a quarter of the arc, log-linear inside a quarter.
-  // Drag rounds to whole minutes below 10, nearest 5 up to 60, nearest 15 above; on release it snaps to the nearest of
-  // 1m · 2m · 5m · 10m · 15m · 30m · 45m · 1h · 1h30 · 2h · 3h · 4h · 5h when that is within 6 % of the arc, else it
-  // keeps the rounded value. The sweep animates the FRACTION 0 → value, so it reads smooth on the log scale. Mouse
-  // wheel / arrow keys step through the snap points; Enter starts. host = the positioned container; anchor = the ⏱ tab it grows out of.
-  const DIAL_MIN = 1, DIAL_MAX = 300, DIAL_SNAP = [1, 2, 5, 10, 15, 30, 45, 60, 90, 120, 180, 240, 300], DIAL_STOPS = [[0, 1], [0.25, 20], [0.5, 60], [0.75, 120], [1, 300]];
+  // Drag rounds to whole minutes below 10, nearest 5 up to 60, nearest 15 above, and it STAYS where it is let go (owner
+  // 2026-11-15, T1: a release snap to 1·2·5·10·15·30·45… within 6 % of the arc turned 20 into 15 and 25 into 30). Mouse
+  // wheel / arrow keys step on the same grid (1 min to 10, 5 min to 60, 15 min above), so 20 and 25 are reachable. The
+  // sweep animates the FRACTION 0 → value, so it reads smooth on the log scale. Enter starts. host = the positioned
+  // container; anchor = the ⏱ tab it grows out of.
+  const DIAL_MIN = 1, DIAL_MAX = 300, DIAL_STOPS = [[0, 1], [0.25, 20], [0.5, 60], [0.75, 120], [1, 300]];
+  // one wheel / arrow step from m on the drag's grid: up uses the grid of the value it leaves, down the grid it lands in
+  const dialStep = (m, d) => {
+    const v = Math.max(DIAL_MIN, Math.min(DIAL_MAX, m < 10 ? Math.round(m) : m <= 60 ? Math.round(m / 5) * 5 : Math.round(m / 15) * 15));
+    if (d > 0) { const g = v < 10 ? 1 : v < 60 ? 5 : 15; return Math.min(DIAL_MAX, Math.floor(v / g) * g + g); }
+    const g = v <= 10 ? 1 : v <= 60 ? 5 : 15; return Math.max(DIAL_MIN, Math.ceil(v / g) * g - g);
+  };
   const toFrac = m => { m = Math.max(DIAL_MIN, Math.min(DIAL_MAX, m)); for (let i = 1; i < DIAL_STOPS.length; i++) { const [f0, m0] = DIAL_STOPS[i - 1], [f1, m1] = DIAL_STOPS[i]; if (m <= m1) return f0 + (f1 - f0) * Math.log(m / m0) / Math.log(m1 / m0); } return 1; };
   const fromFrac = f => { f = Math.max(0, Math.min(1, f)); for (let i = 1; i < DIAL_STOPS.length; i++) { const [f0, m0] = DIAL_STOPS[i - 1], [f1, m1] = DIAL_STOPS[i]; if (f <= f1) return m0 * Math.pow(m1 / m0, (f - f0) / (f1 - f0)); } return DIAL_MAX; };
   let dialOpen = null;
@@ -338,11 +345,7 @@
     const svg = el.querySelector('.ad-svg'), val = el.querySelector('.ad-val'), knob = el.querySelector('.ad-knob'), read = el.querySelector('.ad-read');
     let value = Math.max(DIAL_MIN, Math.min(DIAL_MAX, minutes));
     const stepRound = m => Math.max(DIAL_MIN, Math.min(DIAL_MAX, m < 10 ? Math.round(m) : m <= 60 ? Math.round(m / 5) * 5 : Math.round(m / 15) * 15));
-    const stepSnap = d => {
-      if (d > 0) { for (const p of DIAL_SNAP) if (p > value) return p; return DIAL_SNAP[DIAL_SNAP.length - 1]; }
-      for (let i = DIAL_SNAP.length - 1; i >= 0; i--) if (DIAL_SNAP[i] < value) return DIAL_SNAP[i];
-      return DIAL_SNAP[0];
-    };
+    const stepSnap = d => dialStep(value, d);
     const set = m => {
       value = m; val.setAttribute('d', path(m)); const [x, y] = pt(m); knob.setAttribute('cx', x.toFixed(1)); knob.setAttribute('cy', y.toFixed(1));
       read.textContent = fmtMin(Math.round(m)); svg.setAttribute('aria-valuenow', Math.round(m)); svg.setAttribute('aria-valuetext', fmtMin(Math.round(m)));
@@ -355,7 +358,7 @@
     const target = value, tf = toFrac(target);
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) set(target);
     else { let t0 = 0; requestAnimationFrame(function step(ts) { if (!el.isConnected) return; t0 = t0 || ts; const k = Math.min(1, (ts - t0) / 520), e = 1 - Math.pow(1 - k, 3); set(fromFrac(tf * e)); if (k < 1) requestAnimationFrame(step); else set(target); }); }
-    const snapTo = () => { const near = DIAL_SNAP.find(p => Math.abs(toFrac(p) - toFrac(value)) <= 0.06); set(near || stepRound(value)); };
+    const snapTo = () => set(stepRound(value)); // the rounded spot you let go at — never a jump to another stop (T1)
     const fromEvt = e => {
       const b = svg.getBoundingClientRect(), x = (e.clientX - b.left) / b.width * W, y = (e.clientY - b.top) / b.height * 128 - 16;
       let a = Math.atan2(y - cy, x - cx); // -π..π; the dial is the upper half (a in -π..0)
@@ -1216,5 +1219,45 @@
     document.addEventListener('pointerdown', () => { eatClick = false; }, true); // a release that made no click must not eat the next real one
     return { active: () => !!ghost };
   }
-  window.UI = { subUnits, subCls, subDropPlan, paintSubMark, pointerDrag, glideTick, taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subNotesHtml, subCopyClick, multiField, splitSub, attClipHtml, attPeek, imgCount, subImgHtml, imgPeek, attIcon, attHint, attCopyHtml, attCopyText, copyFlash, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
+
+  // The blank-line-block confirm (owner 2026-11-15, P2/P4): a small card like the drag-into one, ABOVE its field when
+  // there is room, else below. Enter = yes (it has the focus), Esc or a pointerdown outside = no; the keydown is caught
+  // on document so the field / panel below never acts on that Enter / Esc. Only one card at a time: a new one closes
+  // the old as "no". Returns { close } (close = "no").
+  let splitCard = null;
+  function splitAsk(anchor, { q, yes, no, preview, onYes, onNo } = {}) {
+    if (splitCard) splitCard.close();
+    const card = document.createElement('div');
+    card.className = 'split-ask'; card.setAttribute('role', 'alertdialog');
+    const shown = Array.isArray(preview) ? preview.slice(0, 2).join(' · ') + (preview.length > 2 ? ' …' : '') : String(preview || '');
+    card.innerHTML = `<div class="iq">${esc(q)}</div><div class="iw">${esc(shown)}</div>
+      <div class="ib"><span class="ik">Enter · Esc</span><button class="btn-soft sm" type="button" data-sp="no">${esc(no)}</button><button class="btn-accent sm" type="button" data-sp="yes">${esc(yes)}</button></div>`;
+    document.body.appendChild(card);
+    const rr = anchor.getBoundingClientRect(), w = card.offsetWidth, h = card.offsetHeight;
+    const above = rr.top - 6 - h >= 8;
+    card.style.top = (above ? rr.top - 6 - h : Math.min(innerHeight - h - 8, rr.bottom + 6)) + 'px';
+    card.style.left = Math.max(8, Math.min(innerWidth - w - 8, rr.left + rr.width / 2 - w / 2)) + 'px';
+    const done = ok => {
+      card.remove();
+      document.removeEventListener('keydown', key, true);
+      document.removeEventListener('pointerdown', out, true);
+      if (splitCard === api) splitCard = null;
+      if (ok) onYes && onYes(); else onNo && onNo();
+    };
+    const key = e => {
+      if (e.key !== 'Enter' && e.key !== 'Escape') return;
+      e.preventDefault(); e.stopPropagation();
+      done(e.key === 'Enter');
+    };
+    const out = e => { if (!card.contains(e.target)) done(false); };
+    document.addEventListener('keydown', key, true);
+    document.addEventListener('pointerdown', out, true);
+    card.addEventListener('click', e => { const b = e.target.closest('[data-sp]'); if (b) done(b.dataset.sp === 'yes'); });
+    card.querySelector('[data-sp="yes"]').focus({ preventScroll: true });
+    const api = { close: () => done(false) };
+    splitCard = api;
+    return api;
+  }
+
+  window.UI = { subUnits, subCls, subDropPlan, paintSubMark, pointerDrag, glideTick, taskIcon, iconPicker, TASK_ICONS, linkMarkHtml, setLang: l => { LANG = l || 'en'; }, MONTHS, esc, icon, copyPrefs, shareIncludes, hydrateIcons, ICONS, fmtTime, timerLeft, timerChip, arcDial, gelHit, TIMER_IC, inline, plain, fmtBar, toggleMark, bangCls, dueText, parseDueText, normTime, prioChips, dueControl, undoText, countdown, mountUndo, undoKey, editTab, subCopyHtml, subNotesHtml, subCopyClick, multiField, splitSub, splitAsk, attClipHtml, attPeek, imgCount, subImgHtml, imgPeek, attIcon, attHint, attCopyHtml, attCopyText, copyFlash, lateFlip, renderUpdate, applyTheme, timeWheel, ACCENTS, BG_THEMES, PAPER };
 })();

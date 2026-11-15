@@ -343,6 +343,11 @@
           <div class="slabel"><label for="set-focus" data-i18n="set.focus">Focus by time</label><span class="shint" data-i18n="set.focus.hint">work tasks in work hours, personal tasks outside</span></div>
           <div class="sctl"><input id="set-focus" type="checkbox" role="switch" class="switch"></div>
         </div>
+        <!-- blank-line blocks (owner 2026-11-15, P5): text whose parts are separated by blank lines can become several items -->
+        <div class="srow">
+          <div class="slabel"><label for="set-split" data-i18n="set.split">Offer to split blank-line blocks</label><span class="shint" data-i18n="set.split.hint">text whose parts are separated by blank lines can become several subtasks, or a task with subtasks</span></div>
+          <div class="sctl"><input id="set-split" type="checkbox" role="switch" class="switch"></div>
+        </div>
         <div class="srow">
           <div class="slabel"><label for="set-sound" data-i18n="set.sound">Sounds</label><span class="shint" data-i18n="set.sound.hint">soft chimes when the island shows and on actions</span></div>
           <div class="sctl"><input id="set-sound" type="checkbox" role="switch" class="switch"></div>
@@ -574,6 +579,7 @@
 <script src="ui-shared.js"></script>
 <script src="lib/images.js"></script>
 <script src="lib/share.js"></script>
+<script src="lib/blocks.js"></script>
   <script src="panels.js"></script>
   <script src="window.js"></script>
   <!-- the edges that resize the window (M7): a transparent window is not natively resizable on Windows -->

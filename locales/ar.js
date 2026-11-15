@@ -77,6 +77,8 @@ const STRINGS_AR = {
   'set.hover.hint': "ثوانٍ من بقاء المؤشر على المهمة قبل أن تتوسّع · 0.5–10",
   'set.focus': 'تركيز حسب الوقت',
   'set.focus.hint': 'مهام العمل في الدوام، والشخصية خارجه',
+  'set.split': 'اعرض تقسيم الفقرات المفصولة بسطر فارغ',
+  'set.split.hint': 'النص الذي تفصل أجزاءه أسطر فارغة يمكن أن يصبح عدة مهام فرعية، أو مهمة مع مهامها الفرعية',
   'set.sound': 'الأصوات',
   'set.sound.hint': 'نغمات خفيفة عند ظهور الجزيرة وعند الإجراءات',
   'set.glass': "الزجاج",
@@ -173,6 +175,7 @@ const STRINGS_AR = {
   'ed.sub.prio': 'الأهمية: انقر للتبديل ! ← !! ← !!! ← بلا', 'ed.sub.prioAria': 'أولوية {t}: {p}',
   'att.title': "المرفقات", 'att.aria': "{n} مرفقات", 'att.add': "إرفاق", 'att.del': "إزالة {t}", 'att.cmd': "الطرفية", 'att.app': "تطبيق سطح المكتب", 'att.cmd.hint': "يفتح الجلسة نفسها", 'att.app.hint': "يفتح التطبيق وينسخ الاسم", 'att.copied': "نُسخ الاسم: الصقه في التطبيق", 'att.fail': "تعذّر فتحه", 'att.copy.path': "انسخ المسار", 'att.copy.link': "انسخ الرابط", 'att.copy.cmd': "انسخ أمر الاستكمال", 'att.copy.app': "انسخ اسم الجلسة", 'att.t.session': "جلسة ذكاء اصطناعي", 'att.t.file': "ملف", 'att.t.folder': "مجلد", 'att.t.link': "رابط", 'att.t.email': "بريد / تقويم", 'att.later': "لاحقًا", 'att.back': "رجوع", 'att.q.type': "ماذا تُرفق؟", 'att.q.tool': "أي أداة؟", 'att.q.mode': "كيف تُفتح؟", 'att.q.session': "أي جلسة؟ (الأحدث على هذا الجهاز)", 'att.q.link': "الصق الرابط", 'att.q.find': "ابحث عن جلسة بالاسم أو المجلد", 'att.noMatch': "لا توجد جلسة مطابقة.", 'att.loading': "جارٍ البحث عن الجلسات…", 'att.noSess': "لا توجد جلسات لهذه الأداة على هذا الجهاز.", // task attachments (owner 2026-10-09)
   'img.sub': "الصور", 'img.aria': "{n} صور", 'img.n': "صورة {n}", 'img.task': "المهمة", 'img.hint': "صورة", 'img.missing': "ملف الصورة غير موجود", 'img.fail': "تعذّر حفظ الصورة", 'img.big': "الصورة كبيرة جدًا", 'img.attached': "أُرفقت الصورة", 'img.attachedTo': "أُرفقت الصورة بـ {t}", 'img.del': "إزالة الصورة", 'img.pending': "تُضاف مع المهمة الفرعية", // pasted-image attachments (owner 2026-11-12, E2b)
+  'sp.q.subs': "تقسيمه إلى {n} مهام فرعية؟", 'sp.yes.subs': "قسّمه إلى {n}", 'sp.q.task': "إضافة مهمة مع {n} مهام فرعية؟", 'sp.yes.task': "مهمة + {n} مهام فرعية", 'sp.no.paste': "الصقه كنص واحد", 'sp.no.add': "أضفه كعنصر واحد", 'sp.done': "أُضيفت {n} مهام فرعية", // blank-line block split (owner 2026-11-15)
   'ed.mv.btn': "نقل…", 'ed.mv.btnTitle': "انقل مهامًا فرعية إلى مهمة أخرى", 'ed.mv.hint': "اختر المهام الفرعية لنقلها", 'ed.mv.count': "تم اختيار {n}", 'ed.mv.cancel': "إلغاء", 'ed.mv.next': "نقل إلى", 'ed.mv.title': "نقل {n} إلى…", 'ed.mv.ph': "ابحث عن مهمة…", 'ed.mv.none': "لا توجد مهام مفتوحة أخرى.", 'ed.mv.noMatch': "لا توجد مهمة مطابقة.", 'ed.mv.done': "نُقلت ✓", // move subtasks (owner 2026-10-09)
   'ed.sub.rename': 'انقر لإعادة التسمية', 'ed.sub.tick': 'تعليم {t} كمنجزة', 'ed.sub.untick': 'إلغاء إنجاز {t}',
   'ed.missing': 'المهمة غير موجودة — ربما أُنجزت أو حُذفت.',

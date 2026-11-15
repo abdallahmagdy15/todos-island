@@ -77,6 +77,8 @@ const STRINGS_EN = {
   'set.hover.hint': 'seconds resting on a task before it unfolds · 0.5–10',
   'set.focus': 'Focus by time',
   'set.focus.hint': 'work tasks in work hours, personal tasks outside',
+  'set.split': 'Offer to split blank-line blocks',
+  'set.split.hint': 'text whose parts are separated by blank lines can become several subtasks, or a task with subtasks',
   'set.sound': 'Sounds',
   'set.sound.hint': 'soft chimes when the island shows and on actions',
   'set.glass': "Glass",
@@ -173,6 +175,7 @@ const STRINGS_EN = {
   'ed.sub.prio': 'Importance: click to step ! → !! → !!! → none', 'ed.sub.prioAria': 'Priority of {t}: {p}',
   'att.title': "Attachments", 'att.aria': "{n} attachments", 'att.add': "Attach", 'att.del': "Remove {t}", 'att.cmd': "Terminal", 'att.app': "Desktop app", 'att.cmd.hint': "opens the exact session", 'att.app.hint': "opens the app, copies the name", 'att.copied': "Name copied: paste it in the app", 'att.fail': "Couldn’t open it", 'att.copy.path': "Copy path", 'att.copy.link': "Copy link", 'att.copy.cmd': "Copy the resume command", 'att.copy.app': "Copy the session name", 'att.t.session': "AI session", 'att.t.file': "File", 'att.t.folder': "Folder", 'att.t.link': "Link", 'att.t.email': "Email / calendar", 'att.later': "later", 'att.back': "Back", 'att.q.type': "What do you attach?", 'att.q.tool': "Which tool?", 'att.q.mode': "Reopen it how?", 'att.q.session': "Which session? (recent on this PC)", 'att.q.link': "Paste the link", 'att.q.find': "Find a session by name or folder", 'att.noMatch': "No session matches that.", 'att.loading': "Looking for sessions…", 'att.noSess': "No sessions found for this tool on this PC.", // task attachments (owner 2026-10-09)
   'img.sub': "Images", 'img.aria': "{n} images", 'img.n': "Image {n}", 'img.task': "Task", 'img.hint': "Image", 'img.missing': "Image file is missing", 'img.fail': "Couldn’t save the image", 'img.big': "Image is too large", 'img.attached': "Image attached", 'img.attachedTo': "Image attached to {t}", 'img.del': "Remove image", 'img.pending': "Added with the subtask", // pasted-image attachments (owner 2026-11-12, E2b)
+  'sp.q.subs': "Split into {n} subtasks?", 'sp.yes.subs': "Split into {n}", 'sp.q.task': "Add a task with {n} subtasks?", 'sp.yes.task': "Task + {n} subtasks", 'sp.no.paste': "Paste as one", 'sp.no.add': "Add as one", 'sp.done': "Added {n} subtasks", // blank-line block split (owner 2026-11-15)
   'ed.mv.btn': "Move…", 'ed.mv.btnTitle': "Move subtasks to another task", 'ed.mv.hint': "Pick the subtasks to move", 'ed.mv.count': "{n} selected", 'ed.mv.cancel': "Cancel", 'ed.mv.next': "Move to", 'ed.mv.title': "Move {n} to…", 'ed.mv.ph': "Find a task…", 'ed.mv.none': "No other open tasks.", 'ed.mv.noMatch': "No task matches that.", 'ed.mv.done': "Moved ✓", // move subtasks (owner 2026-10-09)
   'ed.sub.rename': 'Click to rename', 'ed.sub.tick': 'Mark {t} done', 'ed.sub.untick': 'Mark {t} not done',
   'ed.missing': 'Task not found — it may have been completed or removed.',

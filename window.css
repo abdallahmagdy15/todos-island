@@ -128,15 +128,22 @@ body.pdrag, body.pdrag * { cursor: grabbing !important; user-select: none; }
 /* a TASK held over the lower part of another (owner 2026-10-29): it will go INTO it — the row says so */
 .wrow.drop-into[data-into-label]::after { content: attr(data-into-label); position: absolute; top: 8px; inset-inline-end: 10px; z-index: 1; padding: 1px 8px;
   border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: var(--fs-1); font-weight: 700; pointer-events: none; }
-/* the quick confirm under the target row: the time wheel / move bar's solid card */
-.into-ask { position: fixed; z-index: 60; width: min(320px, calc(100vw - 16px)); padding: 12px 12px 10px; border-radius: var(--r-3); background: var(--pill-bg); color: var(--ink);
+/* the quick confirm under the target row: the time wheel / move bar's solid card. .split-ask (owner 2026-11-15): the
+   blank-line-block confirm above its field — same look, shared rules */
+.into-ask, .split-ask { position: fixed; z-index: 60; width: min(320px, calc(100vw - 16px)); padding: 12px 12px 10px; border-radius: var(--r-3); background: var(--pill-bg); color: var(--ink);
   box-shadow: inset 0 0 0 1px var(--rim-hi), inset 0 1px 0 var(--spec), 0 0 0 1px var(--rule), 0 14px 30px -12px rgba(0, 0, 0, 0.45);
   transform-origin: top center; animation: popIn 160ms var(--ease-out); }
-.into-ask .iq { font-size: var(--fs-2); line-height: 1.45; } .into-ask .iq b { font-weight: 650; }
-.into-ask .iw { margin-top: 6px; font-size: var(--fs-1); color: var(--muted); }
-.into-ask .il { margin-top: 4px; font-size: var(--fs-1); color: var(--p2); }
-.into-ask .ib { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 10px; }
-.into-ask .ik { margin-inline-end: auto; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
+.into-ask .iq, .split-ask .iq { font-size: var(--fs-2); line-height: 1.45; } .into-ask .iq b, .split-ask .iq b { font-weight: 650; }
+.into-ask .iw, .split-ask .iw { margin-top: 6px; font-size: var(--fs-1); color: var(--muted); }
+.into-ask .il, .split-ask .il { margin-top: 4px; font-size: var(--fs-1); color: var(--p2); }
+.into-ask .ib, .split-ask .ib { display: flex; justify-content: flex-end; align-items: center; gap: 6px; margin-top: 10px; }
+.into-ask .ik, .split-ask .ik { margin-inline-end: auto; font-family: var(--font-mono); font-size: var(--fs-1); color: var(--faint); }
+/* the ✂ badge inside an Add button (owner 2026-11-15, P4a): the field's text would split into N items — 400 ms after
+   the last keystroke. It never changes the button's height */
+.split-badge { font-family: var(--font-mono); font-size: var(--fs-1); line-height: 1; padding: 0 6px; border-radius: 999px;
+  background: color-mix(in srgb, currentColor 16%, transparent); margin-inline-start: 6px; animation: splitBadgeIn 160ms var(--ease-out); }
+@keyframes splitBadgeIn { from { opacity: 0; transform: scale(0.7); } }
+@media (prefers-reduced-motion: reduce) { .split-badge { animation: none; } }
 .wrow.drop-above::before {
   content: ''; position: absolute; top: 0; left: 10px; right: 10px; height: 2px;
   background: var(--accent); border-radius: 1px;
@@ -822,6 +829,7 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
    that rests onto the row (panels.js subShow/subPlace) — the row stays clean: [ ] · its bang · its icon · the title */
 .field:has(#ed-subs) { position: relative; } /* the group's host: it scrolls with the list and survives load()'s re-render */
 .subs-list li.sub-hot { background: var(--hover); border-radius: var(--r-1); } /* the row the group belongs to */
+.etab .cpi { display: inline-flex; } /* P6: the editor subtask Copy tab's icon slot (swaps to a check for 1.1 s) */
 .etab.etab-ph.on-ph, .etab.etab-step { color: var(--phase); } /* the Phase tab lit on a phase row; + Step always phase-coloured */
 /* the row's priority mark and picked icon read as part of the text: inline, a small gap before the title (owner 2026-11-11);
    the gap from [ ] stays the row's own */

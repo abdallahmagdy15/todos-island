@@ -897,10 +897,69 @@ $('new-title').addEventListener('input', () => {
   clearTimeout(pvT); pvT = setTimeout(updatePreview, 80);
 });
 window.UI.fmtBar($('new-title')); // select text → B · I · S · U, or Ctrl+B / I / U / Shift+X (owner 2026-09-29)
+// ---- blank-line blocks (owner 2026-11-15, P1–P4): composer text with blank-line-separated parts can become a task +
+// its subtasks after a small confirm — NEVER several tasks. Setting: Advanced "splitBlocks" (P5). ----
+const splitOn = () => ((snap && snap.settings) || {}).splitBlocks !== false;
+function splitBadge(text) { // the ✂ +N hint on Add, 400 ms after the last keystroke
+  const btn = $('btn-add'), old = btn.querySelector('.split-badge');
+  if (old) old.remove();
+  if (text) { const b = document.createElement('span'); b.className = 'split-badge'; b.textContent = text; btn.appendChild(b); }
+}
+let splitT = null;
+$('new-title').addEventListener('input', () => {
+  const f = $('new-title');
+  if (!f.value.trim() && f.dataset.oneItem) delete f.dataset.oneItem; // the "as one" mark leaves with the text
+  clearTimeout(splitT);
+  splitT = setTimeout(() => splitBadge(splitOn() && !f.dataset.oneItem && window.Blocks.count(f.value) >= 2 ? '✂ +' + (window.Blocks.count(f.value) - 1) : null), 400);
+});
+$('new-title').addEventListener('paste', e => {
+  if (!splitOn() || [...((e.clipboardData && e.clipboardData.items) || [])].some(i => i.kind === 'file' && /^image\//.test(i.type))) return; // image pastes are not ours
+  const f = $('new-title'), text = e.clipboardData.getData('text/plain');
+  if (window.Blocks.count(f.value.slice(0, f.selectionStart) + text + f.value.slice(f.selectionEnd)) < 2) return; // one part: the native paste (and its Ctrl+Z)
+  e.preventDefault();
+  f.setRangeText(text, f.selectionStart, f.selectionEnd, 'end');
+  f.dispatchEvent(new Event('input', { bubbles: true })); // grow / preview / the ✂ hint follow
+  if (window.Blocks.count(f.value) >= 2) askComposer('paste');
+});
+function askComposer(mode) {
+  const f = $('new-title'), n = window.Blocks.count(f.value) - 1;
+  const { taskText, subs } = window.Blocks.taskAndSubs(f.value);
+  window.UI.splitAsk(f, {
+    q: T('sp.q.task', { n }), yes: T('sp.yes.task', { n }), no: T(mode === 'paste' ? 'sp.no.paste' : 'sp.no.add'),
+    preview: [taskText.split('\n')[0].trim(), ...subs.map(s => s.title)],
+    onYes: () => splitComposer(),
+    onNo: () => { f.dataset.oneItem = '1'; f.focus({ preventScroll: true }); } // "as one": the text stays, the next Add never asks
+  });
+}
+async function splitComposer() { // the first block = the task (chips apply to it), every later block = one subtask
+  const f = $('new-title'), { taskText, subs } = window.Blocks.taskAndSubs(f.value);
+  const r = await window.api.composeTask({ text: taskText, priority: composer.prio, due: composer.due });
+  if (!r || !r.ok) { // the same invalid hint the Add handler shows
+    f.classList.add('invalid');
+    composerHint(T('win.hint.title'));
+    window.Motion.nudge(f);
+    f.focus();
+    return;
+  }
+  let res = null;
+  try { res = await window.api.addTask(currentTab, { title: r.title, priority: r.priority, desc: r.desc, dueText: r.dueText, active: r.active, subs }); } catch (err) {}
+  if (!res || !res.ok) { composerHint(T('win.hint.addFail')); return; }
+  afterComposerAdd(res);
+}
+async function afterComposerAdd(res) { // the success tail Add and the block split share
+  window.SFX.play('add');
+  freshFrom = visibleIds();
+  delete $('new-title').dataset.oneItem; splitBadge(null);
+  resetComposer();
+  await refresh();
+  // the new task opens in the editor at once, cursor in "add subtask" — keep breaking it down (owner 2026-10-01)
+  if (res.id) window.Panels.edit(currentTab, res.id, { focus: 'sub' }); else $('new-title').focus();
+}
 $('new-title').addEventListener('keydown', e => {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('btn-add').click(); } // Enter adds, Shift+Enter newlines
 });
 $('btn-add').addEventListener('click', async () => {
+  if (splitOn() && !$('new-title').dataset.oneItem && window.Blocks.count($('new-title').value) >= 2) { askComposer('add'); return; } // P4b: re-checks the text itself
   const r = await updatePreview();
   if (!r || !r.ok) { // M9 — say why instead of silently doing nothing
     $('new-title').classList.add('invalid');
@@ -912,12 +971,7 @@ $('btn-add').addEventListener('click', async () => {
   let res = null;
   try { res = await window.api.addTask(currentTab, { title: r.title, priority: r.priority, desc: r.desc, dueText: r.dueText, active: r.active }); } catch (err) {}
   if (!res || !res.ok) { composerHint(T('win.hint.addFail')); return; }
-  window.SFX.play('add');
-  freshFrom = visibleIds();
-  resetComposer();
-  await refresh();
-  // the new task opens in the editor at once, cursor in "add subtask" — keep breaking it down (owner 2026-10-01)
-  if (res.id) window.Panels.edit(currentTab, res.id, { focus: 'sub' }); else $('new-title').focus();
+  afterComposerAdd(res);
 });
 
 // ---- tabs ----
@@ -1160,6 +1214,7 @@ async function loadSettings() {
   $('personal-name').textContent = baseName(s.personalPath); $('personal-name').title = s.personalPath;
   $('set-weekend').checked = !!s.weekendAware; $('set-weekend-days').value = s.weekendDays || 'auto'; $('set-autostart').checked = !!s.autoStart; $('set-sound').checked = !!s.soundOn; $('set-update').checked = s.updateCheck !== false; $('set-capture').checked = !!s.hideFromCapture;
   $('set-focus').checked = !!s.focusByTime;
+  $('set-split').checked = s.splitBlocks !== false;
   $('set-mode').value = s.mode || 'both';
   langSel = s.uiLang || 'system';
   document.querySelectorAll('#lang-seg .seg-btn').forEach(b => {
@@ -1246,6 +1301,7 @@ async function saveSettings() {
     shortcut: shortcutValue || 'Control+`',
     weekendAware: $('set-weekend').checked, weekendDays: $('set-weekend-days').value, autoStart: $('set-autostart').checked, soundOn: $('set-sound').checked, updateCheck: $('set-update').checked, hideFromCapture: $('set-capture').checked,
     focusByTime: $('set-focus').checked,
+    splitBlocks: $('set-split').checked,
     mode: $('set-mode').value,
     uiLang: langSel,
     glassLevel: glassStep.value, accent: accentSel, islandTheme: bgSel, appearance: appearSel, material: matSel, labelSize: labelStep.value, taskSize: taskStep.value,

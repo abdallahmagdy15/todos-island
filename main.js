@@ -35,6 +35,7 @@ const DEFAULT_SETTINGS = {
   workIntervalMin: 60, offIntervalMin: 60, workRemindersOn: true, offRemindersOn: true,
   dayStart: '09:00', dayEnd: '17:00',
   dismissSec: 7, undoSec: 5, hoverSec: 1, shortcut: 'Control+`', focusByTime: true,
+  splitBlocks: true, // offer to split blank-line blocks into several subtasks / a task with subtasks (owner 2026-11-15, P5)
   weekendAware: true, weekendDays: 'auto', // weekendDays: auto (the Windows region's) | sat-sun | fri-sat
   autoStart: true, soundOn: true, mode: 'both', uiLang: 'system', // mode: 'both' | 'work' | 'personal'; uiLang: 'system' | 'en' | 'ar'
   updateCheck: true, // one quiet GitHub check at startup + daily → a green "Update" pill, never a popup
@@ -1131,7 +1132,12 @@ ipcMain.handle('add-task', (_e, file, data) => {
   const f = fileFor(file);
   const { due, time } = dueFromText(data.dueText);
   const t = f.addTask({ title: data.title, priority: data.priority || null, active: !!data.active, due, time });
-  if (t && data.desc && data.desc.length) f.setNotes(f.id(t), data.desc);
+  if (t) {
+    const tid = f.id(t);
+    if (data.desc && data.desc.length) f.setNotes(tid, data.desc);
+    // the composer's block split (owner 2026-11-15, P3): every later block = one subtask of the new task, one save
+    for (const s of data.subs || []) if (s && String(s.title || '').trim()) f.addSubtask(tid, s.title, null, s.notes || []);
+  }
   f.save(); sendSnap(); if (mainWin) mainWin.webContents.send('tasks-changed');
   return { ok: !!t, id: t ? f.id(t) : null };
 });
@@ -1140,6 +1146,8 @@ ipcMain.handle('add-subtask', (_e, file, parentId, title, session, under, notes)
   const f = fileFor(file); f.addSubtask(parentId, title, under, notes); f.save(); sendSnap();
   if (mainWin) mainWin.webContents.send('tasks-changed');
 });
+ipcMain.handle('add-subtasks', (_e, file, parentId, items, session, under) => // several subtasks / steps from blank-line blocks (owner 2026-11-15, P2): ONE write, the session's one Undo
+  subtaskWrite(file, parentId, session, f => { for (const s of items || []) if (s && String(s.title || '').trim()) f.addSubtask(parentId, s.title, under || null, s.notes || []); }));
 ipcMain.handle('delete-task', (_e, id, file) => {
   const f = fileFor(file);
   const cap = f.deleteTask(id); // cap captured BEFORE the splice — exact rollback material
