@@ -519,8 +519,20 @@ ipcMain.handle('export-md', async (_e, text) => {
     filters: [{ name: 'Markdown', extensions: ['md'] }]
   });
   if (res.canceled || !res.filePath) return { ok: false };
-  fs.writeFileSync(res.filePath, String(text || ''), 'utf8');
-  return { ok: true, path: res.filePath };
+  let out = String(text || ''), images = 0;
+  if (out.includes('{{images}}/')) { // Q6 (owner 2026-11-21): the .md carries the pictures — copies land in a folder next to it
+    const base = path.basename(res.filePath).replace(/\.md$/i, '');
+    const dir = path.join(path.dirname(res.filePath), base + '-images');
+    const names = [...new Set([...out.matchAll(/\{\{images\}\}\/(img-[0-9a-z]{6})\.png/g)].map(m => m[1]))];
+    fs.mkdirSync(dir, { recursive: true });
+    for (const n of names) {
+      try { fs.copyFileSync(path.join(IMG_DIR, n + '.png'), path.join(dir, n + '.png')); images++; }
+      catch (e) { LOG('EXPORT-IMG-MISSING ' + n + ' ' + e.message); } // its link stays in the .md
+    }
+    out = out.split('{{images}}').join(encodeURIComponent(base + '-images'));
+  }
+  fs.writeFileSync(res.filePath, out, 'utf8');
+  return { ok: true, path: res.filePath, images };
 });
 
 // a new note in the v3 format — 'wx' so an existing file is NEVER overwritten (throws EEXIST instead)
@@ -924,6 +936,14 @@ ipcMain.handle('undo-action', (_e, token) => {
 ipcMain.handle('undo-expire', () => {}); // no-op, channel kept for renderers: two bubbles share one token — one ending must not kill the other's entry; the lazy sweep in pushUndo removes it at expires + UNDO_HOLD_MAX
 ipcMain.handle('get-snapshot', () => snapshot());
 ipcMain.handle('open-editor', (_e, file, id) => openEditor(file, id));
+// View (owner 2026-11-22, the island's View | Edit pill): the tasks window comes forward and shows that task unfolded
+ipcMain.handle('view-task', (_e, file, id) => {
+  const fresh = !mainWin; // a brand-new window runs its own start (last tab, first render) — let it settle first
+  openWindow();
+  if (!mainWin) return; // onboarding not done yet
+  const wc = mainWin.webContents, go = () => wc.send('reveal-task', { file: String(file), id: String(id) });
+  if (wc.isLoading()) wc.once('did-finish-load', () => setTimeout(go, 400)); else setTimeout(go, fresh ? 400 : 60);
+});
 ipcMain.handle('save-settings', (e, s) => {
   const r = saveSettings(s);
   // a change from elsewhere (the island's capture toggle, its copy-format pick) → the tasks window re-reads: form switch + status line
@@ -1541,9 +1561,18 @@ ipcMain.handle('att-open', async (_e, file, id, index) => {
 // and finds the file in ITS folder, never the path in the note. img-save writes the file (no note); img-attach /
 // img-remove rewrite the line through subtaskWrite (the session Undo); the FILE is never deleted, so an Undo that brings
 // the line back finds its image still there.
+// the clipboard's picture as a NativeImage (empty when none). Electron 44's clipboard is the W3C shape — there is no
+// readImage(): read() the items and take the first PNG (else JPEG) blob (owner 2026-11-22: the old call threw here)
+async function clipImage() {
+  const items = await clipboard.read();
+  const it = items.find(i => i.types.includes('image/png')) || items.find(i => i.types.includes('image/jpeg'));
+  if (!it) return nativeImage.createEmpty();
+  const blob = await it.getType(it.types.includes('image/png') ? 'image/png' : 'image/jpeg');
+  return nativeImage.createFromBuffer(Buffer.from(await blob.arrayBuffer()));
+}
 ipcMain.handle('img-save', async (_e, bytes) => {
   try {
-    const img = bytes ? nativeImage.createFromBuffer(Buffer.from(bytes)) : await clipboard.readImage();
+    const img = bytes ? nativeImage.createFromBuffer(Buffer.from(bytes)) : await clipImage();
     if (img.isEmpty()) return { ok: false, reason: 'empty' };
     const png = img.toPNG();
     if ((bytes ? bytes.byteLength : png.length) > 25 * 1024 * 1024) return { ok: false, reason: 'big' };
@@ -1616,6 +1645,43 @@ ipcMain.handle('img-open', async (_e, name) => {
   if (SANDBOX) { LOG('IMG-OPEN-SANDBOX ' + name); return { ok: true }; } // E2E never opens anything
   const err = await shell.openPath(p);
   return err ? { ok: false, reason: 'error' } : { ok: true };
+});
+// the editor's "Export" beside Attachments (owner 2026-11-22): every image of the task → a folder the owner picks, each
+// file named "NN <its subtask / Task>.png" (the img-xxxxxx name means nothing outside the app); then the folder opens
+ipcMain.handle('img-export', async (_e, names, labels) => {
+  const list = [].concat(names || []).map(String);
+  const good = list.map((n, i) => ({ n, label: String((labels || [])[i] || n) })).filter(x => IMG.NAME_RE.test(x.n) && fs.existsSync(path.join(IMG_DIR, x.n + '.png')));
+  if (!good.length) return { ok: false, reason: 'missing' };
+  const { dialog } = require('electron');
+  const res = await dialog.showOpenDialog(mainWin || undefined, { title: 'Export images to a folder', properties: ['openDirectory', 'createDirectory'] });
+  if (res.canceled || !res.filePaths || !res.filePaths[0]) return { ok: false, reason: 'cancel' };
+  const dir = res.filePaths[0], pad = String(good.length).length;
+  const safe = s => s.replace(/[\\/:*?"<>|\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 80).replace(/[. ]+$/, '') || 'image';
+  let n = 0;
+  good.forEach((x, i) => {
+    let file = path.join(dir, `${String(i + 1).padStart(pad, '0')} ${safe(x.label)}.png`);
+    for (let k = 2; fs.existsSync(file); k++) file = path.join(dir, `${String(i + 1).padStart(pad, '0')} ${safe(x.label)} (${k}).png`); // never overwrite
+    try { fs.copyFileSync(path.join(IMG_DIR, x.n + '.png'), file); n++; } catch (err) { LOG('IMG-EXPORT-FAIL ' + x.n + ' ' + err.message); }
+  });
+  if (n && !SANDBOX) shell.openPath(dir);
+  return n ? { ok: true, n, dir } : { ok: false, reason: 'fail' };
+});
+// Q6b (owner 2026-11-21): the picked images go to the clipboard for a paste into the chat — ONE as the picture itself,
+// SEVERAL as files (like Ctrl+C on files in Explorer). Only names the app itself coined.
+// ⚠️ Electron 44 rebuilt the clipboard on the W3C API: no writeImage / writeBuffer — clipboard.write([ClipboardItem]).
+// 'text/uri-list' (file:// URIs, CRLF-separated) maps to the OS file list (CF_HDROP on Windows), so no shell is needed.
+ipcMain.handle('img-copy', async (_e, names) => {
+  const good = [...new Set([].concat(names || []).map(String))].filter(n => IMG.NAME_RE.test(n) && fs.existsSync(path.join(IMG_DIR, n + '.png')));
+  if (!good.length) return { ok: false, reason: 'missing' };
+  const { ClipboardItem } = require('electron');
+  const paths = good.map(n => path.join(IMG_DIR, n + '.png'));
+  try {
+    const item = good.length === 1
+      ? { 'image/png': new Blob([fs.readFileSync(paths[0])], { type: 'image/png' }) }
+      : { 'text/uri-list': paths.map(p => require('url').pathToFileURL(p).href).join('\r\n') };
+    await clipboard.write([new ClipboardItem(item)]);
+    return { ok: true, n: good.length };
+  } catch (err) { LOG('IMG-COPY-FAIL ' + err.message); return { ok: false, reason: 'fail' }; }
 });
 // tasks-window folds (owner 2026-10-09): every row starts folded at app start; the rows you open stay open while the app
 // runs. Kept here because the tasks window is destroyed on close. Memory only: a restart folds everything again.

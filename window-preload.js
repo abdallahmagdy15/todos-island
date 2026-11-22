@@ -48,6 +48,8 @@ contextBridge.exposeInMainWorld('api', {
   imgAttach: (file, parentId, subTitle, name, session) => ipcRenderer.invoke('img-attach', file, parentId, subTitle, name, session), // the link line lands under the subtask / task
   imgRemove: (file, parentId, subTitle, name, session) => ipcRenderer.invoke('img-remove', file, parentId, subTitle, name, session), // the line leaves; the FILE stays (Undo)
   imgOpen: name => ipcRenderer.invoke('img-open', name), // an image attachment (E2a)
+  imgCopy: names => ipcRenderer.invoke('img-copy', names), // Q6b: the picked images → the clipboard (one picture / several as files)
+  imgExport: (names, labels) => ipcRenderer.invoke('img-export', names, labels), // the editor's Export beside Attachments: every image → a picked folder
   imgDiscard: name => ipcRenderer.invoke('img-discard', name), // a pending image's × — its file goes (owner 2026-11-12)
   pathOf: f => webUtils.getPathForFile(f), // a file dropped on the editor → its path on disk
   foldGet: () => ipcRenderer.invoke('fold-get'), // rows opened since the app started (main keeps them; the window dies on close)
@@ -65,5 +67,6 @@ contextBridge.exposeInMainWorld('api', {
   onShowUndo: cb => ipcRenderer.on('show-undo', (_e, d) => cb(d)),
   onLangChanged: cb => ipcRenderer.on('lang-changed', (_e, lang) => cb(lang)),
   onShowTab: cb => ipcRenderer.on('show-tab', (_e, tab) => cb(tab)),
+  onRevealTask: cb => ipcRenderer.on('reveal-task', (_e, p) => cb(p)), // the island's View (owner 2026-11-22)
   onOpenPanel: cb => ipcRenderer.on('open-panel', (_e, p) => cb(p)) // the island's Edit / Share open the side panel here
 });

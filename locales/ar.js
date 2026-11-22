@@ -51,6 +51,9 @@ const STRINGS_AR = {
   'set.h.island': 'الجزيرة',
   'set.h.app': 'التطبيق',
   'set.h.files': 'ملفات المصدر',
+  'set.search.ph': 'ابحث في الإعدادات',
+  'set.search.none': 'مفيش إعدادات مطابقة',
+  'set.search.clear': 'امسح',
   'set.workRem': 'تذكيرات وقت العمل',
   'set.workRem.hint': 'داخل دوام العمل · كل 5–240 دقيقة',
   'set.workRem.aria': 'تشغيل تذكيرات وقت العمل',
@@ -137,6 +140,7 @@ const STRINGS_AR = {
   'isl.btn.completeAria': 'إنجاز: {t}',
   'isl.btn.editTitle': 'تعديل المهمة',
   'isl.btn.editAria': 'تعديل: {t}',
+  'etab.view': 'عرض', 'etab.viewTitle': 'افتحها في شباك المهام بكل تفاصيلها', // نص الـ View في زرار View | Edit (2026-11-22)
   'etab.label': 'تعديل', // the floating corner tab on a rested row (island + tasks window)
   'etab.del': 'حذف المهمة', // the trash tab beside Edit (tasks window only)
   'etab.now': 'الآن',
@@ -168,13 +172,14 @@ const STRINGS_AR = {
   'isl.close.title': 'إخفاء',
   'isl.close.aria': 'إخفاء الجزيرة',
 
+  'ed.share': 'شارك المهمة دي',
   'ed.title': 'تعديل المهمة',
   'tw.aria': 'اختر وقتًا', 'tw.hours': 'الساعات', 'tw.minutes': 'الدقائق', // the time wheel (Settings, setup)
   'side.close': 'إغلاق (Esc)', // the side panel's ✕ (Edit / Share)
   'ed.sub.del': 'حذف المهمة الفرعية {t}', 'ed.sub.none': 'لا توجد مهام فرعية بعد.',
   'ed.sub.prio': 'الأهمية: انقر للتبديل ! ← !! ← !!! ← بلا', 'ed.sub.prioAria': 'أولوية {t}: {p}',
   'att.title': "المرفقات", 'att.aria': "{n} مرفقات", 'att.add': "إرفاق", 'att.del': "إزالة {t}", 'att.cmd': "الطرفية", 'att.app': "تطبيق سطح المكتب", 'att.cmd.hint': "يفتح الجلسة نفسها", 'att.app.hint': "يفتح التطبيق وينسخ الاسم", 'att.copied': "نُسخ الاسم: الصقه في التطبيق", 'att.fail': "تعذّر فتحه", 'att.copy.path': "انسخ المسار", 'att.copy.link': "انسخ الرابط", 'att.copy.cmd': "انسخ أمر الاستكمال", 'att.copy.app': "انسخ اسم الجلسة", 'att.t.session': "جلسة ذكاء اصطناعي", 'att.t.file': "ملف", 'att.t.folder': "مجلد", 'att.t.link': "رابط", 'att.t.email': "بريد / تقويم", 'att.later': "لاحقًا", 'att.back': "رجوع", 'att.q.type': "ماذا تُرفق؟", 'att.q.tool': "أي أداة؟", 'att.q.mode': "كيف تُفتح؟", 'att.q.session': "أي جلسة؟ (الأحدث على هذا الجهاز)", 'att.q.link': "الصق الرابط", 'att.q.find': "ابحث عن جلسة بالاسم أو المجلد", 'att.noMatch': "لا توجد جلسة مطابقة.", 'att.loading': "جارٍ البحث عن الجلسات…", 'att.noSess': "لا توجد جلسات لهذه الأداة على هذا الجهاز.", // task attachments (owner 2026-10-09)
-  'img.sub': "الصور", 'img.aria': "{n} صور", 'img.n': "صورة {n}", 'img.task': "المهمة", 'img.hint': "صورة", 'img.missing': "ملف الصورة غير موجود", 'img.fail': "تعذّر حفظ الصورة", 'img.big': "الصورة كبيرة جدًا", 'img.attached': "أُرفقت الصورة", 'img.attachedTo': "أُرفقت الصورة بـ {t}", 'img.del': "إزالة الصورة", 'img.pending': "تُضاف مع المهمة الفرعية", // pasted-image attachments (owner 2026-11-12, E2b)
+  'img.sub': "الصور", 'img.aria': "{n} صور", 'img.n': "صورة {n}", 'img.task': "المهمة", 'img.hint': "صورة", 'img.missing': "ملف الصورة غير موجود", 'img.fail': "تعذّر حفظ الصورة", 'img.big': "الصورة كبيرة جدًا", 'img.attached': "أُرفقت الصورة", 'img.attachedTo': "أُرفقت الصورة بـ {t}", 'img.del': "إزالة الصورة", 'img.pending': "تُضاف مع المهمة الفرعية", 'img.copy': "انسخ الصورة", 'img.copyAll': "انسخ كل الصور ({n})", 'img.copyFail': "معرفتش أنسخ الصور", 'img.export': "تصدير", 'img.exportTitle': "احفظ كل صور المهمة في فولدر", 'img.exported': "اتحفظت {n}", // الصور الملصقة (2026-11-12) + النسخ للحافظة (Q6b، 2026-11-21)
   'sp.q.subs': "تقسيمه إلى {n} مهام فرعية؟", 'sp.yes.subs': "قسّمه إلى {n}", 'sp.q.task': "إضافة مهمة مع {n} مهام فرعية؟", 'sp.yes.task': "مهمة + {n} مهام فرعية", 'sp.no.paste': "الصقه كنص واحد", 'sp.no.add': "أضفه كعنصر واحد", 'sp.done': "أُضيفت {n} مهام فرعية", // blank-line block split (owner 2026-11-15)
   'ed.mv.btn': "نقل…", 'ed.mv.btnTitle': "انقل مهامًا فرعية إلى مهمة أخرى", 'ed.mv.hint': "اختر المهام الفرعية لنقلها", 'ed.mv.count': "تم اختيار {n}", 'ed.mv.cancel': "إلغاء", 'ed.mv.next': "نقل إلى", 'ed.mv.title': "نقل {n} إلى…", 'ed.mv.ph': "ابحث عن مهمة…", 'ed.mv.none': "لا توجد مهام مفتوحة أخرى.", 'ed.mv.noMatch': "لا توجد مهمة مطابقة.", 'ed.mv.done': "نُقلت ✓", // move subtasks (owner 2026-10-09)
   'ed.sub.rename': 'انقر لإعادة التسمية', 'ed.sub.tick': 'تعليم {t} كمنجزة', 'ed.sub.untick': 'إلغاء إنجاز {t}',
@@ -228,6 +233,11 @@ const STRINGS_AR = {
   'sh.subs.phasesTitle': "المراحل فقط — بدون خطواتها ولا الملاحظات السريعة",
   'sh.opt.prio': "الأولوية",
   'sh.opt.dates': "التواريخ",
+  'sh.opt.imgs': "الصور",
+  'sh.opt.imgsTitle': "الـ Export بينسخ الصور في فولدر جنب ملف الـ .md",
+  'sh.opt.imgsOnlyMd': "للـ Export .md بس — النص مايقدرش يشيل صور",
+  'sh.imgs': "انسخ الصور ({n})",
+  'sh.imgsCopied': "اتنسخت {n} صور",
   'sh.opt.title': "خيارات الرسالة",
   'sh.day': "اليوم",
   'sh.day.all': "الكل",

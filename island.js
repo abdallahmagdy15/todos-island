@@ -403,6 +403,7 @@ const copyPrefs = window.UI.copyPrefs(() => (snap && snap.settings.shareFmt === 
 const itemOf = r => { const id = r.dataset.id || r.dataset.card; return snap && snap.sections.flatMap(s => s.items).find(x => x.id === id); };
 const etab = window.UI.editTab($('wrap'), {
   onEdit: r => editFromIsland(r.dataset.file, r.dataset.id || r.dataset.card),
+  onView: r => viewFromIsland(r.dataset.file, r.dataset.id || r.dataset.card), // the View half of the View | Edit pill
   // quick Copy (owner 2026-09-29): the task in the Share format (Settings shareFmt: plain text or Markdown); no note write
   onCopy: async r => {
     const id = r.dataset.id || r.dataset.card;
@@ -708,6 +709,11 @@ function retract() {
   Promise.race([anim, new Promise(r => setTimeout(r, 320))]).then(() => { if (retracting) { window.api.hide(); retracting = false; } });
 }
 // edit hand-off: the pill steps aside, the tasks window takes over, the editor opens on top for that task
+function viewFromIsland(file, id) { // View (owner 2026-11-22): read it in the tasks window, unfolded
+  retract();
+  window.SFX.play('tick');
+  window.api.viewTask(file, id);
+}
 function editFromIsland(file, id) {
   retract();
   window.SFX.play('tick');

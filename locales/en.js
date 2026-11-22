@@ -51,6 +51,9 @@ const STRINGS_EN = {
   'set.h.island': 'Island',
   'set.h.app': 'App',
   'set.h.files': 'Source files',
+  'set.search.ph': 'Search settings',
+  'set.search.none': 'No settings match',
+  'set.search.clear': 'Clear',
   'set.workRem': 'Work-time reminders',
   'set.workRem.hint': 'inside the workday · every 5–240 min',
   'set.workRem.aria': 'Work-time reminders on',
@@ -137,6 +140,7 @@ const STRINGS_EN = {
   'isl.btn.completeAria': 'Complete: {t}',
   'isl.btn.editTitle': 'Edit task',
   'isl.btn.editAria': 'Edit: {t}',
+  'etab.view': 'View', 'etab.viewTitle': 'Open it in the tasks window, unfolded', // the View half of the island's View | Edit pill (owner 2026-11-22)
   'etab.label': 'Edit', // the floating corner tab on a rested row (island + tasks window)
   'etab.del': 'Delete task', // the trash tab beside Edit (tasks window only)
   'etab.now': 'Now', // the ☆ tab beside Edit (tasks window): stage this task as Now
@@ -168,13 +172,14 @@ const STRINGS_EN = {
   'isl.close.title': 'Hide',
   'isl.close.aria': 'Hide island',
 
+  'ed.share': 'Share this task',
   'ed.title': 'Edit task',
   'tw.aria': 'Pick a time', 'tw.hours': 'Hours', 'tw.minutes': 'Minutes', // the time wheel (Settings, setup)
   'side.close': 'Close (Esc)', // the side panel's ✕ (Edit / Share)
   'ed.sub.del': 'Delete subtask {t}', 'ed.sub.none': 'No subtasks yet.',
   'ed.sub.prio': 'Importance: click to step ! → !! → !!! → none', 'ed.sub.prioAria': 'Priority of {t}: {p}',
   'att.title': "Attachments", 'att.aria': "{n} attachments", 'att.add': "Attach", 'att.del': "Remove {t}", 'att.cmd': "Terminal", 'att.app': "Desktop app", 'att.cmd.hint': "opens the exact session", 'att.app.hint': "opens the app, copies the name", 'att.copied': "Name copied: paste it in the app", 'att.fail': "Couldn’t open it", 'att.copy.path': "Copy path", 'att.copy.link': "Copy link", 'att.copy.cmd': "Copy the resume command", 'att.copy.app': "Copy the session name", 'att.t.session': "AI session", 'att.t.file': "File", 'att.t.folder': "Folder", 'att.t.link': "Link", 'att.t.email': "Email / calendar", 'att.later': "later", 'att.back': "Back", 'att.q.type': "What do you attach?", 'att.q.tool': "Which tool?", 'att.q.mode': "Reopen it how?", 'att.q.session': "Which session? (recent on this PC)", 'att.q.link': "Paste the link", 'att.q.find': "Find a session by name or folder", 'att.noMatch': "No session matches that.", 'att.loading': "Looking for sessions…", 'att.noSess': "No sessions found for this tool on this PC.", // task attachments (owner 2026-10-09)
-  'img.sub': "Images", 'img.aria': "{n} images", 'img.n': "Image {n}", 'img.task': "Task", 'img.hint': "Image", 'img.missing': "Image file is missing", 'img.fail': "Couldn’t save the image", 'img.big': "Image is too large", 'img.attached': "Image attached", 'img.attachedTo': "Image attached to {t}", 'img.del': "Remove image", 'img.pending': "Added with the subtask", // pasted-image attachments (owner 2026-11-12, E2b)
+  'img.sub': "Images", 'img.aria': "{n} images", 'img.n': "Image {n}", 'img.task': "Task", 'img.hint': "Image", 'img.missing': "Image file is missing", 'img.fail': "Couldn’t save the image", 'img.big': "Image is too large", 'img.attached': "Image attached", 'img.attachedTo': "Image attached to {t}", 'img.del': "Remove image", 'img.pending': "Added with the subtask", 'img.copy': "Copy image", 'img.copyAll': "Copy all images ({n})", 'img.copyFail': "Couldn’t copy the images", 'img.export': "Export", 'img.exportTitle': "Save every image of this task into a folder", 'img.exported': "Saved {n}", // pasted-image attachments (owner 2026-11-12, E2b) + Copy to clipboard (Q6b, 2026-11-21)
   'sp.q.subs': "Split into {n} subtasks?", 'sp.yes.subs': "Split into {n}", 'sp.q.task': "Add a task with {n} subtasks?", 'sp.yes.task': "Task + {n} subtasks", 'sp.no.paste': "Paste as one", 'sp.no.add': "Add as one", 'sp.done': "Added {n} subtasks", // blank-line block split (owner 2026-11-15)
   'ed.mv.btn': "Move…", 'ed.mv.btnTitle': "Move subtasks to another task", 'ed.mv.hint': "Pick the subtasks to move", 'ed.mv.count': "{n} selected", 'ed.mv.cancel': "Cancel", 'ed.mv.next': "Move to", 'ed.mv.title': "Move {n} to…", 'ed.mv.ph': "Find a task…", 'ed.mv.none': "No other open tasks.", 'ed.mv.noMatch': "No task matches that.", 'ed.mv.done': "Moved ✓", // move subtasks (owner 2026-10-09)
   'ed.sub.rename': 'Click to rename', 'ed.sub.tick': 'Mark {t} done', 'ed.sub.untick': 'Mark {t} not done',
@@ -228,6 +233,11 @@ const STRINGS_EN = {
   'sh.subs.phasesTitle': "Phases only — the milestones, without their steps or quick notes",
   'sh.opt.prio': "Priority",
   'sh.opt.dates': "Dates",
+  'sh.opt.imgs': "Images",
+  'sh.opt.imgsTitle': "Export copies the pictures into a folder next to the .md",
+  'sh.opt.imgsOnlyMd': "Export .md only — text can’t carry pictures",
+  'sh.imgs': "Copy images ({n})",
+  'sh.imgsCopied': "Copied {n} images",
   'sh.opt.title': "Message options",
   'sh.day': "Day",
   'sh.day.all': "All",

@@ -53,6 +53,7 @@
     pin: '<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>',
     share: '<path d="M12 2v13"/><path d="m16 6-4-4-4 4"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>',
     tasks: '<path d="m3 17 2 2 4-4"/><path d="m3 7 2 2 4-4"/><path d="M13 6h8"/><path d="M13 12h8"/><path d="M13 18h8"/>',
+    eye: '<path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>', // View (owner 2026-11-22)
     pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
     trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/>',
     copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
@@ -536,15 +537,17 @@
   const subImgHtml = s => (s && s.im && s.im.length ? `<button class="simg" type="button" data-simg title="${esc(T('img.sub'))}" aria-label="${esc(T('img.aria', { n: s.im.length }))}">${icon('paperclip')}<span>${s.im.length}</span></button>` : '');
   const imgItemsOf = t => [...(t.imgs || []).map(name => ({ name, label: T('img.task') })),
     ...(t.subs || []).flatMap(s => (s.im || []).map(name => ({ name, label: plain(s.t) })))]; // the task's own, then each subtask's
-  const imgRowHtml = (it, del) => `<div class="arow" role="none"><button type="button" role="menuitem" data-img="${esc(it.name)}">${icon('image')}<span class="an">${esc(it.label)}</span><span class="ah">${esc(T('img.hint'))}</span></button>${del ? `<button class="sub-del" type="button" data-imgdel="${esc(it.name)}" aria-label="${esc(T('img.del'))}">&times;</button>` : ''}</div>`;
-  function imgPeek(host, anchor, items, { open, remove, onClose } = {}) {
+  const imgRowHtml = (it, del, copy) => `<div class="arow" role="none"><button type="button" role="menuitem" data-img="${esc(it.name)}">${icon('image')}<span class="an">${esc(it.label)}</span><span class="ah">${esc(T('img.hint'))}</span></button>${copy ? `<button class="scopy" type="button" data-imgcopy="${esc(it.name)}" title="${esc(T('img.copy'))}" aria-label="${esc(T('img.copy'))}">${icon('copy')}</button>` : ''}${del ? `<button class="sub-del" type="button" data-imgdel="${esc(it.name)}" aria-label="${esc(T('img.del'))}">&times;</button>` : ''}</div>`;
+  function imgPeek(host, anchor, items, { open, remove, copy, onClose } = {}) {
     const el = document.createElement('div');
     el.className = 'clist apop'; el.setAttribute('role', 'menu'); el.setAttribute('aria-label', T('img.sub'));
-    el.innerHTML = items.map(it => imgRowHtml(it, !!remove)).join('');
+    el.innerHTML = items.map(it => imgRowHtml(it, !!remove, !!copy)).join('');
     anchor.setAttribute('aria-expanded', 'true');
     const api = underTab(host, anchor, el, 'att', fromLeave => { anchor.setAttribute('aria-expanded', 'false'); if (onClose) onClose(fromLeave); });
     el.addEventListener('click', async e => {
       e.stopPropagation();
+      const c = e.target.closest('[data-imgcopy]'); // Q6b: that image → the clipboard (the editor's peek only)
+      if (c) { if (copy) { const r = await copy(c.dataset.imgcopy); if (r && r.ok) copyFlash(c); else c.classList.add("bad"); } return; }
       const d = e.target.closest('[data-imgdel]');
       if (d) {
         await remove(d.dataset.imgdel);
@@ -707,16 +710,26 @@
   // Row tabs (owner 2026-10-05, demo pick A2): icon + WORD again, a little closer together, a darker shadow under
   // each so they read clearly over any row. Delete stays an icon (its word is the tooltip). Placed from the row's corner
   // inward: Now · Copy · Timer · Edit · Delete in the tasks window, Copy · Timer · Edit in the island.
-  function editTab(host, { onEdit, onStar, onDelete, onCopy, copyLabel, copyOpts, onTimer, timerOf, onTimerStop, onLeave, onEnter, onPrio, prioOf }) {
+  function editTab(host, { onEdit, onView, onStar, onDelete, onCopy, copyLabel, copyOpts, onTimer, timerOf, onTimerStop, onLeave, onEnter, onPrio, prioOf }) {
     const mk = (cls, html) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'etab ' + cls; b.tabIndex = -1; b.innerHTML = html; host.appendChild(b); return b; };
-    const tab = mk('etab-edit', icon('pencil') + '<span class="etab-t"></span>');
+    // View │ Edit (owner 2026-11-22, the island): ONE pill — one surface, one shadow, one rim — holding two halves that
+    // share the job (open this task: read it in the tasks window, or edit it), a hairline between them; only the half
+    // under the pointer lights. Without onView, Edit is the usual single tab.
+    let pair = null, tab, view = null;
+    if (onView) {
+      pair = document.createElement('div'); pair.className = 'etab etab-pair'; host.appendChild(pair);
+      const half = (cls, ic) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'ep ' + cls; b.tabIndex = -1; b.innerHTML = icon(ic) + '<span class="etab-t"></span>'; return b; };
+      view = half('ep-view', 'eye'); tab = half('ep-edit', 'pencil');
+      const sep = document.createElement('span'); sep.className = 'ep-sep'; sep.setAttribute('aria-hidden', 'true');
+      pair.append(view, sep, tab);
+    } else tab = mk('etab-edit', icon('pencil') + '<span class="etab-t"></span>');
     const del = onDelete ? mk('etab-ic etab-del', icon('trash')) : null;
     const star = onStar ? mk('etab-star', icon('star', 'etab-g') + '<span class="etab-t"></span>') : null; // quick Now (owner 2026-09-29)
     const copy = onCopy ? mk('etab-copy', '<span class="cw-fill" aria-hidden="true"></span>' + icon('copy') + '<span class="etab-t"></span>') : null;
     const timer = onTimer ? mk('etab-timer', icon('timer') + '<span class="etab-t"></span>') : null; // focus timer (#10)
     // Priority (owner 2026-11-11, the island): the word stays, the current bang rides beside it; a click steps ! → !! → !!! → none
     const prio = onPrio ? mk('etab-prio', '<span class="etab-t"></span><span class="etab-b"></span>') : null;
-    const tabs = [del, tab, timer, copy, prio, star].filter(Boolean);
+    const tabs = [del, pair || tab, timer, copy, prio, star].filter(Boolean);
     const word = (b, w) => { b.querySelector('.etab-t').textContent = w; };
     let row = null, pop = null, hiddenAt = 0; // pop = the copy list or the running-timer pill hanging under a tab
     const place = () => {
@@ -746,6 +759,7 @@
         if (row !== r) closePop();
         row = r;
         word(tab, T('etab.label')); tab.title = label; tab.setAttribute('aria-label', label);
+        if (view) { word(view, T('etab.view')); view.title = T('etab.viewTitle'); view.setAttribute('aria-label', T('etab.viewTitle')); }
         if (del) { const dl = T('etab.del'); del.title = dl; del.setAttribute('aria-label', dl); }
         if (star) api.setNow(r.classList.contains('is-now'));
         paintTimer();
@@ -810,6 +824,16 @@
       timer.addEventListener('pointerleave', e => { clearTimeout(inT); if (pop && pop.kind === 'pill' && !pop.el.contains(e.relatedTarget)) pop.later(); });
     }
     tab.addEventListener('click', e => { e.stopPropagation(); if (row) onEdit(row); });
+    if (view) {
+      view.addEventListener('click', e => { e.stopPropagation(); if (row) onView(row); });
+      // the pill's hit skirt (Q7) belongs to the pill, not a half: a click there goes to the nearer half
+      pair.addEventListener('click', e => {
+        if (e.target !== pair || !row) return;
+        e.stopPropagation();
+        const v = view.getBoundingClientRect();
+        (getComputedStyle(pair).direction === 'rtl' ? e.clientX >= v.left : e.clientX <= v.right) ? onView(row) : onEdit(row);
+      });
+    }
     if (prio) prio.addEventListener('click', e => { e.stopPropagation(); if (row) onPrio(row); });
     if (del) del.addEventListener('click', e => { e.stopPropagation(); if (row) onDelete(row); });
     if (star) star.addEventListener('click', e => { e.stopPropagation(); if (row) onStar(row); });

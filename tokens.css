@@ -306,10 +306,27 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
   transition: opacity 150ms ease, transform 240ms var(--ease-spring), color var(--d-1) ease;
 }
 .etab.on { opacity: 1; transform: none; pointer-events: auto; }
+/* Q7 (owner 2026-11-21: "the click goes to what's behind while my mouse is on the bottom of the buttons"): the tab's
+   dark drop shadow reads as part of the button, and the 4 px gaps between tabs belonged to the row under them, so a
+   click there opened / ticked the row. An invisible hit skirt covers the shadow (9 px down) and half of each gap
+   (2 px a side); it is part of the button, so it takes the click, and it inherits pointer-events: none while hidden */
+.etab::after { content: ''; position: absolute; inset: -3px -2px -9px; border-radius: inherit; }
 .etab:hover, .etab:focus-visible { color: var(--accent); }
 .etab .ic { flex: none; width: 11px; height: 11px; stroke-width: 2.2; }
 /* Delete is the one icon-only tab: a round button; its word is the tooltip */
 .etab.etab-ic { width: 24px; height: 24px; padding: 0; justify-content: center; border-radius: 12px; }
+/* View │ Edit (owner 2026-11-22, the island): ONE pill with two halves — the pill keeps the .etab surface, shadow and rim;
+   each half is a flat button inside it, a hairline between; only the half under the pointer takes the accent + a soft fill */
+.etab.etab-pair { padding: 0; gap: 0; }
+.etab-pair::after { z-index: -1; } /* the hit skirt goes UNDER the halves (the pill is its own stacking context), so they get hover + clicks */
+.etab.etab-pair:hover { color: var(--muted); } /* the pill itself never lights whole */
+.ep { display: inline-flex; align-items: center; gap: 5px; height: 100%; padding: 0 12px; border: 0; background: transparent; color: inherit;
+  font: inherit; cursor: pointer; transition: color var(--d-1) ease, background var(--d-1) ease; }
+.ep .ic { flex: none; width: 11px; height: 11px; stroke-width: 2.2; }
+.ep-view { padding-inline-start: 11px; border-start-start-radius: 12px; border-end-start-radius: 12px; }
+.ep-edit { padding-inline-end: 11px; border-start-end-radius: 12px; border-end-end-radius: 12px; }
+.ep:hover, .ep:focus-visible { color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.ep-sep { flex: none; width: 1px; height: 12px; background: var(--rule); }
 .etab { height: 24px; border-radius: 12px; }
 .etab-timer.timing .etab-t { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .etab.etab-ic .ic { width: 13px; height: 13px; stroke-width: 2; }
@@ -429,12 +446,14 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 @media (prefers-reduced-motion: reduce) { .fmtbar { animation: none; } }
 
 /* ---- Copy: hover fills the tab with the accent (no timer), then the copy list drops below it (#5, owner pick E1) ---- */
-.etab-copy { overflow: hidden; isolation: isolate; }
+.etab-copy { isolation: isolate; } /* no overflow: hidden (Q7): it clipped the hit skirt; .cw-fill stays inside on its own (inset 0, revealed by clip-path) */
 .etab-copy .ic, .etab-copy .etab-t { position: relative; z-index: 1; transition: color 120ms ease; }
-.cw-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); opacity: .22; transform: scaleX(0); transform-origin: left; pointer-events: none; }
-[dir="rtl"] .cw-fill { transform-origin: right; }
+.cw-fill { position: absolute; inset: 0; border-radius: inherit; background: var(--accent); opacity: .22; clip-path: inset(0 100% 0 0); pointer-events: none; }
+[dir="rtl"] .cw-fill { clip-path: inset(0 0 0 100%); }
 .etab-copy.filling .cw-fill { animation: cwFill 500ms linear forwards; } /* the demo's charge: a soft sweep over L2 "in" (editTab L2_IN) */
-@keyframes cwFill { to { transform: scaleX(1); } }
+/* the fill keeps its own pill shape and is REVEALED from the start edge (owner 2026-11-22: the sweep "starts wrong") — a scaleX
+   squashed its rounded ends into a sliver once .etab-copy lost overflow: hidden (Q7, for the hit skirt) */
+@keyframes cwFill { to { clip-path: inset(0 0 0 0); } }
 /* the popovers under a tab: the copy list and the running-timer pill — solid (no backdrop-filter, perf rule) */
 .clist, .tpill {
   position: absolute; z-index: 95; background: var(--pill-bg); color: var(--ink); -webkit-app-region: no-drag;
@@ -518,7 +537,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible { outline: non
 .snote { display: block; font-style: italic; font-size: .9em; line-height: 1.35; color: var(--faint); white-space: pre-wrap; }
 :is([data-sub], .apop .arow, .att-list li):hover .scopy { opacity: 1; transform: none; pointer-events: auto; visibility: visible; transition-delay: 1s, 1s, 0s, 1s; }
 .scopy:hover, .scopy.done { color: var(--accent); }
-@media (prefers-reduced-motion: reduce) { .etab-copy.filling .cw-fill { animation: none; transform: scaleX(1); } .clist, .tpill, .clist.out, .tpill.out { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .etab-copy.filling .cw-fill { animation: none; clip-path: inset(0 0 0 0); } .clist, .tpill, .clist.out, .tpill.out { animation: none; } }
 
 /* ---- the undo swap (UI.mountUndo; island top bar + window header, owner 2026-10-06 pick T1 "title swap") ----
    The bar's own children slide down and fade; the undo line comes in from above on the same spring as the demo. */

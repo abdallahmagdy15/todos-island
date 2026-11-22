@@ -72,6 +72,12 @@
     </section>
 
     <section id="view-settings" hidden>
+      <!-- Q2 (owner 2026-11-21): settings search — filter in place, EN + AR whatever the UI language -->
+      <div class="set-search"><div class="search-box">
+        <input type="search" id="set-q" data-i18n-ph="set.search.ph" spellcheck="false" autocomplete="off">
+        <button class="search-clear" id="set-q-x" type="button" hidden data-i18n-aria="set.search.clear" data-i18n-title="set.search.clear">&times;</button>
+      </div></div>
+      <div id="set-q-none" class="set-q-none" hidden data-i18n="set.search.none">No settings match</div>
       <form class="settings-card" id="settings-form" autocomplete="off" onsubmit="return false">
         <section class="sgroup">
         <h2 class="md-h"><span class="hash">##</span> <span data-i18n="set.h.reminders">Reminders</span></h2>
@@ -402,6 +408,7 @@
       <span class="mark" id="ed-mark" aria-hidden="true"></span>
       <h2 class="side-title" id="side-title"></h2>
       <span id="ed-badge" class="badge" hidden></span>
+      <button class="hdr-btn side-share" id="ed-share" type="button" hidden data-i18n-title="ed.share" data-i18n-aria="ed.share"><svg class="ic" data-icon="share" viewBox="0 0 24 24"></svg></button>
       <button class="hdr-btn side-x" id="side-close" type="button" data-i18n-title="side.close" data-i18n-aria="side.close"><svg class="ic" data-icon="x" viewBox="0 0 24 24"></svg></button>
     </div>
     <div class="side-body" id="side-edit" hidden>
@@ -429,7 +436,13 @@
             <div class="chips" id="ed-due" aria-label="Due date"></div>
           </div>
           <div class="field" id="ed-att-field"><!-- task attachments (owner 2026-10-09): pointers in app state, never the note -->
-            <button class="att-fold" id="ed-att-fold" type="button" aria-expanded="false" aria-controls="ed-att"><svg class="ic" data-icon="chevronDown" viewBox="0 0 24 24"></svg><span data-i18n="att.title">Attachments</span><span class="att-count" id="ed-att-count"></span></button>
+            <div class="att-head"><!-- the fold + the images' bulk actions on one line (owner 2026-11-22) -->
+              <button class="att-fold" id="ed-att-fold" type="button" aria-expanded="false" aria-controls="ed-att"><svg class="ic" data-icon="chevronDown" viewBox="0 0 24 24"></svg><span data-i18n="att.title">Attachments</span><span class="att-count" id="ed-att-count"></span></button>
+              <span class="att-acts" id="ed-img-acts" hidden>
+                <button class="att-act" id="ed-img-copy" type="button"><svg class="ic" data-icon="copy" viewBox="0 0 24 24"></svg><span class="att-act-t"></span></button>
+                <button class="att-act" id="ed-img-export" type="button"><svg class="ic" data-icon="folder" viewBox="0 0 24 24"></svg><span class="att-act-t"></span></button>
+              </span>
+            </div>
             <ul class="att-list" id="ed-att"></ul>
           </div>
           <div class="field">
@@ -466,6 +479,28 @@
           <input type="text" id="mv-q" class="att-q" spellcheck="false" autocomplete="off" data-i18n-ph="ed.mv.ph" data-i18n-aria="ed.mv.ph">
           <div class="mv-list" id="mv-list" role="listbox"></div>
         </div>
+        <!-- Share THIS task (owner 2026-11-22): the Share panel's choices for one task, as a view inside the editor, like Attach -->
+        <div class="att-view" id="ed-share-view" hidden>
+          <div class="att-vhead"><button class="btn-text att-back" id="es-back" type="button"><svg class="ic" data-icon="arrowLeft" viewBox="0 0 24 24"></svg><span data-i18n="att.back">Back</span></button><span class="att-task" id="es-title"></span></div>
+          <div class="es-tools">
+            <div class="seg" id="es-fmt" role="radiogroup">
+              <button class="seg-btn" data-fmt="md" type="button" role="radio">Markdown</button>
+              <button class="seg-btn" data-fmt="text" type="button" role="radio" data-i18n="sh.fmt.text">Plain text</button>
+            </div>
+            <div class="seg" id="es-subs" role="radiogroup" data-i18n-aria="sh.opt.subs">
+              <button class="seg-btn" data-subs="all" type="button" role="radio" data-i18n="sh.subs.all" data-i18n-title="sh.subs.allTitle">All</button>
+              <button class="seg-btn" data-subs="open" type="button" role="radio" data-i18n="sh.subs.open" data-i18n-title="sh.subs.openTitle">Open</button>
+              <button class="seg-btn" data-subs="phases" type="button" role="radio" data-i18n="sh.subs.phases" data-i18n-title="sh.subs.phasesTitle">Phases</button>
+              <button class="seg-btn" data-subs="off" type="button" role="radio" data-i18n="sh.subs.off" data-i18n-title="sh.subs.offTitle">Off</button>
+            </div>
+            <div class="inc" role="group" data-i18n-aria="sh.opt.include">
+              <button class="inc-b" id="es-prio" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g p">!!</span><span data-i18n="sh.opt.prio">Priority</span></button>
+              <button class="inc-b" id="es-dates" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g d">28 Sep</span><span data-i18n="sh.opt.dates">Dates</span></button>
+              <button class="inc-b" id="es-imgs" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g">🖼</span><span data-i18n="sh.opt.imgs">Images</span></button>
+            </div>
+          </div>
+          <pre class="es-prev" id="es-prev"></pre>
+        </div>
       </div>
       <div class="side-foot" id="ed-foot">
         <div class="ed-actions">
@@ -488,6 +523,16 @@
             <svg class="ic" data-icon="check" viewBox="0 0 24 24"></svg><span data-i18n="ed.complete">Complete</span>
           </button>
         </div>
+      </div>
+      <!-- Share THIS task's actions, pinned at the bottom like the editor's own foot (owner 2026-11-22) -->
+      <div class="side-foot" id="es-foot" hidden>
+      <div class="es-acts">
+        <span class="es-note" id="es-note" role="status" aria-live="polite"></span>
+        <button id="es-copyimgs" class="btn-soft" type="button" hidden></button>
+        <button id="es-export" class="btn-soft" type="button" data-i18n="sh.export">Export .md</button>
+        <button id="es-wa" class="btn-soft" type="button" data-i18n="sh.wa">WhatsApp</button>
+        <button id="es-copy" class="btn-accent" type="button" data-i18n="sh.copy">Copy</button>
+      </div>
       </div>
     </div>
     <div class="side-body" id="side-share" hidden>
@@ -556,9 +601,12 @@
                 </span>
                 <button class="inc-b" id="sh-prio" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g p">!!</span><span data-i18n="sh.opt.prio">Priority</span></button>
                 <button class="inc-b" id="sh-dates" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g d">28 Sep</span><span data-i18n="sh.opt.dates">Dates</span></button>
+                <!-- Q6 (owner 2026-11-21): Export .md can carry the pictures — Markdown only, so it disables in plain text -->
+                <button class="inc-b" id="sh-imgs" type="button" aria-pressed="false"><span class="inc-tick"></span><span class="opt-g">🖼</span><span data-i18n="sh.opt.imgs">Images</span></button>
               </div>
             </div>
           </div>
+          <button id="btn-imgs" class="btn-soft" type="button" hidden></button><!-- Q6b: painted by syncShare when the picked tasks have images -->
           <button id="btn-export" class="btn-soft" type="button" disabled data-i18n="sh.export">Export .md</button>
           <button id="btn-wa" class="btn-soft" type="button" disabled data-i18n="sh.wa">WhatsApp</button>
           <button id="btn-copy" class="btn-accent" type="button" disabled data-i18n="sh.copy">Copy</button>

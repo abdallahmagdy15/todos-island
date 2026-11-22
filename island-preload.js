@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('api', {
   setCaptureHide: on => ipcRenderer.invoke('save-settings', { hideFromCapture: !!on }), // the top-bar eye (owner 2026-10-10)
   saveShareFmt: fmt => ipcRenderer.invoke('save-settings', { shareFmt: fmt }), // the copy wheel's Markdown / plain petal
   openEditor: (file, id) => ipcRenderer.invoke('open-editor', file, id),
+  viewTask: (file, id) => ipcRenderer.invoke('view-task', file, id), // View (owner 2026-11-22): the task unfolded in the tasks window
   reorderTask: (file, id, beforeId) => ipcRenderer.invoke('reorder-task', file, id, beforeId),
   timerStart: (file, id, title, min) => ipcRenderer.invoke('timer-start', file, id, title, min),
   timerStop: () => ipcRenderer.invoke('timer-stop'),

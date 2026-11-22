@@ -40,6 +40,38 @@ function renameId(from, to) {
 window.addEventListener('task-id', e => renameId(e.detail.from, e.detail.to));
 window.addEventListener('task-moved', e => { if (currentTab !== e.detail.file) showTab(e.detail.file); refresh(); }); // Move to the other note: follow it
 window.api.onWindowOpened(() => { resort(); refresh(); });
+// View (owner 2026-11-22): the island's View lands here — the task's own tab, no search; EVERY other task folds, this one
+// opens with its subtasks and every phase's steps, scrolls to the middle, takes the focus and is lit for a moment.
+// The window may be brand new or just re-sorting (window-opened → resort + refresh), and either can re-render after us —
+// so the scroll is checked again once things settle (owner 2026-11-22: "it only showed the window, on the first task").
+let revealGen = 0;
+window.api.onRevealTask(async ({ file, id }) => {
+  const gen = ++revealGen;
+  if (window.Panels && window.Panels.kind) await window.Panels.close();
+  await refresh(); // the snapshot the window shows after it came forward
+  if (gen !== revealGen) return; // a newer View won
+  if (currentTab !== file || !$('view-settings').hidden) showTab(file);
+  if ($('search').value) { $('search').value = ''; onSearch(); }
+  const t = snap && snap.sections.flatMap(x => x.items).find(x => x.id === id && x.file === file);
+  if (!t) return;
+  const keysOf = x => [ck(x.id), ...foldPlan(x, false).filter(u => u.key).map(u => u.key)];
+  setOpen(foldable(taskRows()).filter(x => x.id !== t.id).flatMap(keysOf), false); // everything else folds
+  setOpen(keysOf(t), true); // this one opens whole
+  renderList();
+  const rowNow = () => document.querySelector('#task-list .wrow[data-id="' + CSS.escape(id) + '"]');
+  const land = (smooth, lit) => {
+    const row = rowNow();
+    if (!row) return;
+    const b = row.getBoundingClientRect(), inView = b.top >= 60 && b.bottom <= innerHeight - 40;
+    if (!inView || smooth) row.scrollIntoView({ block: 'center', behavior: smooth && !matchMedia('(prefers-reduced-motion: reduce)').matches ? 'smooth' : 'auto' });
+    if (!row.hasAttribute('tabindex')) row.tabIndex = -1; // focusable from code, never a Tab stop
+    if (document.activeElement !== row) row.focus({ preventScroll: true });
+    if (lit && !row.classList.contains('viewed')) { row.classList.add('viewed'); setTimeout(() => { const r = rowNow(); if (r) r.classList.remove('viewed'); }, 2200); }
+  };
+  requestAnimationFrame(() => requestAnimationFrame(() => land(true, true)));
+  for (const ms of [450, 1000]) setTimeout(() => { if (gen === revealGen) land(false, true); }, ms); // after a late re-render
+});
+
 
 // the list is patched per row (owner 2026-09-29: "everything in place while I'm editing"): a refresh, a Now toggle or a
 // fold only replaces the rows whose markup changed, so focus, hover and scroll stay where they are.
@@ -330,7 +362,13 @@ function applyMode() {
 }
 let LANG = 'en'; // resolved language from the snapshot; notation/dates/numerals never translate
 window.UI.hydrateIcons(); // one icon set (ui-shared.js ICONS) for every window
-window.I18N.applyDoc(LANG); // placeholders/titles/aria have no inline fallback — apply once at load, not only on a language change
+// Q3 (owner 2026-11-21): the small description under each setting is hidden (.shint, window.css); it lives on as the
+// label row's tooltip. Re-run after every applyDoc: a language change rewrites the hint text
+function hintTips() {
+  document.querySelectorAll('.shint:not(.file-name)').forEach(h => { const host = h.parentElement; if (host) host.title = h.textContent.trim(); });
+}
+const applyDoc = lang => { window.I18N.applyDoc(lang); hintTips(); };
+applyDoc(LANG); // placeholders/titles/aria have no inline fallback — apply once at load, not only on a language change
 const T = (k, prm) => window.I18N.t(LANG, k, prm);
 function updateTabCounts() {
   if (!snap) return;
@@ -415,7 +453,7 @@ setInterval(() => { if (snap) renderLastWrite(); }, 30e3);
 async function refresh() {
   if (animating) { refreshPending = true; return; }
   snap = await window.api.getSnapshot();
-  if (snap && snap.lang && snap.lang !== LANG) { LANG = snap.lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); }
+  if (snap && snap.lang && snap.lang !== LANG) { LANG = snap.lang; window.UI.setLang(LANG); applyDoc(LANG); }
   if (snap && snap.settings) { window.SFX.enabled = !!snap.settings.soundOn; window.UI.applyTheme(snap.settings); $('set-capture').checked = !!snap.settings.hideFromCapture; } // the tray can flip it too
   applyMode();
   updateTabCounts();
@@ -872,6 +910,9 @@ $('search-clear').addEventListener('click', () => { $('search').value = ''; onSe
 document.addEventListener('keydown', e => {
   if (window.UI.undoKey(e, $('undo-toast'))) return; // Ctrl+Z = the bubble's Undo (a text field keeps its own)
   if (e.key === 'Escape' && !$('keys-pop').hidden) { toggleKeys(false); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'f' && !$('view-settings').hidden) {
+    e.preventDefault(); $('set-q').focus(); $('set-q').select(); return; // Q2: Ctrl+F finds settings; the tasks view keeps its own
+  }
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   if (e.target.closest('input, textarea, select, [contenteditable], .recorder')) return;
   if (e.key === '?') { e.preventDefault(); toggleKeys(); return; }
@@ -1186,7 +1227,102 @@ function setAdvanced(open) {
 }
 $('adv-toggle').addEventListener('click', () => setAdvanced($('set-advanced').hidden));
 try { setAdvanced(localStorage.getItem('ti-adv-open') === '1'); } catch (e) { setAdvanced(false); }
-window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); window.I18N.applyDoc(LANG); if (snap && snap.settings) syncPaperForm(snap.settings); refresh(); });
+// Q2 (owner 2026-11-21): Settings search — filter in place. Haystacks carry English AND Arabic whatever the
+// UI language, so "dark" and "داكن" both work. Highlights use the CSS Custom Highlight API (no DOM wrapping —
+// applyDoc would destroy it). A hit inside a closed drawer opens it; clearing restores the pre-search state.
+const setNorm = s => String(s || '').toLowerCase()
+  .replace(/[\u064B-\u0652\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+const setI18nTexts = root => [...root.querySelectorAll('[data-i18n]')].map(el =>
+  window.I18N.t('en', el.dataset.i18n) + ' ' + window.I18N.t('ar', el.dataset.i18n) + ' ' + el.textContent).join(' ');
+let setHay = null, setSearchOpen = null, setQT = null;
+function buildSetHay() { // lazy, once per search session (a language change drops it)
+  setHay = new Map();
+  for (const row of document.querySelectorAll('#settings-form .srow')) {
+    let hay = setI18nTexts(row);
+    for (let el = row.previousElementSibling; el; el = el.previousElementSibling) // the nearest heading above
+      if (el.matches('h2.md-h, h3.md-h')) { hay += ' ' + setI18nTexts(el); break; }
+    const drawer = row.closest('.adv'), tog = drawer ? document.querySelector(`.adv-toggle[aria-controls="${drawer.id}"]`) : null;
+    if (tog) hay += ' ' + setI18nTexts(tog); // rows in a drawer also answer to the drawer's own name
+    const card = row.closest('.sgroup'), cardH = card && card.querySelector(':scope > h2.md-h');
+    if (cardH) hay += ' ' + setI18nTexts(cardH);
+    setHay.set(row, setNorm(hay));
+  }
+}
+function setHL(tokens) {
+  if (!(window.CSS && CSS.highlights)) return;
+  if (!tokens.length) { CSS.highlights.delete('set-hit'); return; }
+  const ranges = [], walker = document.createTreeWalker($('settings-form'), NodeFilter.SHOW_TEXT, {
+    acceptNode: n => n.parentElement && n.parentElement.closest('.srow') && n.parentElement.matches('label, .lbl') ? 1 : 2 });
+  let n;
+  while ((n = walker.nextNode())) {
+    if (n.parentElement.closest('.srow').classList.contains('set-out') || n.parentElement.closest('.srow').hidden) continue;
+    let txt = ''; const map = [];
+    for (let i = 0; i < n.data.length; i++) { // per-char normalize, keeping a map back to source offsets
+      const norm = setNorm(n.data[i].toLowerCase());
+      for (const c of norm) { txt += c; map.push(i); }
+    }
+    for (const tk of tokens) {
+      let at = txt.indexOf(tk);
+      while (at !== -1) {
+        const r = document.createRange();
+        r.setStart(n, map[at]); r.setEnd(n, map[at + tk.length - 1] + 1);
+        ranges.push(r);
+        at = txt.indexOf(tk, at + tk.length);
+      }
+    }
+  }
+  CSS.highlights.set('set-hit', new Highlight(...ranges));
+}
+function runSetSearch() {
+  const tokens = setNorm($('set-q').value).split(/\s+/).filter(Boolean);
+  const form = $('settings-form');
+  $('set-q-x').hidden = !$('set-q').value;
+  if (!tokens.length) { // back to the full form, drawers as they were before the search
+    form.querySelectorAll('.set-out').forEach(el => el.classList.remove('set-out'));
+    if (setSearchOpen) { setAdvanced(setSearchOpen.adv); setLookAdvanced(setSearchOpen.look); setSearchOpen = null; }
+    $('set-q-none').hidden = true;
+    setHL([]);
+    return;
+  }
+  if (!setHay) buildSetHay();
+  if (!setSearchOpen) setSearchOpen = { adv: !$('set-advanced').hidden, look: !$('look-advanced').hidden };
+  const vis = row => !row.classList.contains('set-out') && !row.hidden; // a row the app itself hid ([hidden]) never counts
+  for (const [row, hay] of setHay) row.classList.toggle('set-out', !tokens.every(t => hay.includes(t)));
+  const holds = [...form.querySelectorAll('.sgroup, .adv, #paper-rows')]; // things that contain rows
+  for (const c of holds) c.classList.toggle('set-out', ![...c.querySelectorAll('.srow')].some(vis));
+  for (const c of holds) [...c.children].forEach(ch => {
+    if (ch.matches('.srow, h2.md-h, h3.md-h') || holds.includes(ch)) return;
+    if (ch.matches('.adv-toggle')) { // the toggle stays iff its drawer has a hit (and then opens below)
+      const dr = $(ch.getAttribute('aria-controls'));
+      ch.classList.toggle('set-out', !dr || dr.classList.contains('set-out'));
+      return;
+    }
+    if ([...ch.querySelectorAll('.srow')].some(vis)) return; // a wrapper that holds a hit stays (Claude review)
+    ch.classList.add('set-out'); // notes, path editors, the About block — not matches themselves
+  });
+  if (!$('set-advanced').classList.contains('set-out')) setAdvanced(true);
+  if (!$('look-advanced').classList.contains('set-out')) setLookAdvanced(true);
+  for (const c of holds) { // a heading stays iff a visible row follows it before the next heading
+    const kids = [...c.children];
+    kids.forEach((ch, i) => {
+      if (!ch.matches('h2.md-h, h3.md-h')) return;
+      let seen = false;
+      for (let j = i + 1; j < kids.length && !kids[j].matches('h2.md-h, h3.md-h'); j++)
+        if ((kids[j].matches('.srow') ? [kids[j]] : [...kids[j].querySelectorAll('.srow')]).some(vis)) { seen = true; break; } // rows may sit in a wrapper
+      ch.classList.toggle('set-out', !seen);
+    });
+  }
+  $('set-q-none').hidden = [...form.querySelectorAll('.srow')].some(vis); // shows only when NOTHING matches (Claude review: was inverted)
+  setHL(tokens);
+}
+$('set-q').addEventListener('input', () => { $('set-q-x').hidden = !$('set-q').value; clearTimeout(setQT); setQT = setTimeout(runSetSearch, 120); });
+$('set-q').addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  e.preventDefault(); e.stopPropagation();
+  if ($('set-q').value) { $('set-q').value = ''; runSetSearch(); } else $('set-q').blur();
+});
+$('set-q-x').addEventListener('click', () => { $('set-q').value = ''; runSetSearch(); $('set-q').focus(); });
+window.api.onLangChanged(lang => { LANG = lang; window.UI.setLang(LANG); applyDoc(LANG); if (snap && snap.settings) syncPaperForm(snap.settings); refresh(); setHay = null; if ($('set-q').value.trim()) runSetSearch(); }); // rebuild haystacks in the new language, keep the filter
 function fstat(id, msg, kind) {
   const el = document.querySelector(`.fstat[data-for="${id}"]`);
   if (!el) return;

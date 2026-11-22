@@ -273,6 +273,11 @@ body.pdrag, body.pdrag * { cursor: grabbing !important; user-select: none; }
   background: var(--accent-soft); animation: freshInk 900ms var(--ease-out) forwards;
 }
 @keyframes freshInk { from { opacity: 1; } to { opacity: 0; } }
+/* View (owner 2026-11-22): the task the island's View opened — the same ink, held a little longer so the eye finds it */
+.wrow.viewed::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: var(--accent-soft); box-shadow: inset 0 0 0 1.5px var(--accent); animation: freshInk 1800ms 300ms var(--ease-out) both;
+}
 
 .empty { color: var(--faint); margin-top: 60px; text-align: center; }
 .empty.bad { color: var(--p3); }
@@ -344,14 +349,14 @@ button:disabled { opacity: 0.45; cursor: not-allowed; filter: none; }
   box-shadow: inset 0 0 0 1px var(--g-edge), inset 0 1px 0 var(--spec), 0 0 0 1px var(--ctl-line); }
 
 /* ---- fields: recessed glass (they sit INTO the surface) ---- */
-#search, #sh-search, .new-task textarea, .settings-card input[type=text],
+#search, #sh-search, #set-q, .new-task textarea, .settings-card input[type=text],
 .settings-card select, .addsub input, .addsub textarea, #ed-title, input.dtime {
   color: var(--ink); border: 0; border-radius: var(--r-2); font-family: inherit; font-size: var(--fs-3);
   background: var(--field); caret-color: var(--accent);
   box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1px var(--rule), inset 0 -1px 0 var(--spec-bounce), 0 0 0 0 var(--accent-soft);
   transition: box-shadow 200ms var(--ease-out), background 200ms ease; /* critically damped: focus never bounces */
 }
-#search:focus, #sh-search:focus, .new-task textarea:focus, .settings-card input:focus, .settings-card select:focus, .addsub input:focus, .addsub textarea:focus, #ed-title:focus, input.dtime:focus {
+#search:focus, #sh-search:focus, #set-q:focus, .new-task textarea:focus, .settings-card input:focus, .settings-card select:focus, .addsub input:focus, .addsub textarea:focus, #ed-title:focus, input.dtime:focus {
   outline: none; background: color-mix(in srgb, var(--field) 55%, rgba(var(--sheet-rgb), 0.45));
   box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1.5px var(--accent), inset 0 -1px 0 var(--spec-bounce), 0 0 0 3px var(--accent-soft);
 }
@@ -436,6 +441,7 @@ h2.md-h { margin-bottom: var(--s-1); }
 .slabel { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .slabel label, .slabel .lbl { font-size: var(--fs-3); color: var(--ink); font-weight: 600; }
 .shint { font-size: var(--fs-1); color: var(--faint); line-height: 1.4; }
+.shint:not(.file-name) { display: none; } /* Q3 (owner 2026-11-21): hidden for now; window.js hintTips() puts the text on the row as a tooltip. Delete this line to bring them back */
 .shint.file-name { font-family: var(--font-mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sctl { flex: none; width: 240px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
 .sctl.row { flex-direction: row; justify-content: flex-end; gap: var(--s-2); }
@@ -451,6 +457,17 @@ h2.md-h { margin-bottom: var(--s-1); }
 .ctl-group { display: flex; align-items: center; gap: var(--s-2); flex: none; }
 .settings-card .unit-field input.num-in { padding-inline-end: 34px; } /* the unit sits inside the field (tokens.css .unit-field) */
 .settings-card input.time-in { cursor: pointer; } /* a click opens the time wheel (UI.timeWheel); typing still works */
+/* ---- Settings search (Q2, owner 2026-11-21): sticky above the cards, the same surface they sit on, so
+   they scroll under it without showing through; the field itself reuses the tasks search look ---- */
+.set-search { position: sticky; top: 0; z-index: 5; display: flex; width: 100%; max-width: 880px; margin: 0 auto var(--s-3);
+  padding: var(--s-2); border-radius: calc(var(--r-3) + 2px); background: var(--card); box-shadow: inset 0 0 0 1px var(--rule-soft); }
+.glass-on .set-search { background: rgba(var(--sheet-rgb), var(--g-sheet, 0.5));
+  -webkit-backdrop-filter: blur(16px) saturate(var(--glass-sat)); backdrop-filter: blur(16px) saturate(var(--glass-sat)); }
+#set-q { flex: 1; min-width: 0; height: 34px; padding-block: 0; padding-inline: 13px 36px; }
+#set-q::-webkit-search-cancel-button { -webkit-appearance: none; display: none; } /* our ✕ (set-q-x) is the one clear */
+.set-q-none { padding: var(--s-4) 0; text-align: center; color: var(--faint); }
+.set-out { display: none !important; }
+::highlight(set-hit) { background-color: color-mix(in srgb, var(--accent) 30%, transparent); color: inherit; }
 .path-edit { display: flex; flex-direction: column; gap: 4px; padding: 0 0 var(--s-3); border-bottom: 1px solid var(--rule-soft); }
 .path-edit input.full { width: 100%; font-family: var(--font-mono); font-size: var(--fs-2); }
 .note { color: var(--muted); font-size: var(--fs-2); margin: var(--s-2) 0; line-height: 1.6; }
@@ -597,7 +614,7 @@ kbd {
 .glass-on .toast, .glass-on .notice { --card: rgba(var(--sheet-rgb), 0.9); }
 @media (prefers-reduced-transparency: reduce) {
   .glass-on .ambient { display: none; }
-  .glass-on .new-task, .glass-on .side, .glass-on .sgroup:not(.adv-card), .glass-on .sgroup.adv-card:has(.adv-toggle[aria-expanded="true"]) { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .glass-on .new-task, .glass-on .side, .glass-on .set-search, .glass-on .sgroup:not(.adv-card), .glass-on .sgroup.adv-card:has(.adv-toggle[aria-expanded="true"]) { background: var(--card); -webkit-backdrop-filter: none; backdrop-filter: none; }
 }
 
 /* Glass steps (Glass, Label size, Task size): the same clear track as tabs and .seg (tokens.css); the steps before the
@@ -720,7 +737,7 @@ header .upd { margin-inline-start: var(--s-3); }
    Enters from the end edge and leaves the same way; it MATERIALIZES (the frost arrives with the slide). It takes 70 %
    of the window (owner 2026-09-29; was half) and floats OVER the list like a side sheet (never split or shrink the window).
    Critically damped (no bounce on a big surface). ✕, Esc or a click outside closes it (panels.js). */
-:root { --side-w: max(340px, 70vw); }
+:root { --side-w: max(340px, 85vw); } /* 85 % (owner 2026-11-21, Q1; was 70 %): a strip of the list stays in view */
 /* the frost behind it (owner 2026-09-29: "so I don't misclick a task while I only want to dismiss the panel"): whatever
    view is under the panel fades behind a light frost and takes no clicks; a click on it only closes the panel.
    The header stays live (Share toggles the panel, tabs switch). */
@@ -753,6 +770,11 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 }
 .side-head { flex: none; display: flex; align-items: center; gap: var(--s-2); padding: 10px 10px 10px var(--s-4); border-bottom: 1px solid var(--rule-soft); }
 .side-title { font-size: var(--fs-4); font-weight: 650; }
+/* Share THIS task (owner 2026-11-22): its icon sits before the ✕ and takes the auto margin; lit while its view is open */
+.side-share { margin-inline-start: auto; width: 30px; height: 30px; }
+.side-share .ic { width: 15px; height: 15px; }
+.side-share.on { color: var(--accent); background: var(--accent-soft); }
+.side-share:not([hidden]) + .side-x { margin-inline-start: 4px; }
 .side-x { margin-inline-start: auto; width: 30px; height: 30px; }
 .side-x .ic { width: 15px; height: 15px; }
 .side-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -880,6 +902,18 @@ body.side-open .side-scrim { opacity: 1; visibility: visible; transition: opacit
 .att-list li.ok .ah { color: var(--ok); }
 .att-list li.bad .ah { color: var(--danger); }
 .att-list .sub-del { margin-inline-start: 0; }
+/* Q6b: the "Copy all images (N)" row after the image rows — the list's look, in the accent */
+/* the Attachments line: the fold, then the images' bulk actions (Copy all · Export) beside it (owner 2026-11-22) */
+.att-head { display: flex; align-items: center; gap: var(--s-2); margin-bottom: 7px; }
+.att-head .att-fold { margin-bottom: 0; }
+.att-acts { display: inline-flex; align-items: center; gap: 2px; }
+.att-act { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: 0; border-radius: var(--r-1); background: transparent;
+  font: inherit; font-size: var(--fs-1); font-weight: 600; color: var(--accent); cursor: pointer; transition: background var(--d-1) ease; }
+.att-act:hover { background: var(--hover); }
+.att-act .ic { width: 13px; height: 13px; flex: none; }
+.att-act-t { white-space: nowrap; } /* the label swaps to "Copied 7" / "Saved 7" for 1.4 s */
+.att-act.ok { color: var(--ok); }
+.att-act.bad { color: var(--danger); }
 /* the fold header: a quiet text button that reads like the field labels */
 .att-fold { display: flex; align-items: center; gap: 6px; border: 0; background: transparent; padding: 0; margin-bottom: 7px;
   font: inherit; font-size: var(--fs-2); font-weight: 650; color: var(--muted); cursor: pointer; }
@@ -949,6 +983,7 @@ button.sh-sec:hover { color: var(--ink); }
 .inc .opt-g.p { color: var(--p2); }
 .inc .opt-g.d { color: var(--accent); }
 .inc-b:not(.on) .opt-g { opacity: .55; }
+.inc-b:disabled { opacity: .45; cursor: default; } /* Q6: Images is Markdown-only — text can't carry pictures */
 /* the Subtasks part: glyph · name · a mini switch All · Open · Off (owner 2026-09-30) */
 .inc-part { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding-inline: 10px 3px; font-size: var(--fs-2); font-weight: 650; color: var(--muted); }
 .inc-part.on { color: var(--ink); background: var(--accent-soft); }
@@ -1075,7 +1110,16 @@ button.sh-sec:hover { color: var(--ink); }
 :root[data-material="frosted"] .btn-accent:disabled { color: var(--ink); background: var(--ctl); box-shadow: 0 0 0 0.5px var(--f-hair); }
 :root[data-material="frosted"] :is(.hdr-btn, .wtrash, .search-clear, .btn-text, .undo-btn, .st-keys):is(:hover, [aria-expanded="true"]) {
   background: var(--f-track); box-shadow: none; }
-:root[data-material="frosted"] :is(#search, #sh-search, .new-task textarea, .settings-card input[type=text], .settings-card select, .addsub input, .addsub textarea, #ed-title, input.dtime) {
+:root[data-material="frosted"] :is(#search, #sh-search, #set-q, .new-task textarea, .settings-card input[type=text], .settings-card select, .addsub input, .addsub textarea, #ed-title, input.dtime) {
   box-shadow: inset 0 0 0 0.5px var(--f-hair); }
-:root[data-material="frosted"] :is(#search, #sh-search, .new-task textarea, .settings-card input, .settings-card select, .addsub input, .addsub textarea, #ed-title, input.dtime):focus {
+:root[data-material="frosted"] :is(#search, #sh-search, #set-q, .new-task textarea, .settings-card input, .settings-card select, .addsub input, .addsub textarea, #ed-title, input.dtime):focus {
   background: var(--field); box-shadow: inset 0 0 0 0.5px var(--f-hair), 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent); }
+
+/* ---- the editor's Share this task view (owner 2026-11-22): the Share panel's choices for one task ---- */
+.es-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2); }
+.es-prev { margin: 0; padding: 10px 12px; overflow: auto; white-space: pre-wrap; word-break: break-word;
+  font-family: var(--font-mono); font-size: var(--fs-2); line-height: 1.55; color: var(--ink);
+  border-radius: var(--r-2); background: var(--field); box-shadow: inset 0 1px 3px var(--inner-shade), inset 0 0 0 1px var(--rule); }
+#es-foot .es-acts { width: 100%; } /* pinned at the bottom like #ed-foot (owner 2026-11-22: "don't follow the content height") */
+.es-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: var(--s-2); }
+.es-note { margin-inline-end: auto; font-size: var(--fs-1); color: var(--muted); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

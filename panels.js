@@ -21,13 +21,14 @@
     $('side-title').textContent = T(k === 'edit' ? 'ed.title' : 'sh.header');
     $('ed-badge').hidden = k !== 'edit';
     $('ed-mark').hidden = k !== 'edit';
+    $('ed-share').hidden = k !== 'edit'; // Share THIS task (owner 2026-11-22), beside the ✕
     side.setAttribute('aria-hidden', 'false');
     side.classList.add('open');
     document.body.classList.add('side-open');
   }
   async function close() {
     if (!kind) return;
-    toggleMenu(false); closeWiz(); endMove();
+    toggleMenu(false); closeWiz(); endMove(); closeShareView();
     await saveNow(); // a pending edit lands before the panel goes
     kind = null;
     side.classList.remove('open');
@@ -70,7 +71,7 @@
     if (kind === 'edit' && (file !== FILE || id !== ID)) await saveNow(); // switching tasks: the old one lands first
     const same = kind === 'edit' && file === FILE && id === ID;
     FILE = file; ID = id;
-    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); endMove(); subHide(); discardPending('sub'); discardPending('step'); } // E2b: pending images never cross tasks
+    if (!same) { session = Date.now().toString(36) + Math.random().toString(36).slice(2, 6); for (const k of Object.keys(touched)) delete touched[k]; closeWiz(); endMove(); closeShareView(); subHide(); discardPending('sub'); discardPending('step'); } // E2b: pending images never cross tasks
     show('edit');
     await load(!same);
     if (opts.focus === 'sub') setTimeout(() => $('ed-sub').focus({ preventScroll: true }), 80);
@@ -82,8 +83,8 @@
     if (s && s.settings) splitOn = s.settings.splitBlocks !== false; // P5 (owner 2026-11-15): read live from every snapshot
     const t = s.sections.flatMap(x => x.items).find(x => x.id === ID) || null;
     $('ed-missing').hidden = !!t;
-    $('ed-form').hidden = !t || wizOpen || moveOpen; // the Attach steps / Move to keep the view until they close
-    $('ed-foot').hidden = !t || wizOpen || moveOpen;
+    $('ed-form').hidden = !t || wizOpen || moveOpen || shareOpen; // the Attach steps / Move to / Share this task keep the view until they close
+    $('ed-foot').hidden = !t || wizOpen || moveOpen || shareOpen;
     if (!t) return;
     curTask = t; // saveAtt repaints from it when only the attachment list changed
     $('ed-badge').textContent = T(t.file === 'work' ? 'win.st.file.work' : 'win.st.file.personal');
@@ -244,6 +245,7 @@
     window.SFX.play('tick');
     const pop = window.UI.imgPeek(side, btn, im.map((n, k) => ({ name: n, label: T('img.n', { n: k + 1 }) })), {
       open: n => window.api.imgOpen(n),
+      copy: n => window.api.imgCopy([n]), // Q6b: one image → the clipboard, straight from the peek
       remove: async n => { await saveNow(); await window.api.imgRemove(FILE, ID, title, n, session); await load(false); },
       onClose: () => { if (imgPop === pop) imgPop = null; }
     });
@@ -538,7 +540,12 @@
     $('ed-att-count').textContent = total ? '· ' + total : '';
     paintAttFold();
     $('ed-att').innerHTML = att.map((a, i) => `<li data-i="${i}" tabindex="0" role="button" title="${esc(a.path || a.url || a.dir || '')}">${window.UI.icon(window.UI.attIcon(a))}<span class="an">${esc(a.name)}</span><span class="ah">${esc(window.UI.attHint(a))}</span>${window.UI.attCopyHtml(a, i)}<button class="sub-del" type="button" data-attdel="${i}" aria-label="${esc(T('att.del', { t: a.name }))}">&times;</button></li>`).join('')
-      + imgRows.map(m => `<li data-img="${esc(m.name)}" tabindex="0" role="button">${window.UI.icon('image')}<span class="an">${esc(m.label)}</span><span class="ah">${esc(T('img.hint'))}</span><button class="sub-del" type="button" data-imgdel="${esc(m.name)}" data-imgsub="${esc(m.sub || '')}" aria-label="${esc(T('img.del'))}">&times;</button></li>`).join('');
+      + imgRows.map(m => `<li data-img="${esc(m.name)}" tabindex="0" role="button">${window.UI.icon('image')}<span class="an">${esc(m.label)}</span><span class="ah">${esc(T('img.hint'))}</span><button class="scopy" type="button" data-imgcopy="${esc(m.name)}" title="${esc(T('img.copy'))}" aria-label="${esc(T('img.copy'))}">${window.UI.icon('copy')}</button><button class="sub-del" type="button" data-imgdel="${esc(m.name)}" data-imgsub="${esc(m.sub || '')}" aria-label="${esc(T('img.del'))}">&times;</button></li>`).join('');
+    imgNames = imgRows.map(m => m.name); imgLabels = imgRows.map(m => m.label); // the header's Copy all / Export (owner 2026-11-22)
+    $('ed-img-acts').hidden = !imgRows.length;
+    $('ed-img-copy').querySelector('.att-act-t').textContent = T('img.copyAll', { n: imgRows.length });
+    $('ed-img-export').querySelector('.att-act-t').textContent = T('img.export');
+    $('ed-img-export').title = T('img.exportTitle');
   }
   async function saveAtt(list) {
     await saveNow(); // a pending title edit lands first: attachments are filed under the task's title
@@ -553,6 +560,17 @@
       setTimeout(() => { li.classList.remove('ok'); if (att[i]) hint.textContent = window.UI.attHint(att[i]); }, 1400);
     } else if (!r || !r.ok) { li.classList.add('bad'); setTimeout(() => li.classList.remove('bad'), 1400); }
   }
+  // the images' bulk actions sit on the Attachments line (owner 2026-11-22: "beside the Attachments word, and Export too")
+  let imgNames = [], imgLabels = [];
+  const actFlash = (b, text, bad) => { const t = b.querySelector('.att-act-t'), old = t.textContent; t.textContent = text; b.classList.toggle('bad', !!bad); b.classList.toggle('ok', !bad); setTimeout(() => { t.textContent = old; b.classList.remove('ok', 'bad'); }, 1400); };
+  $('ed-img-copy').addEventListener('click', async () => { // every image of the task → the clipboard (one picture / several as files)
+    const r = await window.api.imgCopy(imgNames);
+    if (r && r.ok) { window.SFX.play('tick'); actFlash($('ed-img-copy'), T('sh.imgsCopied', { n: r.n })); } else actFlash($('ed-img-copy'), T('img.copyFail'), true);
+  });
+  $('ed-img-export').addEventListener('click', async () => { // every image → a folder the owner picks, named after its subtask
+    const r = await window.api.imgExport(imgNames, imgLabels);
+    if (r && r.ok) { window.SFX.play('tick'); actFlash($('ed-img-export'), T('img.exported', { n: r.n })); } else if (r && r.reason !== 'cancel') actFlash($('ed-img-export'), T('img.copyFail'), true);
+  });
   $('ed-att').addEventListener('click', async e => {
     const gd = e.target.closest('[data-imgdel]'); // an image's × (E2b): the note line leaves, the FILE stays — Undo brings it back
     if (gd) { window.SFX.play('delete'); await saveNow(); await window.api.imgRemove(FILE, ID, gd.dataset.imgsub || null, gd.dataset.imgdel, session); load(false); return; }
@@ -560,6 +578,13 @@
     if (d) { window.SFX.play('delete'); saveAtt(att.filter((_, i) => i !== +d.dataset.attdel)); return; }
     const c = e.target.closest('[data-attcopy]'); // N1: copy its path / link / command / name, open nothing
     if (c) { const a = att[+c.dataset.attcopy]; if (a) window.api.copyText(window.UI.attCopyText(a)).then(() => { window.SFX.play('tick'); window.UI.copyFlash(c); }); return; }
+    const ic = e.target.closest('[data-imgcopy]'); // Q6b: that image → the clipboard (one picture / several as files)
+    if (ic) {
+      const r = await window.api.imgCopy([ic.dataset.imgcopy]);
+      if (r && r.ok) { window.SFX.play('tick'); window.UI.copyFlash(ic); }
+      else { ic.closest('li').classList.add('bad'); setTimeout(() => { const li = ic.closest('li'); if (li) li.classList.remove('bad'); }, 1400); }
+      return;
+    }
     const gi = e.target.closest('li[data-img]'); // an image row (E2b): open it, same feedback as the peek
     if (gi) {
       const r = await window.api.imgOpen(gi.dataset.img), h = gi.querySelector('.ah');
@@ -801,6 +826,87 @@
     flashSaved(r && r.ok ? T('ed.mv.done') : T('att.fail'), !(r && r.ok));
     load(false);
   });
+  // ---- Share THIS task (owner 2026-11-22): the Share panel's choices for the open task only — format, Subtasks,
+  // Priority / Dates / Images — with a live preview and Copy · Copy images · Export .md · WhatsApp, as a view inside the
+  // editor like Attach / Move to. The options ARE the Share panel's (opts / saveOpts, per format, remembered), so both
+  // places stay in step. The ✕-side share icon opens it; Back or Esc returns to the editor.
+  let shareOpen = false, esFmt = 'text';
+  const esTask = () => (curTask && curTask.id === ID ? curTask : null);
+  const esText = imgDir => {
+    const t = esTask(), o = opts[esFmt];
+    return t ? window.ShareText.taskText(t, esFmt, { withSubs: o.subs, withPrio: o.prio, withDates: o.dates, imgDir: esFmt === 'md' ? imgDir : null }) : '';
+  };
+  function esImgs() { // the task's images + its subtasks' as the current Subtasks option shows them (like the Share panel's)
+    const t = esTask(), mode = opts[esFmt].subs, out = [];
+    if (!t) return out;
+    const add = ns => { for (const n of ns || []) if (!out.includes(n)) out.push(n); };
+    add(t.imgs);
+    if (mode !== 'off') for (const s of t.subs || []) {
+      if (mode === 'open' && s.done) continue;
+      if (mode === 'phases' && !(s.ph && !s.under)) continue;
+      add(s.im);
+    }
+    return out;
+  }
+  function paintShareView() {
+    const o = opts[esFmt];
+    $('es-fmt').querySelectorAll('[data-fmt]').forEach(b => { const on = b.dataset.fmt === esFmt; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
+    $('es-subs').querySelectorAll('[data-subs]').forEach(b => { const on = b.dataset.subs === o.subs; b.classList.toggle('sel', on); b.setAttribute('aria-checked', on); });
+    for (const [id, k] of [['es-prio', 'prio'], ['es-dates', 'dates'], ['es-imgs', 'imgs']]) { const v = !!o[k]; $(id).classList.toggle('on', v); $(id).setAttribute('aria-pressed', v); }
+    $('es-imgs').disabled = esFmt === 'text'; // Images is Markdown-only (Q6): text can't carry pictures
+    $('es-imgs').title = T(esFmt === 'text' ? 'sh.opt.imgsOnlyMd' : 'sh.opt.imgsTitle');
+    $('es-prev').textContent = esText(null); // what Copy gives
+    const n = esImgs().length;
+    $('es-copyimgs').hidden = !n;
+    if (n) $('es-copyimgs').textContent = T('sh.imgs', { n });
+  }
+  async function openShareView() {
+    if (shareOpen) { closeShareView(); return; } // the icon toggles the view
+    closeWiz(); endMove(); subHide(); toggleMenu(false);
+    await saveNow(); // a pending edit lands first, so the text is the note as it is now
+    shareOpen = true;
+    esFmt = fmtFrom(await window.api.getSnapshot()); // the Share setting's format, like the Share panel
+    await load(false); // fresh curTask (and the form stays hidden while shareOpen)
+    $('es-title').textContent = $('ed-title').value.split('\n')[0];
+    $('es-note').textContent = '';
+    $('ed-form').hidden = true; $('ed-foot').hidden = true; $('ed-share-view').hidden = false; $('es-foot').hidden = false; // its actions sit in their own pinned foot
+    $('ed-share').classList.add('on');
+    paintShareView();
+    $('ed-share-view').closest('.side-scroll').scrollTop = 0;
+    $('es-copy').focus();
+  }
+  function closeShareView() {
+    if (!shareOpen) return;
+    shareOpen = false;
+    $('ed-share').classList.remove('on');
+    $('ed-share-view').hidden = true; $('es-foot').hidden = true; $('ed-form').hidden = false; $('ed-foot').hidden = false;
+  }
+  const esFlash = (b, text) => { const old = b.textContent; b.textContent = text; setTimeout(() => { b.textContent = old; }, 1200); };
+  $('ed-share').addEventListener('click', () => { window.SFX.play('tick'); openShareView(); });
+  $('es-back').addEventListener('click', () => { window.SFX.play('tick'); closeShareView(); $('ed-share').focus(); });
+  for (const el of [$('ed-share-view'), $('es-foot')]) // the view AND its pinned foot: Esc steps back to the editor, never closes the panel
+    el.addEventListener('keydown', e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeShareView(); $('ed-share').focus(); } });
+  $('es-fmt').addEventListener('click', e => { const b = e.target.closest('[data-fmt]'); if (b && b.dataset.fmt !== esFmt) { window.SFX.play('tick'); esFmt = b.dataset.fmt; paintShareView(); } });
+  $('es-subs').addEventListener('click', e => { const b = e.target.closest('[data-subs]'); if (b && b.dataset.subs !== opts[esFmt].subs) { window.SFX.play('tick'); opts[esFmt].subs = b.dataset.subs; saveOpts(); paintShareView(); } });
+  for (const [id, k] of [['es-prio', 'prio'], ['es-dates', 'dates'], ['es-imgs', 'imgs']])
+    $(id).addEventListener('click', () => { opts[esFmt][k] = !opts[esFmt][k]; window.SFX.play('tick'); saveOpts(); paintShareView(); });
+  $('es-copy').addEventListener('click', async () => { await window.api.copyText(esText(null)); window.SFX.play('tick'); esFlash($('es-copy'), T('sh.copied')); });
+  $('es-copyimgs').addEventListener('click', async () => {
+    const r = await window.api.imgCopy(esImgs());
+    if (r && r.ok) { window.SFX.play('tick'); esFlash($('es-copyimgs'), T('sh.imgsCopied', { n: r.n })); } else $('es-note').textContent = T('img.copyFail');
+  });
+  $('es-wa').addEventListener('click', async () => { // WhatsApp is always plain text, like the Share panel's
+    const o = opts.text, t = esTask();
+    const res = t && await window.api.openWhatsApp(window.ShareText.taskText(t, 'text', { withSubs: o.subs, withPrio: o.prio, withDates: o.dates }));
+    window.SFX.play('tick');
+    $('es-note').textContent = !(res && res.ok) ? T('sh.wa.fail') : res.paste ? T('sh.wa.paste') : T('sh.wa.opened');
+  });
+  $('es-export').addEventListener('click', async () => { // always Markdown (the Markdown options), like the Share panel's Export
+    const t = esTask(), o = opts.md;
+    if (!t) return;
+    const res = await window.api.exportMd(window.ShareText.taskText(t, 'md', { withSubs: o.subs, withPrio: o.prio, withDates: o.dates, imgDir: o.imgs ? '{{images}}' : null }));
+    if (res && res.ok) { window.SFX.play('tick'); $('es-note').textContent = T('sh.savedFile', { f: res.path.split(/[\\/]/).pop() }); $('es-note').title = res.path; }
+  });
   const edSubField = window.UI.multiField($('ed-sub'), { onEnter: () => $('ed-addsub').click() }); // N2: Enter adds, Shift+Enter a description line
   // ---- blank-line blocks (owner 2026-11-15, P1–P4): text whose parts are separated by blank lines can become several
   // subtasks — steps under that phase for the step field — after a small confirm, NEVER several tasks. ONE helper serves
@@ -975,7 +1081,7 @@
   // Include toggles (owner 2026-09-30): Subtasks · Priority · Dates in BOTH formats, remembered PER format — Markdown starts
   // with all on (the note as written), plain text with subtasks only
   // subs is a MODE: 'all' | 'open' (done subtasks left out) | 'off' — the mini switch in the Subtasks part (owner 2026-09-30)
-  const opts = { md: { subs: 'all', prio: true, dates: true }, text: { subs: 'all', prio: false, dates: false } };
+  const opts = { md: { subs: 'all', prio: true, dates: true, imgs: false }, text: { subs: 'all', prio: false, dates: false } };
   const asMode = v => (v === false || v === 'off' ? 'off' : v === 'open' ? 'open' : v === 'phases' ? 'phases' : 'all'); // earlier builds stored true / false; phases = owner 2026-10-29
   try { // per-viewer conveniences only
     const saved = JSON.parse(localStorage.getItem('share.opts') || '{}');
@@ -984,7 +1090,7 @@
     for (const f of ['md', 'text']) opts[f].subs = asMode(opts[f].subs);
   } catch (e) {}
   const saveOpts = () => { try { localStorage.setItem('share.opts', JSON.stringify(opts)); } catch (e) {} };
-  const INC = [['sh-prio', 'prio'], ['sh-dates', 'dates']];
+  const INC = [['sh-prio', 'prio'], ['sh-dates', 'dates'], ['sh-imgs', 'imgs']]; // imgs = Q6: the .md export carries the pictures
   // the format is a setting (shareFmt: 'text' | 'md'), so the island's quick Copy uses the same pick (owner 2026-09-29)
   const fmtFrom = snap => (snap && snap.settings && snap.settings.shareFmt === 'md' ? 'md' : 'text');
 
@@ -1059,6 +1165,9 @@
     $('sh-day-btn').classList.toggle('on', dayMode !== 'all'); // a filter ON: the chip wears the accent + a × (owner 2026-10-29)
     $('sh-day-x').hidden = dayMode === 'all';
     for (const [id, k] of INC) { const v = !!opts[fmt][k]; $(id).classList.toggle('on', v); $(id).setAttribute('aria-pressed', v); }
+    // Q6: Images is Markdown-only — text can't carry pictures; the title says what the tick does
+    $('sh-imgs').disabled = fmt === 'text';
+    $('sh-imgs').title = T(fmt === 'text' ? 'sh.opt.imgsOnlyMd' : 'sh.opt.imgsTitle');
     const m = opts[fmt].subs;
     $('sh-subs').classList.toggle('on', m !== 'off');
     $('sh-subs').querySelectorAll('[data-subs]').forEach(b => { const s = b.dataset.subs === m; b.classList.toggle('sel', s); b.setAttribute('aria-checked', s); });
@@ -1068,6 +1177,7 @@
       m === 'all' ? g('', '[ ]') : m === 'open' ? g('', '[ ]') + ' ' + esc(T('sh.subs.open')) : m === 'phases' ? g('ph', '[ ]') + ' ' + esc(T('sh.subs.phases')) : '',
       opts[fmt].prio ? g('p', '!!') : '', opts[fmt].dates ? g('d', '28 Sep') : ''].filter(Boolean).join(' · ');
   }
+  let pickedImgs = []; // Q6b: the picked tasks' image names (as the current format's Subtasks option shows them)
   function syncShare() { // counts on every page / list + the total; zero selection: the buttons say so
     const on = notesOn(), all = {};
     for (const tag of on) { const L = lists(tag); all[tag] = { open: pickedIn(L.now) + pickedIn(L.open), done: pickedIn(L.done) }; }
@@ -1076,16 +1186,36 @@
     $('sh-page').querySelectorAll('.seg-btn').forEach(b => cnt(b, all[b.dataset.page] ? all[b.dataset.page].open + all[b.dataset.page].done : 0));
     $('sh-sub').querySelectorAll('.seg-btn').forEach(b => cnt(b, all[page] ? all[page][b.dataset.sub] : 0));
     $('btn-copy').disabled = !n; $('btn-export').disabled = !n; $('btn-wa').disabled = !n;
+    // Q6b (owner 2026-11-21): "Copy images (N)" — the picked tasks' own images + their subtasks' as the Subtasks
+    // option shows them ('off' → none, 'open' → open subs only, 'phases' → phase lines only), de-duplicated, in order
+    const mode = opts[fmt].subs;
+    pickedImgs = [];
+    const seen = new Set();
+    const add = names => { for (const x of names || []) if (!seen.has(x)) { seen.add(x); pickedImgs.push(x); } };
+    if (n) for (const tag of on) {
+      const L = lists(tag);
+      for (const t of [...L.now, ...L.open, ...L.done].filter(x => sel.has(keyOf(x)))) {
+        add(t.imgs);
+        for (const s of t.subs || []) {
+          if (mode === 'off') break;
+          if (mode === 'open' && s.done) continue;
+          if (mode === 'phases' && !(s.ph && !s.under)) continue;
+          add(s.im);
+        }
+      }
+    }
+    $('btn-imgs').hidden = !pickedImgs.length;
+    if (pickedImgs.length) $('btn-imgs').textContent = T('sh.imgs', { n: pickedImgs.length });
     $('sel-hint').textContent = n ? T('sh.selN', { n }) : ''; // owner 2026-09-30: no "select tasks" hint — the disabled buttons say it
     $('sel-clear-all').hidden = !n;
   }
-  function buildText(k) {
+  function buildText(k, imgDir) { // imgDir (Q6): only the Export button passes it ('{{images}}' when the tick is on) — Copy / WhatsApp never
     const today = `${new Date().getDate()} ${MONTHS[new Date().getMonth()]}`;
     const groups = notesOn().map(tag => {
       const L = lists(tag), p = arr => arr.filter(t => sel.has(keyOf(t)));
       return { name: T(tag === 'work' ? 'win.tab.work' : 'win.tab.personal'), done: p(L.done), now: p(L.now), open: p(L.open) };
     });
-    return window.ShareText.buildShare({ groups, fmt: k, withPrio: opts[k].prio, withDates: opts[k].dates, withSubs: opts[k].subs, date: dayFilter() ? dayLabel() : today, day: dayFilter() });
+    return window.ShareText.buildShare({ groups, fmt: k, withPrio: opts[k].prio, withDates: opts[k].dates, withSubs: opts[k].subs, date: dayFilter() ? dayLabel() : today, day: dayFilter(), imgDir: imgDir || null });
   }
   const picked = () => notesOn().some(tag => { const L = lists(tag); return pickedIn(L.now) + pickedIn(L.open) + pickedIn(L.done); });
   $('share-list').addEventListener('click', e => {
@@ -1212,9 +1342,15 @@
     $('share-note').textContent = !(res && res.ok) ? T('sh.wa.fail') : res.paste ? T('sh.wa.paste') : T('sh.wa.opened');
     $('share-note').title = '';
   });
+  $('btn-imgs').addEventListener('click', async () => { // Q6b: the images reach the chat by paste — one picture, several as files
+    if (!pickedImgs.length) return;
+    const r = await window.api.imgCopy(pickedImgs);
+    if (r && r.ok) { window.SFX.play('tick'); flashBtn($('btn-imgs'), T('sh.imgsCopied', { n: r.n })); }
+    else $('share-note').textContent = T('img.copyFail');
+  });
   $('btn-export').addEventListener('click', async () => {
     if (!picked()) return;
-    const res = await window.api.exportMd(buildText('md'));
+    const res = await window.api.exportMd(buildText('md', opts.md.imgs ? '{{images}}' : null));
     if (res && res.ok) {
       window.SFX.play('tick');
       $('share-note').textContent = T('sh.savedFile', { f: res.path.split(/[\\/]/).pop() }); // file name only — full path on hover
@@ -1230,7 +1366,7 @@
   function setLang(lang) {
     LANG = lang;
     if (kind) $('side-title').textContent = T(kind === 'edit' ? 'ed.title' : 'sh.header');
-    if (kind === 'share') renderShare();
+    if (kind === 'share') { paintControls(); renderShare(); }
   }
   window.api.onLangChanged(setLang);
   // the island's ✎ Edit and Share arrive here (main.js sendPanel)
